@@ -1,0 +1,6 @@
+[submodule "third/unicorn"]
+	path = third/unicorn
+	url = https://github.com/unicorn-engine/unicorn.git
+[submodule "third/llvm-project"]
+	path = third/llvm-project
+	url = https://github.com/llvm/llvm-project.git
