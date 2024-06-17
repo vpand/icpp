@@ -1,3 +1,7 @@
+# c++
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED)
+
 set(LLVM_LINK_COMPONENTS
   ${LLVM_TARGETS_TO_BUILD}
   Analysis
@@ -29,7 +33,21 @@ execute_process(COMMAND ${CMAKE_COMMAND} -E copy
   ${CMAKE_CURRENT_SOURCE_DIR}/icpp-driver.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/icpp-driver.cpp)
 add_clang_tool(icpp
+  arch.cpp
+  compile.cpp
+  debugger.cpp
+  exec.cpp
+  icpp-driver.cpp
   icpp-main.cpp
+  icpp.cpp
+  loader.cpp
+  log.cpp
+  object.cpp
+  platform.cpp
+  profile.cpp
+  runtime.cpp
+  trace.cpp
+  utils.cpp
   ${CLANG_DRIVER_ROOT}/driver.cpp
   ${CLANG_DRIVER_ROOT}/cc1_main.cpp
   ${CLANG_DRIVER_ROOT}/cc1as_main.cpp
