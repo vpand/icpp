@@ -6,6 +6,4 @@
 
 #include <unicorn/unicorn.h>
 
-int icpp_main(int argc, char **argv) {
-  return -1;
-}
+int icpp_main(int argc, char **argv) { return -1; }

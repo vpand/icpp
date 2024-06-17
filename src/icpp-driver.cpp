@@ -17,7 +17,8 @@ int main(int argc, char **argv) {
   Otherwise they're icpp arguments, so just return directly.
   */
   int iret = icpp_main(argc, argv);
-  if (!iret) return 0;
+  if (!iret)
+    return 0;
 
   llvm::InitLLVM X(argc, argv);
   return clang_main(argc, argv, {argv[0], nullptr, false});
