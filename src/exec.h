@@ -6,4 +6,10 @@
 
 #pragma once
 
-namespace icpp {}
+#include <string_view>
+
+namespace icpp {
+
+void exec_main(std::string_view path);
+
+}
