@@ -7,9 +7,11 @@
 #pragma once
 
 #include <string_view>
+#include <vector>
 
 namespace icpp {
 
-void exec_main(std::string_view path);
+void exec_main(std::string_view path, const std::vector<std::string> &deps,
+               const char *procfg, int iargc, char **iargv);
 
 }

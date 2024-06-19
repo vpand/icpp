@@ -14,9 +14,13 @@
 
 namespace icpp {
 
-static void exec_with_object(std::unique_ptr<Object> object) {}
+static void exec_with_object(std::unique_ptr<Object> object,
+                             const std::vector<std::string> &deps,
+                             const char *procfg,
+                             const std::vector<const char *> &iargs) {}
 
-void exec_main(std::string_view path) {
+void exec_main(std::string_view path, const std::vector<std::string> &deps,
+               const char *procfg, int iargc, char **iargv) {
   llvm::file_magic magic;
   auto err = llvm::identify_magic(llvm::Twine(path), magic);
   if (err) {
@@ -59,7 +63,13 @@ void exec_main(std::string_view path) {
                  "MachO/ELF/PE-Object/Executable-X86_64/AArch64."
               << std::endl;
   }
-  exec_with_object(std::move(object));
+
+  // construct arguments passed to the main entry of the input file
+  std::vector<const char *> iargs;
+  iargs.push_back(path.data());
+  for (int i = 0; i < iargc; i++)
+    iargs.push_back(iargv[i]);
+  exec_with_object(std::move(object), deps, procfg, iargs);
 }
 
 } // namespace icpp
