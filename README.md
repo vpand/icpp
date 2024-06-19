@@ -55,6 +55,7 @@ graph LR
 ```
 
 ## Build
+Make sure the python3 command is in your system PATH environment.
 ```
 mkdir build
 cd build

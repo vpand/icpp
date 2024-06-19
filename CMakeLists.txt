@@ -9,10 +9,16 @@ endif()
 
 # third-party project
 # unicorn
+# patch qemu mmu to enable the emulated code to access memory directly
+execute_process(COMMAND python3
+  ${CMAKE_CURRENT_SOURCE_DIR}/tool/qemu_mmu_patcher.py
+  ${CMAKE_CURRENT_SOURCE_DIR}/third/unicorn/qemu/accel/tcg/cputlb.c)
+# icpp only supports x86_64/arm64 currently
 set(UNICORN_ARCH "x86;aarch64" CACHE STRING "" FORCE)
 add_subdirectory(third/unicorn)
 
 # clang
+# icpp only supports x86_64/arm64 currently
 set(LLVM_TARGETS_TO_BUILD "X86;AArch64" CACHE STRING "" FORCE)
 set(LLVM_ENABLE_PROJECTS "clang" CACHE STRING "" FORCE)
 set(LLVM_INCLUDE_UTILS OFF CACHE BOOL "" FORCE)
