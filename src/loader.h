@@ -6,4 +6,22 @@
 
 #pragma once
 
-namespace icpp {}
+#include <string>
+#include <vector>
+
+namespace icpp {
+
+class Object;
+
+class Loader {
+public:
+  Loader(Object *object, const std::vector<std::string> &deps);
+  ~Loader();
+
+  bool valid();
+
+private:
+  Object *object_;
+};
+
+} // namespace icpp

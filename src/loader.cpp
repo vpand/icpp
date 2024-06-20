@@ -5,5 +5,15 @@
 */
 
 #include "loader.h"
+#include "object.h"
 
-namespace icpp {}
+namespace icpp {
+
+Loader::Loader(Object *object, const std::vector<std::string> &deps)
+    : object_(object) {}
+
+Loader::~Loader() {}
+
+bool Loader::valid() { return true; }
+
+} // namespace icpp

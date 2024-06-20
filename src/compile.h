@@ -6,4 +6,12 @@
 
 #pragma once
 
-namespace icpp {}
+#include "utils.h"
+
+namespace icpp {
+
+fs::path compile_source(const char *argv0, std::string_view path,
+                        const char *opt,
+                        const std::vector<const char *> &incdirs);
+
+}

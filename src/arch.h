@@ -6,4 +6,14 @@
 
 #pragma once
 
-namespace icpp {}
+namespace icpp {
+
+enum ArchType {
+  Unsupported,
+  X86_64,
+  AArch64,
+};
+
+ArchType host_arch();
+
+} // namespace icpp

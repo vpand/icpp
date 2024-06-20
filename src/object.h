@@ -6,8 +6,11 @@
 
 #pragma once
 
+#include "arch.h"
 #include <memory>
 #include <string_view>
+#include <unicorn/unicorn.h>
+#include <unordered_map>
 
 namespace llvm {
 namespace object {
@@ -28,31 +31,33 @@ enum ObjectType {
   COFF_Exe,
 };
 
-enum ArchType {
-  Unsupported,
-  X86_64,
-  AArch64,
-};
-
 class Object {
 public:
   Object(std::string_view path);
   virtual ~Object();
 
-  bool valid() { return ofile_ != nullptr && arch_ != Unsupported; }
+  constexpr bool valid() { return ofile_ != nullptr && arch_ != Unsupported; }
 
-  ObjectType type() { return type_; }
+  constexpr ObjectType type() { return type_; }
 
-  ArchType arch() { return arch_; }
+  constexpr ArchType arch() { return arch_; }
+
+  uc_arch ucArch();
+  uc_mode ucMode();
+
+  const void *mainEntry();
 
 protected:
   void createObject(ObjectType type);
+  void parseEntries();
 
 private:
   ObjectType type_;
   ArchType arch_;
   std::string_view path_;
   std::unique_ptr<CObjectFile> ofile_;
+  // <entry name, opcodes pointer>
+  std::unordered_map<std::string_view, const void *> entries_;
 };
 
 class MachOObject : public Object {

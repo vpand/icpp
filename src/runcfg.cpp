@@ -4,18 +4,16 @@
    See LICENSE in root directory for more details
 */
 
-#include "arch.h"
+#include "runcfg.h"
 
 namespace icpp {
 
-ArchType host_arch() {
-#if __arm64__ || __aarch64__
-  return AArch64;
-#elif __x86_64__ || __x64__
-  return X86_64;
-#else
-#error Unsupported host architecture.
-#endif
-}
+RunConfig::RunConfig(const char *cfg) {}
+
+RunConfig::~RunConfig() {}
+
+int RunConfig::stackSize() { return 1024 * 1024; }
+
+int RunConfig::stepSize() { return 1; }
 
 } // namespace icpp

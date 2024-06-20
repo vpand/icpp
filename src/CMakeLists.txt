@@ -45,6 +45,7 @@ add_clang_tool(icpp
   object.cpp
   platform.cpp
   profile.cpp
+  runcfg.cpp
   runtime.cpp
   trace.cpp
   utils.cpp

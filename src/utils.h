@@ -6,8 +6,11 @@
 
 #pragma once
 
+#include <filesystem>
 #include <iostream>
 #include <string_view>
+
+namespace fs = std::filesystem;
 
 #define UNIMPL_ABORT()                                                         \
   {                                                                            \

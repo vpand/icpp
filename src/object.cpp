@@ -36,10 +36,47 @@ void Object::createObject(ObjectType type) {
       arch_ = Unsupported;
       break;
     }
+    parseEntries();
   } else {
     std::cout << "Failed to create llvm object: "
               << llvm::toString(std::move(expObj.takeError())) << std::endl;
   }
+}
+
+void Object::parseEntries() {
+  for (auto sym : ofile_->symbols()) {
+  }
+}
+
+uc_arch Object::ucArch() {
+  switch (arch_) {
+  case AArch64:
+    return UC_ARCH_ARM64;
+  case X86_64:
+    return UC_ARCH_X86;
+  default:
+    return UC_ARCH_MAX; // unsupported
+  }
+}
+
+uc_mode Object::ucMode() {
+  switch (arch_) {
+  case X86_64:
+    return UC_MODE_64;
+  default:
+    return UC_MODE_LITTLE_ENDIAN;
+  }
+}
+
+const void *Object::mainEntry() {
+  auto found = entries_.find("_main");
+  if (found == entries_.end()) {
+    found = entries_.find("main");
+  }
+  if (found == entries_.end()) {
+    return nullptr;
+  }
+  return found->second;
 }
 
 Object::~Object() {}

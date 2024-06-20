@@ -13,12 +13,14 @@ thisdir = os.path.dirname(__file__)
 if len(thisdir) == 0:
     thisdir = '.'
 
+# you can use the following build command to generate clang-format:
+# build % cmake --build . -- clang-format
 clang_format = thisdir + '/build/third/llvm-project/llvm/bin/clang-format'
 if not os.path.exists(clang_format):
     clang_format = os.getenv('CLANG_FORMAT')
     if not clang_format or not os.path.exists(clang_format):
-        print('CLANG_FORMAT env is missing.')
-        sys.exit(-1)
+        # CLANG_FORMAT env is missing, make sure clang-format is in your system PATH environment.
+        clang_format = 'clang-format'
 
 src_exts = ['.c', '.cc', '.cpp', '.h', '.hpp']
 
@@ -29,19 +31,46 @@ def paths(path):
             fullpath = os.path.join(dirpath, file)
             path_collection.append(fullpath)
     return path_collection
+
+def is_modified(modifiedfs, path):
+    # a None modifiedfs means formatting all the source files
+    if modifiedfs is None:
+        return True
+    for m in modifiedfs:
+        if path.endswith(m):
+            return True
+    return False
     
-def do_format(path):
+def do_format(path, modifiedfs):
     for p in paths(path):
         for ext in src_exts:
-            if p.endswith(ext):
+            if p.endswith(ext) and is_modified(modifiedfs, p):
                 print('Formatting "%s" ...' % (p))
                 subprocess.Popen([clang_format, '-i', '-style=LLVM', p]).wait()
                 break
 
-def main():
-    do_format(thisdir + '/src')
-    do_format(thisdir + '/script')
+def main(argv):
+    # make sure git is in your system PATH environment to run this script.
+    gits = subprocess.Popen(['git', 'status'], stdout=subprocess.PIPE)
+    gits.wait()
+    lines = gits.stdout.readlines()
+    modifiedfs = []
+    for l in lines:
+        parts = l.decode('utf-8').strip().split('modified:')
+        if len(parts) == 2:
+            # save the modified files
+            modifiedfs.append(os.path.basename(parts[1]))
+    if len(modifiedfs) == 0:
+        print('Everything is new.')
+        sys.exit(0)
+    if len(argv) == 2:
+        if argv[1] == 'all':
+            # force to format all the source files
+            modifiedfs = None
+    for subdir in ['src', 'script']:
+        do_format(thisdir + '/' + subdir, modifiedfs)
     print('Done.')
+    sys.exit(0)
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv)
