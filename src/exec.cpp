@@ -97,7 +97,7 @@ void ExecEngine::execMain() {
 
 bool ExecEngine::execPreprocess(uint64_t &pc, int &step) {
   // we should process the relocation, branch, jump, call and syscall
-  // instructions manually the unicorn engine can just execute those simple
+  // instructions manually, the unicorn engine can just execute those simple
   // instructions (i.e., instruction without relocation and jump operation) in
   // our case
   if (step <= 0) {
@@ -143,15 +143,19 @@ void ExecEngine::execLoop(uint64_t pc) {
   }
 }
 
+#define reg_write(reg, val)                                                    \
+  {                                                                            \
+    auto u64 = reinterpret_cast<uint64_t>(val);                                \
+    uc_reg_write(uc_, reg, &u64);                                              \
+  }
+
 void ExecEngine::initMainRegisterAArch64() {
   // x0: argc
   // x1: argv
-  uc_reg_write(uc_, UC_ARM64_REG_X0,
-               reinterpret_cast<const void *>(iargs_.size()));
-  uc_reg_write(uc_, UC_ARM64_REG_X1,
-               reinterpret_cast<const void *>(&iargs_[0]));
-  uc_reg_write(uc_, UC_ARM64_REG_SP, topStack());
-  uc_reg_write(uc_, UC_ARM64_REG_LR, topReturn());
+  reg_write(UC_ARM64_REG_X0, reinterpret_cast<const void *>(iargs_.size()));
+  reg_write(UC_ARM64_REG_X1, reinterpret_cast<const void *>(&iargs_[0]));
+  reg_write(UC_ARM64_REG_SP, topStack());
+  reg_write(UC_ARM64_REG_LR, topReturn());
 }
 
 void ExecEngine::initMainRegisterCommonX64() {
@@ -159,16 +163,15 @@ void ExecEngine::initMainRegisterCommonX64() {
   // push topReturn()
   rsp--;
   rsp[0] = topReturn();
-  uc_reg_write(uc_, UC_X86_REG_RSP, reinterpret_cast<const void *>(rsp));
+  reg_write(UC_X86_REG_RSP, reinterpret_cast<const void *>(rsp));
 }
 
 void ExecEngine::initMainRegisterSysVX64() {
-  // System V ADM64 ABI
+  // System V AMD64 ABI
   // rdi: argc
   // rsi: argv
-  uc_reg_write(uc_, UC_X86_REG_RDI,
-               reinterpret_cast<const void *>(iargs_.size()));
-  uc_reg_write(uc_, UC_X86_REG_RSI, reinterpret_cast<const void *>(&iargs_[0]));
+  reg_write(UC_X86_REG_RDI, reinterpret_cast<const void *>(iargs_.size()));
+  reg_write(UC_X86_REG_RSI, reinterpret_cast<const void *>(&iargs_[0]));
   initMainRegisterCommonX64();
 }
 
@@ -176,9 +179,8 @@ void ExecEngine::initMainRegisterWinX64() {
   // Microsoft Windows X64 ABI
   // rcx: argc
   // rdx: argv
-  uc_reg_write(uc_, UC_X86_REG_RCX,
-               reinterpret_cast<const void *>(iargs_.size()));
-  uc_reg_write(uc_, UC_X86_REG_RDX, reinterpret_cast<const void *>(&iargs_[0]));
+  reg_write(UC_X86_REG_RCX, reinterpret_cast<const void *>(iargs_.size()));
+  reg_write(UC_X86_REG_RDX, reinterpret_cast<const void *>(&iargs_[0]));
   initMainRegisterCommonX64();
 }
 

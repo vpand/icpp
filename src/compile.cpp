@@ -5,6 +5,7 @@
 */
 
 #include "compile.h"
+#include "utils.h"
 #include <vector>
 
 // icpp/clang driver entry, it acts as a clang compiler when argv contains -c/-o
@@ -20,6 +21,7 @@ fs::path compile_source(const char *argv0, std::string_view path,
                         const std::vector<const char *> &incdirs) {
   // construct a temporary output object file path
   auto opath = fs::temp_directory_path() / icpp::rand_filename(8, ".o");
+  log_print(Develop, "Object path: {}", opath.c_str());
 
   // construct a full path which the last element must be "clang" to make clang
   // driver happy, otherwise it can't compile source to object, it seems that

@@ -5,6 +5,7 @@
 */
 
 #include "object.h"
+#include "utils.h"
 #include <iostream>
 #include <llvm/Object/ObjectFile.h>
 #include <llvm/Support/MemoryBuffer.h>
@@ -20,7 +21,8 @@ void Object::createObject(ObjectType type) {
               << "': " << errBuff.getError().message() << std::endl;
     return;
   }
-  auto buffRef = llvm::MemoryBufferRef(*errBuff.get());
+  fbuf_ = std::move(errBuff.get());
+  auto buffRef = llvm::MemoryBufferRef(*fbuf_);
   auto expObj = CObjectFile::createObjectFile(buffRef);
   if (expObj) {
     type_ = type;
@@ -36,15 +38,62 @@ void Object::createObject(ObjectType type) {
       arch_ = Unsupported;
       break;
     }
-    parseEntries();
+    parseSymbols();
   } else {
     std::cout << "Failed to create llvm object: "
               << llvm::toString(std::move(expObj.takeError())) << std::endl;
   }
 }
 
-void Object::parseEntries() {
+void Object::parseSymbols() {
+  using SymbolRef = llvm::object::SymbolRef;
   for (auto sym : ofile_->symbols()) {
+    auto expType = sym.getType();
+    if (!expType)
+      continue;
+    std::unordered_map<std::string_view, const void *> *caches = nullptr;
+    switch (expType.get()) {
+    case SymbolRef::ST_Data:
+      caches = &datas_;
+      break;
+    case SymbolRef::ST_Function:
+      caches = &funcs_;
+      break;
+    default:
+      break;
+    }
+    if (!caches)
+      continue;
+    auto expFlags = sym.getFlags();
+    if (!expFlags)
+      continue;
+    auto flags = expFlags.get();
+    if ((flags & SymbolRef::SF_Undefined) || (flags & SymbolRef::SF_Common) ||
+        (flags & SymbolRef::SF_Indirect) ||
+        (flags & SymbolRef::SF_FormatSpecific)) {
+      continue;
+    }
+    auto expSect = sym.getSection();
+    auto expAddr = sym.getAddress();
+    auto expName = sym.getName();
+    if (!expSect || !expAddr || !expName)
+      continue;
+    auto sect = expSect.get();
+    auto expSContent = sect->getContents();
+    if (!expSContent)
+      continue;
+    auto saddr = sect->getAddress();
+    auto sbuff = expSContent.get();
+    auto addr = expAddr.get();
+    auto name = expName.get();
+    auto buff = sbuff.data() + addr - saddr;
+    // ignore the internal temporary symbols
+    if (name.starts_with("ltmp"))
+      continue;
+    caches->insert({name.data(), buff});
+    log_print(Develop, "Cached symbol {}.{},{}.", name.data(),
+              static_cast<const void *>(name.data()),
+              static_cast<const void *>(buff));
   }
 }
 
@@ -69,11 +118,11 @@ uc_mode Object::ucMode() {
 }
 
 const void *Object::mainEntry() {
-  auto found = entries_.find("_main");
-  if (found == entries_.end()) {
-    found = entries_.find("main");
+  auto found = funcs_.find("_main");
+  if (found == funcs_.end()) {
+    found = funcs_.find("main");
   }
-  if (found == entries_.end()) {
+  if (found == funcs_.end()) {
     return nullptr;
   }
   return found->second;

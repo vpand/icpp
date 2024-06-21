@@ -6,16 +6,16 @@
 
 #pragma once
 
+#include "log.h"
 #include <filesystem>
-#include <iostream>
 #include <string_view>
 
 namespace fs = std::filesystem;
 
 #define UNIMPL_ABORT()                                                         \
   {                                                                            \
-    std::cout << "Un-implement " << __FUNCTION__ << " currently yet."          \
-              << std::endl;                                                    \
+    icpp::log_print(icpp::Runtime, "Un-implement {},{},{} currently yet.",     \
+                    __FILE__, __FUNCTION__, __LINE__);                         \
     abort();                                                                   \
   }
 

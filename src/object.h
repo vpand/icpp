@@ -13,6 +13,7 @@
 #include <unordered_map>
 
 namespace llvm {
+class MemoryBuffer;
 namespace object {
 class ObjectFile;
 }
@@ -49,15 +50,18 @@ public:
 
 protected:
   void createObject(ObjectType type);
-  void parseEntries();
+  void parseSymbols();
 
 private:
   ObjectType type_;
   ArchType arch_;
   std::string_view path_;
+  std::unique_ptr<llvm::MemoryBuffer> fbuf_;
   std::unique_ptr<CObjectFile> ofile_;
   // <entry name, opcodes pointer>
-  std::unordered_map<std::string_view, const void *> entries_;
+  std::unordered_map<std::string_view, const void *> funcs_;
+  // <data name, data pointer>
+  std::unordered_map<std::string_view, const void *> datas_;
 };
 
 class MachOObject : public Object {
