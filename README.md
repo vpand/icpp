@@ -1,5 +1,9 @@
-# ICPP
+# ICPP - Running C++ like a script
 Interpreting C++, executing the source and executable like a script.
+ * Based on [Unicorn Engine](https://github.com/unicorn-engine/unicorn.git) and [Clang/LLVM](https://github.com/llvm/llvm-project.git);
+ * Supported C++23;
+ * Integrated [Boost](https://github.com/boostorg/boost.git) internally;
+ * Writing powerful script using C++ just as easy as Python;
 
 ## Usage
 ```sh
