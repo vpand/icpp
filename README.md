@@ -60,10 +60,13 @@ graph LR
 
 ## Build
 Make sure the python3 command is in your system PATH environment.
-```
+```sh
 mkdir build
 cd build
 cmake -DCMAKE_BUILD_TYPE=Release ..
+# firstly, build and install the boost
+cmake --build ./third/boost --target install -- -j8
+# then, build icpp
 cmake --build . -- icpp -j8
 ```
 

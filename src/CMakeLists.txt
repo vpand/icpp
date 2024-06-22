@@ -1,3 +1,5 @@
+message(STATUS "Configuring icpp...")
+
 # c++
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED)
@@ -99,4 +101,4 @@ endif()
 
 add_dependencies(icpp clang-resource-headers)
 
-message("-- Configuring icpp done")
+message(STATUS "Configuring icpp done")
