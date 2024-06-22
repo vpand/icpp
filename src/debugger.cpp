@@ -5,3 +5,5 @@
 */
 
 #include "debugger.h"
+#include <boost/asio.hpp>
+#include <icppdbg.pb.h>

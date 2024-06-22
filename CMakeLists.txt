@@ -32,19 +32,14 @@ set(LLVM_ENABLE_ZSTD "OFF" CACHE STRING "" FORCE)
 message(STATUS "Configuring llvm/clang...")
 add_subdirectory(third/llvm-project/llvm)
 
-# icpp project
-add_subdirectory(src)
+# protobuf
+message(STATUS "Configuring protobuf...")
+add_subdirectory(third/protobuf)
 
 # boost
-# build boost as shared libraries, we'll pack it together with icpp release package
-# then user can write C++ script using boost directly
-set(BUILD_SHARED_LIBS ON CACHE BOOL "" FORCE)
-set(CMAKE_INSTALL_PREFIX ${CMAKE_BINARY_DIR} CACHE PATH "" FORCE)
-# patch boost CMakeLists.txt to make it to build like at the top source level
-# otherwise it won't generate the installation operations
-execute_process(COMMAND python3
-  ${CMAKE_CURRENT_SOURCE_DIR}/tool/boost_cmake_patcher.py
-  ${CMAKE_CURRENT_SOURCE_DIR}/third/boost/CMakeLists.txt)
 message(STATUS "Configuring boost...")
 add_subdirectory(third/boost)
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
+# icpp project
+add_subdirectory(vmpstudio)
+add_subdirectory(src)

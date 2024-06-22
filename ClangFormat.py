@@ -67,7 +67,7 @@ def main(argv):
         if argv[1] == 'all':
             # force to format all the source files
             modifiedfs = None
-    for subdir in ['src', 'script']:
+    for subdir in ['src', 'script', 'vmpstudio']:
         do_format(thisdir + '/' + subdir, modifiedfs)
     print('Done.')
     sys.exit(0)

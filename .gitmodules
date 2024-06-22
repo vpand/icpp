@@ -7,3 +7,6 @@
 [submodule "third/boost"]
 	path = third/boost
 	url = https://github.com/boostorg/boost.git
+[submodule "third/protobuf"]
+	path = third/protobuf
+	url = https://github.com/protocolbuffers/protobuf.git

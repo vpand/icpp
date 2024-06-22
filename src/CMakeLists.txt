@@ -55,6 +55,7 @@ add_clang_tool(icpp
   ${CLANG_DRIVER_ROOT}/cc1_main.cpp
   ${CLANG_DRIVER_ROOT}/cc1as_main.cpp
   ${CLANG_DRIVER_ROOT}/cc1gen_reproducer_main.cpp
+  ${CMAKE_BINARY_DIR}/vmpstudio/icppdbg.pb.cc
   
   PARTIAL_SOURCES_INTENDED
 
@@ -77,6 +78,8 @@ clang_target_link_libraries(icpp
   clangSerialization
 
   unicorn
+  boost_asio
+  libprotobuf
 )
   
 target_include_directories(icpp PRIVATE
@@ -86,6 +89,10 @@ target_include_directories(icpp PRIVATE
   ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include
   ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/tools/clang/include
+  ${CMAKE_BINARY_DIR}/vmpstudio
+
+  boost_asio
+  libprotobuf
 )
 
 if(WIN32 AND NOT CYGWIN)
