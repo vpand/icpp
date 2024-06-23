@@ -16,4 +16,6 @@ int RunConfig::stackSize() { return 1024 * 1024; }
 
 int RunConfig::stepSize() { return 1; }
 
+bool RunConfig::hasDebugger() { return true; }
+
 } // namespace icpp

@@ -17,6 +17,8 @@ public:
 
   // how many instructions should be executed each time
   int stepSize();
+
+  bool hasDebugger();
 };
 
 } // namespace icpp

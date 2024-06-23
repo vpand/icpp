@@ -5,6 +5,7 @@
 */
 
 #include "exec.h"
+#include "debugger.h"
 #include "loader.h"
 #include "object.h"
 #include "runcfg.h"
@@ -26,6 +27,9 @@ struct ExecEngine {
       std::cout << "Failed to create unicorn engine instance: "
                 << uc_strerror(err) << std::endl;
       return;
+    }
+    if (runcfg_.hasDebugger()) {
+      debugger_ = std::make_unique<Debugger>();
     }
     stack_.resize(runcfg_.stackSize());
   }
@@ -63,6 +67,7 @@ private:
 
   Object *object_ = nullptr;
   uc_engine *uc_ = nullptr;
+  std::unique_ptr<Debugger> debugger_;
 
   std::string stack_;
 };
@@ -118,7 +123,14 @@ void ExecEngine::execLoop(uint64_t pc) {
   if (!pc) {
     return;
   }
+  Debugger::Thread *dbgthread = nullptr;
+  if (debugger_)
+    dbgthread = debugger_->enter(object_->arch(), uc_);
+
   while (pc != reinterpret_cast<uint64_t>(topReturn())) {
+    if (debugger_)
+      debugger_->entry(dbgthread, pc);
+
     auto step = runcfg_.stepSize();
     if (execPreprocess(pc, step)) {
       continue;
@@ -138,9 +150,12 @@ void ExecEngine::execLoop(uint64_t pc) {
       uc_reg_read(uc_, UC_X86_REG_RIP, &pc);
       break;
     default:
+      UNIMPL_ABORT();
       return;
     }
   }
+  if (debugger_)
+    debugger_->leave();
 }
 
 #define reg_write(reg, val)                                                    \

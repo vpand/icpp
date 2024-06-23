@@ -100,7 +100,7 @@ def increment_make():
                         if c.find(m) > 0:
                             # compile because modified
                             command(c, False)
-                        break
+                            break
                     break
     print('Finished building.')
 

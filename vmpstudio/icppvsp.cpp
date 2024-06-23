@@ -61,7 +61,7 @@ void vsp_icpp_t::process(const icpp::ProtocolHdr *hdr, const void *body,
   case icppdbg::LISTTHREAD: {
     icppdbg::RespondListThread resp;
     if (!resp.ParseFromArray(body, size)) {
-      log_print("Failed to parse buffer cmd.{} size.{}", hdr->cmd, size);
+      log_print("Failed to parse buffer cmd.{} size.{}\n", hdr->cmd, size);
       break;
     }
     for (auto t : resp.threads()) {
@@ -77,7 +77,7 @@ void vsp_icpp_t::process(const icpp::ProtocolHdr *hdr, const void *body,
   case icppdbg::LISTOBJECT: {
     icppdbg::RespondListObject resp;
     if (!resp.ParseFromArray(body, size)) {
-      log_print("Failed to parse buffer cmd.{} size.{}", hdr->cmd, size);
+      log_print("Failed to parse buffer cmd.{} size.{}\n", hdr->cmd, size);
       break;
     }
     vsp_module_t module;
@@ -113,7 +113,10 @@ void vsp_icpp_t::recv() {
                asio::transfer_exactly(sizeof(icpp::ProtocolHdr)), error);
     if (error && error != asio::error::eof) {
       if (startup_) {
-        log_print("Failed to read header buffer: {}.\n", error.message());
+        startup_ = false;
+        stop();
+        log_print("Failed to read header buffer: {}.\nClosed connection.\n",
+                  error.message());
       }
       break;
     }
@@ -174,6 +177,7 @@ void vsp_icpp_t::run() {
   } else {
     startup_ = start();
     if (startup_) {
+      std::thread(&vsp_icpp_t::recv, this);
       log_print("Started running visual icpp.\n");
     }
   }
