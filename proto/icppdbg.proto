@@ -1,3 +1,78 @@
-syntax = "proto2";
+/* Interpreting C++, executing the source and executable like a script */
+/* By Jesse Liu < neoliu2011@gmail.com >, 2024 */
+/* This file is released under LGPL2.
+   See LICENSE in root directory for more details
+*/
 
-package icppdbg;
+syntax = "proto3";
+
+package com.vpand.icppdbg;
+
+enum CommandID {
+  PAUSE        = 0;  // pause current thread
+  RUN          = 1;  // run current thread
+  STOP         = 2;  // stop running current object
+  SETBKPT      = 3;  // set breakpoint
+  DELBKPT      = 4;  // delete breakpoint
+  READMEM      = 5;  // read memory
+  STEPI        = 6;  // step into instruction
+  STEPO        = 7;  // step over instruction
+  LISTTHREAD   = 8;  // list threads
+  LISTOBJECT   = 9;  // list objects
+  SWITCHTHREAD = 10; // switch thread
+  RESPONE      = 99;
+}
+
+//
+// common and specified command message
+//
+
+message Command {
+  CommandID cmd = 1;
+}
+
+message CommandBreakpoint {
+  Command cmd = 1;
+  uint64 addr = 2;
+}
+
+message CommandReadMemory {
+  Command cmd = 1;
+  uint64 addr = 2;
+  uint32 size = 3;
+  string format = 4;
+}
+
+message CommandSwitchThread {
+  Command cmd = 1;
+  uint64 tid = 2;
+}
+
+//
+// common and speficied command response messge
+//
+
+message Respond {
+  CommandID cmd = 1;
+  optional string result = 2;
+}
+
+message Thread {
+  uint64 tid = 1;
+  uint64 curpc = 2;
+}
+
+message RespondListThread {
+  Respond base = 1;
+  repeated Thread threads = 2;
+}
+
+message Object {
+  uint64 base = 1;
+  string path = 2;
+}
+
+message RespondListObject {
+  Respond base = 1;
+  repeated Object objects = 2;
+}

@@ -27,7 +27,9 @@ cmake_projects = ['visualicpp', 'icpp']
 def command(cmd, log = True):
     if log:
         print(cmd)
-    subprocess.call(cmd, shell=True)
+    retcode = subprocess.call(cmd, shell=True)
+    if retcode != 0:
+        sys.exit(retcode)
 
 def full_make():
     projects = ''
@@ -80,17 +82,25 @@ def increment_make():
         # there's no commands cache file, using full_make instead
         full_make()
         return
+    magics = []
+    for p in cmake_projects:
+        magics.append('/%s.dir/' % (p))
     with open('Makefile.sh', 'r') as fp:
         cmds = fp.readlines()
         for c in cmds:
             if c.find('/link.txt') > 0:
-                # link anyway
-                command(c)
+                for m in magics:
+                    if c.find(m) > 0:
+                        command(c)
+                        break
                 continue
             for n in modifiedfs:
                 if c.find(n) > 0:
-                    # compile because modified
-                    command(c, False)
+                    for m in magics:
+                        if c.find(m) > 0:
+                            # compile because modified
+                            command(c, False)
+                        break
                     break
     print('Finished building.')
 
@@ -103,7 +113,15 @@ def main(argv):
     elif argv[1] == 'full':
         full_make()
     else:
-        print('Usage: build %% %s [full]' % (argv[0]))
+        global cmake_projects
+        for arg in argv:
+            for p in cmake_projects:
+                # only increment make this specified project
+                if arg == p:
+                    cmake_projects = [p]
+                    increment_make()
+                    sys.exit(0)
+        print('Usage: build %% %s [full|visualicpp|icpp]' % (argv[0]))
 
 if __name__ == '__main__':
     main(sys.argv)

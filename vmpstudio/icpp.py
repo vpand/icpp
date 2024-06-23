@@ -5,9 +5,6 @@
   See LICENSE in root directory for more details
 '''
 
-def version():
-    print('v0.0.1')
-
 def usage():
     print('''Visual ICPP makes C++ script running in visual and debuggable mode.
 pause(): pause current thread.
@@ -18,28 +15,58 @@ delbp(addr): delete breakpoint at the specified address.
 readmem(addr, bytes, format): read memory at the specified address, 
     the format can be: '1ix', '4ix', '8ix', 'str'.
 stepi(): step into 1 instruction.
-stepo(): step over 1 instruction.''')
+stepo(): step over 1 instruction.
+lsthread(): list all the running threads.
+lsobject(): list all the running objects.
+switchthread(tid): switch the debuggee thread.''')
+
+import os
+from ctypes import cdll
+from pathlib import Path
+
+# vmpstudio plugin module handle
+vsp = None
+
+def init_apis():
+    global vsp
+    vsppath = '%s/VMPStudio/plugin/visualicpp.vsp' % (Path.home())
+    if not os.path.exists(vsppath):
+        print('You should make a link from $ICPP_ROOT/vmpstudio/visualicpp.vsp to %s.' % (vsppath))
+        return
+    vsp = cdll.LoadLibrary(vsppath)
+    print('Initialized visual icpp python api, run icpp.usage() to see more help information.')
+
+init_apis()
 
 def pause():
-    print('unimpl')
+    vsp.vi_pause()
 
 def run():
-    print('unimpl')
+    vsp.vi_run()
     
 def stop():
-    print('unimpl')
+    vsp.vi_stop()
     
 def setbp(addr):
-    print('unimpl')
+    vsp.vi_setbp()
     
 def delbp(addr):
-    print('unimpl')
+    vsp.vi_delbp(addr)
     
 def readmem(addr, bytes, format):
-    print('unimpl')
+    vsp.vi_readmem(addr, bytes, format)
 
 def stepi(): 
-    print('unimpl')
+    vsp.vi_stepi()
     
 def stepo():
-    print('unimpl')
+    vsp.vi_stepo()
+
+def lsthread():
+    vsp.vi_lsthread()
+
+def lsobject():
+    vsp.vi_lsobject()
+
+def switchthread(tid):
+    vsp.vi_switchthread(tid)
