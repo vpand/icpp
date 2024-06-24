@@ -123,36 +123,51 @@ void ExecEngine::execLoop(uint64_t pc) {
   if (!pc) {
     return;
   }
+  // debugger internal thread
   Debugger::Thread *dbgthread = nullptr;
   if (debugger_)
     dbgthread = debugger_->enter(object_->arch(), uc_);
 
+  // pc register id for different architecture
+  int pcreg;
+  switch (object_->arch()) {
+  case AArch64:
+    pcreg = UC_ARM64_REG_PC;
+    break;
+  case X86_64:
+    pcreg = UC_X86_REG_RIP;
+    break;
+  default:
+    UNIMPL_ABORT();
+    return;
+  }
+  // executing loop, break when hitting the initialized return address
   while (pc != reinterpret_cast<uint64_t>(topReturn())) {
-    if (debugger_)
+    // debugging
+    if (debugger_) {
       debugger_->entry(dbgthread, pc);
+      if (debugger_->stopped()) {
+        // stop executing by user request
+        break;
+      }
+    }
 
+    // preprocess relocation, branch, call, jump and syscall etc.
     auto step = runcfg_.stepSize();
     if (execPreprocess(pc, step)) {
       continue;
     }
 
+    // running instructions by unicorn engine
     auto err = uc_emu_start(uc_, pc, -1, 0, step);
     if (err != UC_ERR_OK) {
       std::cout << "Fatal error occurred: " << uc_strerror(err)
                 << ", current pc=0x" << std::hex << pc << "." << std::endl;
       break;
     }
-    switch (object_->arch()) {
-    case AArch64:
-      uc_reg_read(uc_, UC_ARM64_REG_PC, &pc);
-      break;
-    case X86_64:
-      uc_reg_read(uc_, UC_X86_REG_RIP, &pc);
-      break;
-    default:
-      UNIMPL_ABORT();
-      return;
-    }
+
+    // update current pc
+    uc_reg_read(uc_, pcreg, &pc);
   }
   if (debugger_)
     debugger_->leave();

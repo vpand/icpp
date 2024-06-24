@@ -11,6 +11,13 @@
 
 namespace icpp {
 
+void CondMutex::wait() {
+  std::unique_lock lock(mutex);
+  cond.wait(lock);
+}
+
+void CondMutex::signal() { cond.notify_all(); }
+
 bool is_cpp_source(std::string_view path) {
   for (auto ext :
        std::array{".c", ".cc", ".cpp", ".cxx", ".C", ".CC", ".CPP", ".CXX"}) {

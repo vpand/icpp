@@ -7,6 +7,7 @@
 #pragma once
 
 #include "arch.h"
+#include "utils.h"
 #include <boost/asio.hpp>
 #include <condition_variable>
 #include <cstdint>
@@ -36,13 +37,12 @@ public:
     ArchType arch;
     uint64_t pc;
 
-    std::unique_ptr<std::mutex> mutex;
-    std::unique_ptr<std::condition_variable> cond;
+    // used for inter-thread communication
+    std::unique_ptr<CondMutex> itc;
 
-    void init() {
-      mutex = std::make_unique<std::mutex>();
-      cond = std::make_unique<std::condition_variable>();
-    }
+    void init() { itc = std::make_unique<CondMutex>(); }
+
+    std::string registers();
 
     bool operator<(const Thread &right) const { return tid < right.tid; }
   };
@@ -54,12 +54,13 @@ public:
   Thread *enter(ArchType arch, uc_engine *uc);
   void entry(Thread *thread, uint64_t pc);
   void leave();
+  bool stopped();
 
 private:
   void runEntry(Thread *thread, uint64_t pc);
-  void stepEntry(Thread *thread, uint64_t pc);
+  void stepEntry(Thread *thread, uint64_t pc, bool hitbp);
   void listen();
-  void recv(std::unique_ptr<ip::tcp::socket> socket);
+  void recv(std::shared_ptr<ip::tcp::socket> socket);
   void process(const ProtocolHdr *hdr, const void *body, size_t size);
   void procBreakpoint(uint64_t addr, bool set);
   void procReadMem(uint64_t addr, uint32_t size, const std::string &format);
@@ -82,6 +83,7 @@ private:
   enum Status {
     Running,
     Stepping,
+    Stopped,
   };
 
   // mutex for debugger data fields modifying
@@ -95,6 +97,7 @@ private:
   // debugger server
   asio::io_service ios_;
   std::thread listen_;
+  std::vector<std::shared_ptr<ip::tcp::socket>> clients_;
 };
 
 } // namespace icpp

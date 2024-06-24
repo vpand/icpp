@@ -21,6 +21,14 @@ namespace fs = std::filesystem;
 
 namespace icpp {
 
+struct CondMutex {
+  std::mutex mutex;
+  std::condition_variable cond;
+
+  void wait();
+  void signal();
+};
+
 bool is_cpp_source(std::string_view path);
 int rand_value();
 std::string rand_string(int length);
