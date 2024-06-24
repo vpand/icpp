@@ -28,15 +28,20 @@ struct vsp_icpp_t {
   vsp_icpp_t();
   ~vsp_icpp_t();
 
+  // can be invoked from VMPStudio/Plugin menu
   void run();
 
+  // can be invoked from python
+  bool start();
+  void stop();
+
   void send(icppdbg::CommandID id, const std::string &cmd);
+
+  constexpr bool running() { return startup_; }
 
   std::string version;
 
 private:
-  bool start();
-  void stop();
   void recv();
   void process(const icpp::ProtocolHdr *hdr, const void *body, size_t size);
 
@@ -97,6 +102,16 @@ void vsp_icpp_t::process(const icpp::ProtocolHdr *hdr, const void *body,
     icppdbg::Respond resp;
     if (!resp.ParseFromArray(body, size)) {
       log_print("Failed to parse buffer cmd.{}, size.{}.\n", hdr->cmd, size);
+    }
+    if (hdr->cmd == icppdbg::PAUSE) {
+      std::string_view pcflag{"pc  = "};
+      if (api->curArchType() == vsp_arch_x64)
+        pcflag = "rip = ";
+      auto pos = resp.result().find(pcflag);
+      auto pc = std::stoull(
+          std::string(resp.result().data() + pos + pcflag.length(), 16),
+          nullptr, 16);
+      api->gotoCPUAddress(pc);
     }
     log_print("{}\n", resp.result());
     break;
@@ -198,6 +213,20 @@ void vsp_icpp_t::run() {
       log_print("Started running visual icpp.\n");
     }
   }
+}
+
+__VSP_API__ void vi_connect() {
+  if (vivsp.running()) {
+    return;
+  }
+  vivsp.start();
+}
+
+__VSP_API__ void vi_disconnect() {
+  if (!vivsp.running()) {
+    return;
+  }
+  vivsp.stop();
 }
 
 __VSP_API__ void vi_pause() {

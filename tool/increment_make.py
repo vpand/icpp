@@ -62,7 +62,9 @@ def increment_make():
     gits.wait()
     lines = gits.stdout.readlines()
     modifiedfs = []
+    modifiedhs = []
     src_exts = ['.c', '.cc', '.cpp']
+    hdr_exts = ['.h', '.hpp']
     for l in lines:
         parts = l.decode('utf-8').strip().split('modified:')
         if len(parts) == 2:
@@ -75,9 +77,15 @@ def increment_make():
                     if name.endswith(ext):
                         modifiedfs.append(name)
                         break
+                for ext in hdr_exts:
+                    if name.endswith(ext):
+                        modifiedhs.append(name)
+                        break
     if len(modifiedfs) == 0:
         print('Everything is update to date, no need to build...')
         return
+    if len(modifiedhs):
+        print("Warning - Headers %s modified, be careful of sources un-synchronized." % (modifiedhs))
     if not os.path.exists('Makefile.sh'):
         # there's no commands cache file, using full_make instead
         full_make()

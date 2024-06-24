@@ -39,6 +39,7 @@ void Object::createObject(ObjectType type) {
       break;
     }
     parseSymbols();
+    parseTextSection();
   } else {
     std::cout << "Failed to create llvm object: "
               << llvm::toString(std::move(expObj.takeError())) << std::endl;
@@ -94,6 +95,30 @@ void Object::parseSymbols() {
     log_print(Develop, "Cached symbol {}.{},{}.", name.data(),
               static_cast<const void *>(name.data()),
               static_cast<const void *>(buff));
+  }
+}
+
+void Object::parseTextSection() {
+  std::string_view textname(".text");
+  if (ofile_->isMachO()) {
+    textname = "__text";
+  }
+  for (auto &s : ofile_->sections()) {
+    auto expName = s.getName();
+    if (!expName)
+      continue;
+    if (textname == expName->data()) {
+      auto expContent = s.getContents();
+      if (!expContent) {
+        log_print(Runtime, "Empty object file, there's no {} section.",
+                  textname);
+        break;
+      }
+      textrva_ = s.getAddress();
+      textvm_ = reinterpret_cast<uint64_t>(expContent->data());
+      log_print(Develop, "Text rva={:x}, vm={:x}.", textrva_, textvm_);
+      break;
+    }
   }
 }
 

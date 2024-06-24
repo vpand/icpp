@@ -43,6 +43,8 @@ public:
 
   constexpr ArchType arch() { return arch_; }
 
+  constexpr uint64_t vm2rva(uint64_t vm) { return textrva_ + vm - textvm_; }
+
   uc_arch ucArch();
   uc_mode ucMode();
 
@@ -51,6 +53,7 @@ public:
 protected:
   void createObject(ObjectType type);
   void parseSymbols();
+  void parseTextSection();
 
 private:
   ObjectType type_;
@@ -62,6 +65,9 @@ private:
   std::unordered_map<std::string_view, const void *> funcs_;
   // <data name, data pointer>
   std::unordered_map<std::string_view, const void *> datas_;
+  // text section rva and vm values
+  uint64_t textrva_;
+  uint64_t textvm_;
 };
 
 class MachOObject : public Object {

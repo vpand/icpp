@@ -7,6 +7,8 @@
 
 def usage():
     print('''Visual ICPP makes C++ script running in visual and debuggable mode.
+connect(): connect to icpp debug server.
+disconnect(): disconnect to icpp debug server.
 pause(): pause current thread.
 run(): run current thread from pausing.
 stop(): stop running current script file.
@@ -21,7 +23,7 @@ lsobject(): list all the running objects.
 switchthread(tid): switch the debuggee thread.''')
 
 import os
-from ctypes import cdll
+from ctypes import cdll, c_uint64
 from pathlib import Path
 
 # vmpstudio plugin module handle
@@ -37,6 +39,12 @@ def init_apis():
     print('Initialized visual icpp python api, run icpp.usage() to see more help information.')
 
 init_apis()
+
+def connect():
+    vsp.vi_connect()
+
+def disconnect():
+    vsp.vi_disconnect()
 
 def pause():
     vsp.vi_pause()
@@ -54,7 +62,7 @@ def delbp(addr):
     vsp.vi_delbp(addr)
     
 def readmem(addr, bytes, format):
-    vsp.vi_readmem(addr, bytes, format)
+    vsp.vi_readmem(c_uint64(addr), bytes, format.encode('utf-8'))
 
 def stepi(): 
     vsp.vi_stepi()

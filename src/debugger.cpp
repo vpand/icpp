@@ -88,7 +88,10 @@ std::string Debugger::Thread::registers() {
     };
     for (size_t i = 0, col = 1; i < std::size(regs); i++) {
       uint64_t val;
-      uc_reg_read(uc, regs[i], reinterpret_cast<void *>(&val));
+      if (regs[i] == UC_X86_REG_RIP)
+        val = pc;
+      else
+        uc_reg_read(uc, regs[i], reinterpret_cast<void *>(&val));
       strs += std::format("{} = {:016x} ", names[i], val);
 
       if (col % colcount == 0) {
@@ -372,10 +375,13 @@ void Debugger::procBreakpoint(uint64_t addr, bool set) {
 }
 
 template <typename T>
-static std::string formatMemory(T *ptr, uint32_t count, uint32_t colsz,
-                                std::string_view format) {
+static std::string format_memory(T *ptr, uint32_t count, uint32_t colsz,
+                                 std::string_view format) {
   std::string strs;
   for (uint32_t i = 0, col = 1; i < count; i++) {
+    if (col == 1) {
+      strs += std::format("{}: ", reinterpret_cast<void *>(&ptr[i]));
+    }
     strs += std::vformat(format, std::make_format_args(ptr[i])) + " ";
     if (col % colsz == 0) {
       col = 1;
@@ -418,20 +424,29 @@ void Debugger::procReadMem(uint64_t addr, uint32_t size,
   }
   uint32_t count = size / itemsz;
   uint32_t colsz = 16 / itemsz;
+  std::string result;
   switch (itemsz) {
   case 1:
-    formatMemory(reinterpret_cast<uint8_t *>(addr), count, colsz, "{:02x}");
+    result = format_memory(reinterpret_cast<uint8_t *>(addr), count, colsz,
+                           "{:02x}");
     break;
   case 2:
-    formatMemory(reinterpret_cast<uint16_t *>(addr), count, colsz, "{:04x}");
+    result = format_memory(reinterpret_cast<uint16_t *>(addr), count, colsz,
+                           "{:04x}");
     break;
   case 4:
-    formatMemory(reinterpret_cast<uint32_t *>(addr), count, colsz, "{:08x}");
+    result = format_memory(reinterpret_cast<uint32_t *>(addr), count, colsz,
+                           "{:08x}");
     break;
   default:
-    formatMemory(reinterpret_cast<uint64_t *>(addr), count, colsz, "{:016x}");
+    result = format_memory(reinterpret_cast<uint64_t *>(addr), count, colsz,
+                           "{:016x}");
     break;
   }
+  foreach_client({
+    send_respose(s, icppdbg::READMEM,
+                 std::format("Memory {:x} {} bytes:\n{}", addr, size, result));
+  });
 }
 
 void Debugger::procSwitchThread(uint64_t tid) {
