@@ -60,7 +60,7 @@ private:
   void runEntry(Thread *thread, uint64_t pc);
   void stepEntry(Thread *thread, uint64_t pc, bool hitbp);
   void listen();
-  void recv(std::shared_ptr<ip::tcp::socket> socket);
+  void recv(ip::tcp::socket *socket);
   void process(const ProtocolHdr *hdr, const void *body, size_t size);
   void procBreakpoint(uint64_t addr, bool set);
   void procReadMem(uint64_t addr, uint32_t size, const std::string &format);
@@ -96,8 +96,10 @@ private:
 
   // debugger server
   asio::io_service ios_;
-  std::thread listen_;
-  std::vector<std::shared_ptr<ip::tcp::socket>> clients_;
+  std::unique_ptr<ip::tcp::acceptor> acceptor_;
+  std::unique_ptr<std::thread> listen_;
+  std::vector<std::unique_ptr<ip::tcp::socket>> clients_;
+  std::vector<std::thread> clirecvs_;
 };
 
 } // namespace icpp

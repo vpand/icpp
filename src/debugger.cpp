@@ -12,26 +12,34 @@ namespace icppdbg = com::vpand::icppdbg;
 
 namespace icpp {
 
-static void sendRespose(std::shared_ptr<ip::tcp::socket> s,
-                        const std::string &respbuf) {
+static void send_buffer(ip::tcp::socket *s, icppdbg::CommandID id,
+                        const std::string_view &respbuf) {
+  std::string buff;
+  buff.resize(sizeof(icpp::ProtocolHdr) + respbuf.length());
+  auto hdr = reinterpret_cast<icpp::ProtocolHdr *>(buff.data());
+  hdr->cmd = id;
+  hdr->len = static_cast<uint32_t>(respbuf.length());
+  std::memcpy(&hdr[1], respbuf.data(), respbuf.length());
+
   boost::system::error_code error;
-  asio::write(*s, asio::buffer(respbuf), error);
+  asio::write(*s, asio::buffer(buff), error);
   if (error) {
     log_print(Develop, "Failed to send command buffer {}.\n", error.message());
   }
 }
 
-static void sendRespose(std::shared_ptr<ip::tcp::socket> s,
-                        icppdbg::CommandID id, const std::string &result) {
+static void send_respose(ip::tcp::socket *s, icppdbg::CommandID id,
+                         const std::string &result) {
   icppdbg::Respond resp;
   resp.set_cmd(id);
   resp.set_result(result);
 
   auto respbuf = resp.SerializeAsString();
-  sendRespose(s, respbuf);
+  send_buffer(s, id, respbuf);
 }
 
 std::string Debugger::Thread::registers() {
+  const int colcount = 3;
   std::string strs;
   if (arch == AArch64) {
     uc_arm64_reg regs[] = {
@@ -43,21 +51,29 @@ std::string Debugger::Thread::registers() {
         UC_ARM64_REG_X20, UC_ARM64_REG_X21, UC_ARM64_REG_X22, UC_ARM64_REG_X23,
         UC_ARM64_REG_X24, UC_ARM64_REG_X25, UC_ARM64_REG_X26, UC_ARM64_REG_X27,
         UC_ARM64_REG_X28, UC_ARM64_REG_FP,  UC_ARM64_REG_LR,  UC_ARM64_REG_SP,
+        UC_ARM64_REG_PC,
     };
-    uint64_t vals[std::size(regs)];
-    uc_reg_read_batch(uc, reinterpret_cast<int *>(regs),
-                      reinterpret_cast<void **>(vals), std::size(regs));
-    for (size_t i = 0; i < std::size(regs); i++) {
+    for (size_t i = 0, col = 1; i < std::size(regs); i++) {
+      uint64_t val;
+      uc_reg_read(uc, regs[i], reinterpret_cast<void *>(&val));
       if (i <= 28)
-        strs += std::format("x{:2} = {:x}\n", i, vals[i]);
+        strs += std::format("x{:<2} = {:016x} ", i, val);
       else if (i == 29)
-        strs += std::format("fp  = {:x}\n", vals[i]);
+        strs += std::format("fp  = {:016x} ", val);
       else if (i == 30)
-        strs += std::format("lr  = {:x}\n", vals[i]);
+        strs += std::format("lr  = {:016x} ", val);
+      else if (i == 31)
+        strs += std::format("sp  = {:016x} ", val);
       else
-        strs += std::format("sp  = {:x}\n", vals[i]);
+        strs += std::format("pc  = {:016x} ", pc);
+
+      if (col % colcount == 0) {
+        col = 1;
+        strs += "\n";
+      } else {
+        col++;
+      }
     }
-    strs += std::format("pc  = {:x}\n", pc);
   } else if (arch == X86_64) {
     uc_x86_reg regs[] = {
         UC_X86_REG_RAX, UC_X86_REG_RBP, UC_X86_REG_RBX, UC_X86_REG_RCX,
@@ -68,13 +84,19 @@ std::string Debugger::Thread::registers() {
     };
     static const char *names[] = {
         "rax", "rbp", "rbx", "rcx", "rdi", "rdx", "rsi", "rsp", "rip",
-        "r8",  "r9",  "r10", "r11", "r12", "r13", "r14", "r15",
+        "r8 ", "r9 ", "r10", "r11", "r12", "r13", "r14", "r15",
     };
-    uint64_t vals[std::size(regs)];
-    uc_reg_read_batch(uc, reinterpret_cast<int *>(regs),
-                      reinterpret_cast<void **>(vals), std::size(regs));
-    for (size_t i = 0; i < std::size(regs); i++) {
-      strs += std::format("{} = {:x}\n", names[i], vals[i]);
+    for (size_t i = 0, col = 1; i < std::size(regs); i++) {
+      uint64_t val;
+      uc_reg_read(uc, regs[i], reinterpret_cast<void *>(&val));
+      strs += std::format("{} = {:016x} ", names[i], val);
+
+      if (col % colcount == 0) {
+        col = 1;
+        strs += "\n";
+      } else {
+        col++;
+      }
     }
   } else {
     return "?";
@@ -82,11 +104,27 @@ std::string Debugger::Thread::registers() {
   return strs;
 }
 
-Debugger::Debugger() : listen_(&Debugger::listen, this) {}
+Debugger::Debugger() {
+  listen_ = std::make_unique<std::thread>(&Debugger::listen, this);
+}
 
 Debugger::~Debugger() {
-  ios_.stop();
-  listen_.join();
+  try {
+    // close client sockets
+    for (auto &s : clients_) {
+      if (s->is_open()) {
+        s->close();
+      }
+    }
+    // wait client recv thread to exit
+    for (auto &t : clirecvs_) {
+      t.join();
+    }
+    // close acceptor
+    acceptor_->close();
+    listen_->join();
+  } catch (...) {
+  }
 }
 
 Debugger::Thread *Debugger::enter(ArchType arch, uc_engine *uc) {
@@ -142,7 +180,7 @@ void Debugger::stepEntry(Thread *thread, uint64_t pc, bool hitbp) {
   // notify debugger client
   {
     std::lock_guard lock(mutex_);
-    for (auto s : clients_) {
+    for (auto &s : clients_) {
       std::string result;
       if (hitbp) {
         result = std::format("Hit breakpoint at {:x}, #thread {}", pc,
@@ -152,7 +190,7 @@ void Debugger::stepEntry(Thread *thread, uint64_t pc, bool hitbp) {
             std::format("Stepping stopped at {:x} #thread {}\n{}", pc,
                         reinterpret_cast<void *>(thread), thread->registers());
       }
-      sendRespose(s, icppdbg::PAUSE, result);
+      send_respose(s.get(), icppdbg::PAUSE, result);
     }
   }
 
@@ -171,15 +209,18 @@ void Debugger::leave() {
 }
 
 void Debugger::listen() {
-  ip::tcp::acceptor acceptor(ios_, ip::tcp::endpoint(ip::tcp::v4(), dbgport));
+  acceptor_ = std::make_unique<ip::tcp::acceptor>(
+      ios_, ip::tcp::endpoint(ip::tcp::v4(), dbgport));
   while (true) {
     try {
-      auto socketptr = std::make_shared<ip::tcp::socket>(ios_);
+      auto socketptr = std::make_unique<ip::tcp::socket>(ios_);
       // waiting for connection
-      acceptor.accept(*socketptr);
-      if (ios_.stopped())
+      acceptor_->accept(*socketptr);
+      if (status_ == Stopped)
         break;
-      std::thread(&Debugger::recv, this, socketptr);
+      clients_.push_back(std::move(socketptr));
+      clirecvs_.push_back(std::move(
+          std::thread(&Debugger::recv, this, clients_.rbegin()->get())));
     } catch (boost::system::system_error &error) {
       log_print(Develop, "Accept error: {}.", error.what());
       break;
@@ -187,19 +228,24 @@ void Debugger::listen() {
   }
 }
 
-void Debugger::recv(std::shared_ptr<ip::tcp::socket> socket_) {
-  auto &socket = *socket_;
-  auto sockit = clients_.end();
-  // add client socket
-  {
-    std::lock_guard lock(mutex_);
-    sockit = clients_.insert(clients_.begin(), socket_);
+void Debugger::recv(ip::tcp::socket *socket) {
+  std::string initinfo;
+  if (status_ == Running) {
+    initinfo = std::format("Running icpp, current #thread {}", curthread_->pc,
+                           reinterpret_cast<void *>(curthread_));
+  } else {
+    initinfo = std::format("Stopped at {:x} #thread {}\n{}", curthread_->pc,
+                           reinterpret_cast<void *>(curthread_),
+                           curthread_->registers());
   }
+  // send current register context
+  send_respose(socket, icppdbg::PAUSE, initinfo);
+
   while (true) {
     boost::system::error_code error;
     // protocol header
     asio::streambuf hdrbuffer;
-    asio::read(socket, hdrbuffer,
+    asio::read(*socket, hdrbuffer,
                asio::transfer_exactly(sizeof(icpp::ProtocolHdr)), error);
     if (error && error != asio::error::eof) {
       log_print(Develop,
@@ -209,22 +255,18 @@ void Debugger::recv(std::shared_ptr<ip::tcp::socket> socket_) {
     }
     auto hdr = asio::buffer_cast<const icpp::ProtocolHdr *>(hdrbuffer.data());
     if (!hdr->len) {
+      process(hdr, "", 0);
       continue;
     }
     // protocol body serialized by protobuf
     asio::streambuf probuffer;
-    asio::read(socket, probuffer, asio::transfer_exactly(hdr->len), error);
+    asio::read(*socket, probuffer, asio::transfer_exactly(hdr->len), error);
     if (error && error != asio::error::eof) {
       log_print(Develop, "Failed to read body buffer: {}.", error.message());
       continue;
     }
     process(hdr, asio::buffer_cast<const void *>(probuffer.data()),
             probuffer.size());
-  }
-  // remove client socket
-  {
-    std::lock_guard lock(mutex_);
-    clients_.erase(sockit);
   }
 }
 
@@ -299,7 +341,8 @@ void Debugger::process(const ProtocolHdr *hdr, const void *body, size_t size) {
 }
 
 #define foreach_client(statements)                                             \
-  for (auto s : clients_) {                                                    \
+  for (auto &sptr : clients_) {                                                \
+    auto s = sptr.get();                                                       \
     statements                                                                 \
   }
 
@@ -308,21 +351,21 @@ void Debugger::procBreakpoint(uint64_t addr, bool set) {
   if (set) {
     breakpoint_.insert({addr, false});
     foreach_client({
-      sendRespose(s, icppdbg::SETBKPT,
-                  std::format("Set breakpoint at {:x}.", addr));
+      send_respose(s, icppdbg::SETBKPT,
+                   std::format("Set breakpoint at {:x}.", addr));
     });
   } else {
     auto found = breakpoint_.find({addr, false});
     if (found != breakpoint_.end()) {
       breakpoint_.erase(found);
       foreach_client({
-        sendRespose(s, icppdbg::DELBKPT,
-                    std::format("Removed breakpoint at {:x}.", addr));
+        send_respose(s, icppdbg::DELBKPT,
+                     std::format("Removed breakpoint at {:x}.", addr));
       });
     } else {
       foreach_client({
-        sendRespose(s, icppdbg::DELBKPT,
-                    std::format("Set breakpoint at {:x}.", addr));
+        send_respose(s, icppdbg::DELBKPT,
+                     std::format("Set breakpoint at {:x}.", addr));
       });
     }
   }
@@ -349,7 +392,7 @@ void Debugger::procReadMem(uint64_t addr, uint32_t size,
   std::lock_guard lock(mutex_);
   if (format == "str") {
     foreach_client({
-      sendRespose(
+      send_respose(
           s, icppdbg::READMEM,
           std::format("Memory {:x} {} bytes :\n{}", addr, size,
                       std::string_view(reinterpret_cast<char *>(addr), size)));
@@ -367,9 +410,9 @@ void Debugger::procReadMem(uint64_t addr, uint32_t size,
     itemsz = 8;
   if (!itemsz) {
     foreach_client({
-      sendRespose(s, icppdbg::READMEM,
-                  std::format("Memory {:x} {} bytes : Unsupported format {}",
-                              addr, size, format));
+      send_respose(s, icppdbg::READMEM,
+                   std::format("Memory {:x} {} bytes : Unsupported format {}",
+                               addr, size, format));
     });
     return;
   }
@@ -397,15 +440,15 @@ void Debugger::procSwitchThread(uint64_t tid) {
     if (tid == reinterpret_cast<uint64_t>(&t.tid)) {
       curthread_ = const_cast<Thread *>(&t);
       foreach_client({
-        sendRespose(s, icppdbg::SWITCHTHREAD,
-                    std::format("Switched to thread {:x}.", tid));
+        send_respose(s, icppdbg::SWITCHTHREAD,
+                     std::format("Switched to thread {:x}.", tid));
       });
       return;
     }
   }
   foreach_client({
-    sendRespose(s, icppdbg::SWITCHTHREAD,
-                std::format("Failed to find thread {:x}.", tid));
+    send_respose(s, icppdbg::SWITCHTHREAD,
+                 std::format("Failed to find thread {:x}.", tid));
   });
 }
 
@@ -413,7 +456,7 @@ void Debugger::procPause() {
   std::lock_guard lock(mutex_);
   status_ = Stepping;
   foreach_client({
-    sendRespose(s, icppdbg::PAUSE, std::format("Paused execute engine."));
+    send_respose(s, icppdbg::PAUSE, std::format("Paused execute engine."));
   });
 }
 
@@ -424,7 +467,7 @@ void Debugger::procRun() {
     t.itc->signal();
   }
   foreach_client({
-    sendRespose(s, icppdbg::PAUSE, std::format("Running execute engine."));
+    send_respose(s, icppdbg::PAUSE, std::format("Running execute engine."));
   });
 }
 
@@ -437,15 +480,15 @@ void Debugger::procStop() {
     t.itc->signal();
   }
   foreach_client({
-    sendRespose(s, icppdbg::PAUSE, std::format("Stopped execute engine."));
+    send_respose(s, icppdbg::PAUSE, std::format("Stopped execute engine."));
   });
 }
 
 void Debugger::procStepI() {
   if (status_ == Running) {
     foreach_client({
-      sendRespose(s, icppdbg::STEPI,
-                  std::format("Pause execute engine before stepping."));
+      send_respose(s, icppdbg::STEPI,
+                   std::format("Pause execute engine before stepping."));
     });
     return;
   }
@@ -462,16 +505,16 @@ void Debugger::procStepO() {
 void Debugger::procListThread() {
   std::lock_guard lock(mutex_);
   foreach_client({
-    sendRespose(s, icppdbg::LISTTHREAD,
-                std::format("Un-implement list thread currently."));
+    send_respose(s, icppdbg::LISTTHREAD,
+                 std::format("Un-implement list thread currently."));
   });
 }
 
 void Debugger::procListObject() {
   std::lock_guard lock(mutex_);
   foreach_client({
-    sendRespose(s, icppdbg::LISTOBJECT,
-                std::format("Un-implement list thread currently."));
+    send_respose(s, icppdbg::LISTOBJECT,
+                 std::format("Un-implement list thread currently."));
   });
 }
 
