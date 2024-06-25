@@ -7,6 +7,7 @@
 #pragma once
 
 #include "arch.h"
+#include <map>
 #include <memory>
 #include <string_view>
 #include <unicorn/unicorn.h>
@@ -32,6 +33,18 @@ enum ObjectType {
   COFF_Exe,
 };
 
+struct InsnInfo {
+  uint32_t type : 8, // instruction type
+      len : 5,       // opcode length
+      reloc : 19;    // relocation index
+};
+
+struct RelocInfo {
+  // symbol name
+  const char *name;
+  const void *target; // symbol runtime vm address
+};
+
 class Object {
 public:
   Object(std::string_view path);
@@ -49,11 +62,14 @@ public:
   uc_mode ucMode();
 
   const void *mainEntry();
+  std::string sourceInfo(uint64_t vm);
 
 protected:
   void createObject(ObjectType type);
   void parseSymbols();
   void parseTextSection();
+  void decodeInsns();
+  std::string_view textSectName();
 
 private:
   ObjectType type_;
@@ -65,9 +81,18 @@ private:
   std::unordered_map<std::string_view, const void *> funcs_;
   // <data name, data pointer>
   std::unordered_map<std::string_view, const void *> datas_;
-  // text section rva and vm values
+  // text section index, rva, size and vm values
+  uint32_t textsecti_;
+  uint32_t textsz_;
   uint64_t textrva_;
   uint64_t textvm_;
+  // instruction informations
+  std::vector<InsnInfo> iinfs_;
+  // instruction decoded informations from machine opcode
+  // <opcodes, decodes>
+  std::map<std::string, std::string> idecinfs_;
+  // instruction relocations
+  std::vector<RelocInfo> irelocs_;
 };
 
 class MachOObject : public Object {

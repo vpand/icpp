@@ -111,22 +111,17 @@ endif()
 # llvm disabled rtti
 if(WIN32 AND NOT CYGWIN)
   if (MSVC)
-    add_compile_options(/GR-)
+    target_compile_options(icpp PRIVATE /GR-)
   else()
-    add_compile_options(-fno-rtti)
+    target_compile_options(icpp PRIVATE -fno-rtti)
   endif()
 else()
-  add_compile_options(-fno-rtti)
+  target_compile_options(icpp PRIVATE -fno-rtti)
   set_target_properties(icpp PROPERTIES VERSION ${CLANG_EXECUTABLE_VERSION})
 endif()
 
 # remove lib prefix on macOS/Linux
 set_target_properties(icpp PROPERTIES PREFIX "")
-
-# Support plugins.
-if(CLANG_PLUGIN_SUPPORT)
-  export_executable_symbols_for_plugins(icpp)
-endif()
 
 add_dependencies(icpp clang-resource-headers)
 

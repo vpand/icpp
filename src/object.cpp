@@ -98,15 +98,23 @@ void Object::parseSymbols() {
   }
 }
 
-void Object::parseTextSection() {
+std::string_view Object::textSectName() {
   std::string_view textname(".text");
   if (ofile_->isMachO()) {
     textname = "__text";
   }
+  return textname;
+}
+
+void Object::parseTextSection() {
+  auto textname = textSectName();
+  textsecti_ = 0;
   for (auto &s : ofile_->sections()) {
     auto expName = s.getName();
-    if (!expName)
+    if (!expName) {
+      textsecti_++;
       continue;
+    }
     if (textname == expName->data()) {
       auto expContent = s.getContents();
       if (!expContent) {
@@ -114,11 +122,13 @@ void Object::parseTextSection() {
                   textname);
         break;
       }
+      textsz_ = s.getSize();
       textrva_ = s.getAddress();
       textvm_ = reinterpret_cast<uint64_t>(expContent->data());
       log_print(Develop, "Text rva={:x}, vm={:x}.", textrva_, textvm_);
       break;
     }
+    textsecti_++;
   }
 }
 

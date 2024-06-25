@@ -23,6 +23,9 @@
 
 #include "SourcePrinter.h"
 #include "llvm-objdump.h"
+#include "loader.h"
+#include "log.h"
+#include "object.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/StringExtras.h"
@@ -94,39 +97,59 @@ using namespace llvm::object;
 using namespace llvm::objdump;
 using namespace llvm::opt;
 
+constexpr const char *ToolName = "icpp";
+
 bool objdump::ArchiveHeaders = false;
 bool objdump::Demangle = true;
 bool objdump::Disassemble = true;
 bool objdump::DisassembleAll = false;
 bool objdump::SymbolDescription = true;
 bool objdump::TracebackTable = true;
-DIDumpType objdump::DwarfDumpType;
 bool objdump::SectionContents = false;
 bool objdump::PrintLines = true;
-std::string objdump::MCPU;
-std::vector<std::string> objdump::MAttrs;
 bool objdump::ShowRawInsn = true;
 bool objdump::LeadingAddr = true;
 bool objdump::Relocations = true;
 bool objdump::PrintImmHex = true;
 bool objdump::PrivateHeaders = true;
-std::vector<std::string> objdump::FilterSections;
 bool objdump::SectionHeaders = true;
 bool objdump::PrintSource = true;
 bool objdump::SymbolTable = true;
-std::string objdump::TripleName;
 bool objdump::UnwindInfo = true;
 std::string objdump::Prefix;
 uint32_t objdump::PrefixStrip;
-DebugVarsFormat objdump::DbgVariables = DVDisabled;
 int objdump::DbgIndent = 52;
-StringSet<> objdump::FoundSectionSet;
+DebugVarsFormat objdump::DbgVariables = DVDisabled;
 
 void objdump::reportWarning(const Twine &Message, StringRef File) {
   // Output order between errs() and outs() matters especially for archive
   // files where the output is per member object.
   outs().flush();
-  WithColor::warning(errs(), "icpp") << "'" << File << "': " << Message << "\n";
+  WithColor::warning(errs(), ToolName)
+      << "'" << File << "': " << Message << "\n";
+}
+
+[[noreturn]] void objdump::reportError(StringRef File, const Twine &Message) {
+  outs().flush();
+  WithColor::error(errs(), ToolName) << "'" << File << "': " << Message << "\n";
+  exit(1);
+}
+
+[[noreturn]] void objdump::reportError(Error E, StringRef FileName,
+                                       StringRef ArchiveName,
+                                       StringRef ArchitectureName) {
+  assert(E);
+  outs().flush();
+  WithColor::error(errs(), ToolName);
+  if (ArchiveName != "")
+    errs() << ArchiveName << "(" << FileName << ")";
+  else
+    errs() << "'" << FileName << "'";
+  if (!ArchitectureName.empty())
+    errs() << " (for architecture " << ArchitectureName << ")";
+  errs() << ": ";
+  logAllUnhandledErrors(std::move(E), errs());
+  exit(1);
 }
 
 /// Get the column at which we want to start printing the instruction
@@ -134,6 +157,30 @@ void objdump::reportWarning(const Twine &Message, StringRef File) {
 unsigned objdump::getInstStartColumn(const MCSubtargetInfo &STI) {
   return !ShowRawInsn ? 16 : STI.getTargetTriple().isX86() ? 40 : 24;
 }
+
+static void AlignToInstStartColumn(size_t Start, const MCSubtargetInfo &STI,
+                                   raw_ostream &OS) {
+  // The output of printInst starts with a tab. Print some spaces so that
+  // the tab has 1 column and advances to the target tab stop.
+  unsigned TabStop = getInstStartColumn(STI);
+  unsigned Column = OS.tell() - Start;
+  OS.indent(Column < TabStop - 1 ? TabStop - 1 - Column : 7 - Column % 8);
+}
+
+void objdump::printRawData(ArrayRef<uint8_t> Bytes, uint64_t Address,
+                           formatted_raw_ostream &OS,
+                           MCSubtargetInfo const &STI) {
+  size_t Start = OS.tell();
+  if (LeadingAddr)
+    OS << format("%8" PRIx64 ":", Address);
+  if (ShowRawInsn) {
+    OS << ' ';
+    dumpBytes(Bytes, OS);
+  }
+  AlignToInstStartColumn(Start, STI, OS);
+}
+
+namespace icpp {
 
 // This class represents the BBAddrMap and PGOMap associated with a single
 // function.
@@ -255,7 +302,7 @@ static const char *archName(const ObjectFile *Obj) {
   }
 }
 
-static const Target *getTarget(const ObjectFile *Obj) {
+static const Target *getTarget(const ObjectFile *Obj, std::string &TripleName) {
   // Figure out the target triple.
   Triple TheTriple("unknown-unknown-unknown");
   if (TripleName.empty()) {
@@ -309,15 +356,6 @@ static bool getHidden(RelocationRef RelRef) {
   }
 
   return false;
-}
-
-static void AlignToInstStartColumn(size_t Start, const MCSubtargetInfo &STI,
-                                   raw_ostream &OS) {
-  // The output of printInst starts with a tab. Print some spaces so that
-  // the tab has 1 column and advances to the target tab stop.
-  unsigned TabStop = getInstStartColumn(STI);
-  unsigned Column = OS.tell() - Start;
-  OS.indent(Column < TabStop - 1 ? TabStop - 1 - Column : 7 - Column % 8);
 }
 
 namespace {
@@ -491,7 +529,8 @@ public:
   DisassemblerTarget(const Target *TheTarget, ObjectFile &Obj,
                      StringRef TripleName, StringRef MCPU,
                      SubtargetFeatures &Features);
-  DisassemblerTarget(DisassemblerTarget &Other, SubtargetFeatures &Features);
+  DisassemblerTarget(DisassemblerTarget &Other, StringRef TripleName,
+                     StringRef MCPU, SubtargetFeatures &Features);
 
 private:
   MCTargetOptions Options;
@@ -554,6 +593,7 @@ DisassemblerTarget::DisassemblerTarget(const Target *TheTarget, ObjectFile &Obj,
 }
 
 DisassemblerTarget::DisassemblerTarget(DisassemblerTarget &Other,
+                                       StringRef TripleName, StringRef MCPU,
                                        SubtargetFeatures &Features)
     : TheTarget(Other.TheTarget),
       SubtargetInfo(TheTarget->createMCSubtargetInfo(TripleName, MCPU,
@@ -959,24 +999,55 @@ static SymbolInfoTy createDummySymbolInfo(const ObjectFile &Obj,
   return SymbolInfoTy(Addr, Name, Type);
 }
 
-static void disassembleObject(ObjectFile *Obj, bool InlineRelocs) {
-  // If information useful for showing the disassembly is missing, try to find a
-  // more complete binary and disassemble that instead.
-  OwningBinary<Binary> FetchedBinary;
-  if (Obj->symbols().empty()) {
-    if (std::optional<OwningBinary<Binary>> FetchedBinaryOpt =
-            fetchBinaryByBuildID(*Obj)) {
-      if (auto *O = dyn_cast<ObjectFile>(FetchedBinaryOpt->getBinary())) {
-        if (!O->symbols().empty() ||
-            (!O->sections().empty() && Obj->sections().empty())) {
-          FetchedBinary = std::move(*FetchedBinaryOpt);
-          Obj = O;
-        }
-      }
-    }
+std::string Object::sourceInfo(uint64_t vm) {
+  auto Obj = ofile_.get();
+  std::string TripleName, Output;
+  const Target *TheTarget = getTarget(Obj, TripleName);
+  std::string MCPU;
+  std::vector<std::string> MAttrs;
+
+  // Package up features to be passed to target/subtarget
+  Expected<SubtargetFeatures> FeaturesValue = Obj->getFeatures();
+  if (!FeaturesValue)
+    reportError(FeaturesValue.takeError(), Obj->getFileName());
+  SubtargetFeatures Features = *FeaturesValue;
+  if (!MAttrs.empty()) {
+    for (unsigned I = 0; I != MAttrs.size(); ++I)
+      Features.AddFeature(MAttrs[I]);
+  } else if (MCPU.empty() && Obj->getArch() == llvm::Triple::aarch64) {
+    Features.AddFeature("+all");
   }
 
-  const Target *TheTarget = getTarget(Obj);
+  if (MCPU.empty())
+    MCPU = Obj->tryGetCPUName().value_or("").str();
+
+  DisassemblerTarget PrimaryTarget(TheTarget, *Obj, TripleName, MCPU, Features);
+
+  SourcePrinter SP(Obj, TheTarget->getName());
+  raw_string_ostream OS(Output);
+  formatted_raw_ostream FOS(OS);
+  auto SectAddr = object::SectionedAddress{vm2rva(vm), textsecti_};
+  LiveVariablePrinter LVP(*PrimaryTarget.Context->getRegisterInfo(),
+                          *PrimaryTarget.SubtargetInfo);
+  SP.printSourceLine(FOS, SectAddr, Obj->getFileName(), LVP);
+  FOS.flush();
+  return Output;
+}
+
+static void parseInstAArch64(const MCInst &inst, uint64_t opcptr,
+                             std::map<std::string, std::string> &decinfo,
+                             InsnInfo &iinfo) {}
+
+static void parseInstX64(const MCInst &inst, uint64_t opcptr,
+                         std::map<std::string, std::string> &decinfo,
+                         InsnInfo &iinfo) {}
+
+void Object::decodeInsns() {
+  auto Obj = ofile_.get();
+  std::string TripleName;
+  const Target *TheTarget = getTarget(Obj, TripleName);
+  std::string MCPU;
+  std::vector<std::string> MAttrs;
 
   // Package up features to be passed to target/subtarget
   Expected<SubtargetFeatures> FeaturesValue = Obj->getFeatures();
@@ -1030,7 +1101,7 @@ static void disassembleObject(ObjectFile *Obj, bool InlineRelocs) {
         Features.AddFeature("-thumb-mode");
       else
         Features.AddFeature("+thumb-mode");
-      SecondaryTarget.emplace(PrimaryTarget, Features);
+      SecondaryTarget.emplace(PrimaryTarget, TripleName, MCPU, Features);
     }
   } else if (const auto *COFFObj = dyn_cast<COFFObjectFile>(Obj)) {
     const chpe_metadata *CHPEMetadata = COFFObj->getCHPEMetadata();
@@ -1052,19 +1123,96 @@ static void disassembleObject(ObjectFile *Obj, bool InlineRelocs) {
     }
   }
 
-  const ObjectFile *DbgObj = Obj;
-  if (!FetchedBinary.getBinary() && !Obj->hasDebugInfo()) {
-    if (std::optional<OwningBinary<Binary>> DebugBinaryOpt =
-            fetchBinaryByBuildID(*Obj)) {
-      if (auto *FetchedObj =
-              dyn_cast<const ObjectFile>(DebugBinaryOpt->getBinary())) {
-        if (FetchedObj->hasDebugInfo()) {
-          FetchedBinary = std::move(*DebugBinaryOpt);
-          DbgObj = FetchedObj;
+  // load text relocations
+  std::map<uint64_t, object::RelocationRef> relocs;
+  auto textname = textSectName();
+  textsecti_ = 0;
+  for (auto &s : ofile_->sections()) {
+    auto expName = s.getName();
+    if (!expName) {
+      textsecti_++;
+      continue;
+    }
+    if (textname == expName->data()) {
+      for (auto r : s.relocations()) {
+        auto sym = r.getSymbol();
+        auto expFlags = sym->getFlags();
+        if (!expFlags)
+          continue;
+        // only load undefined extern symbols
+        if (expFlags.get() & object::SymbolRef::SF_Undefined) {
+          relocs.insert({r.getOffset(), r});
         }
       }
+      break;
     }
   }
 
-  SourcePrinter SP(DbgObj, TheTarget->getName());
+  int skipsz = arch_ == AArch64 ? 4 : 1;
+  // decode instructions in text section
+  MCInst inst;
+  for (auto opc = textvm_, opcend = textvm_ + textsz_; opc < opcend;) {
+    uint64_t size = 0;
+    auto status = PrimaryTarget.DisAsm->getInstruction(
+        inst, size, BuildIDRef(reinterpret_cast<const uint8_t *>(opc), 16), opc,
+        outs());
+    InsnInfo iinfo{};
+    switch (status) {
+    case MCDisassembler::Fail: {
+      iinfo.type = INSN_ABORT;
+      iinfo.len = skipsz;
+      break;
+    }
+    case MCDisassembler::SoftFail: {
+      iinfo.type = INSN_ABORT;
+      iinfo.len = size ? static_cast<uint32_t>(size) : skipsz;
+      break;
+    }
+    default: {
+      iinfo.len = static_cast<uint32_t>(size);
+      // check and resolve the relocation symbol
+      auto found = relocs.find(vm2rva(opc));
+      if (found != relocs.end()) {
+        auto sym = found->second.getSymbol();
+        auto expName = sym->getName();
+        auto expType = sym->getType();
+        if (!expName || !expName) {
+          // never be here
+          log_print(Runtime,
+                    "Fatal error, the symbol name/type '{:x}' is missing for "
+                    "relocation.",
+                    vm2rva(opc));
+          abort();
+        }
+        auto name = expName.get();
+        // check the existed relocation
+        auto rit = irelocs_.end();
+        for (auto it = irelocs_.begin(), end = irelocs_.end(); it != end;
+             it++) {
+          if (name == it->name) {
+            rit = it;
+            break;
+          }
+        }
+        if (rit == irelocs_.end()) {
+          // locate and insert a new relocation
+          auto rtaddr = Loader::locateSymbol(
+              name, expType.get() == object::SymbolRef::ST_Data);
+          rit = irelocs_.insert(irelocs_.end(), RelocInfo{name.data(), rtaddr});
+        }
+        // record its relocation index
+        iinfo.reloc = rit - irelocs_.begin();
+      }
+      // convert llvm opcode to icpp InsnType
+      if (arch() == AArch64)
+        parseInstAArch64(inst, opc, idecinfs_, iinfo);
+      else
+        parseInstX64(inst, opc, idecinfs_, iinfo);
+      break;
+    }
+    }
+    opc += iinfo.len;
+  }
 }
+
+} // namespace icpp

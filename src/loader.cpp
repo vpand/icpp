@@ -16,4 +16,8 @@ Loader::~Loader() {}
 
 bool Loader::valid() { return true; }
 
+const void *Loader::locateSymbol(std::string_view name, bool data) {
+  return nullptr;
+}
+
 } // namespace icpp

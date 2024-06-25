@@ -16,7 +16,8 @@ enum ArchType {
 
 enum InsnType {
   // common instruction
-  INSN_HARDWARE = 0,
+  INSN_ABORT = 0, // invalid opcode
+  INSN_HARDWARE,
   INSN_RETURN,
   INSN_SYSCALL,
   INSN_CALLREG,

@@ -7,6 +7,7 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace icpp {
@@ -19,6 +20,8 @@ public:
   ~Loader();
 
   bool valid();
+
+  static const void *locateSymbol(std::string_view name, bool data);
 
 private:
   Object *object_;
