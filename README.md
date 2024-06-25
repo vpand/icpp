@@ -28,7 +28,7 @@ No matter if you're a beginner or an expert with C++, ICPP is suitable for you. 
  * Tracing, profiling, performance optimizing;
  * And so on...
 
-**ICPP, make programming all in one..**
+**ICPP, make programming all in one.**
 
 ## Usage
 ```sh

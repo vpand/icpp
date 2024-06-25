@@ -8,15 +8,22 @@
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/LLVMDriver.h"
 
-int clang_main(int argc, char **, const llvm::ToolContext &);
-int icpp_main(int argc, char **);
+#if defined(_WIN32) || defined(_WIN64)
+#define __ICPP_EXPORT__ __declspec(dllexport)
+#else
+#define __ICPP_EXPORT__ __attribute__((visibility("default")))
+#endif // end of _WIN
 
-int main(int argc, char **argv) {
+int clang_main(int argc, char **, const llvm::ToolContext &);
+
+int icli_main(int argc, char **);
+
+extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
   /*
   A none zero iret indicates the argc/argv are clang arguments.
   Otherwise they're icpp arguments, so just return directly.
   */
-  int iret = icpp_main(argc, argv);
+  int iret = icli_main(argc, argv);
   if (!iret)
     return 0;
 

@@ -105,7 +105,7 @@ get_dependencies(const std::vector<const char *> &libdirs,
   return deps;
 }
 
-int icpp_main(int argc, char **argv) {
+int icli_main(int argc, char **argv) {
   using namespace std::literals;
 
   // optimization level passed to clang

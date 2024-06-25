@@ -9,7 +9,7 @@
 #include <vector>
 
 // icpp/clang driver entry, it acts as a clang compiler when argv contains -c/-o
-extern "C" int main(int argc, const char **argv);
+extern "C" int icpp_main(int argc, const char **argv);
 
 // implement in llvm-project/clang/tools/driver/driver.cpp
 extern std::string GetExecutablePath(const char *argv0, bool CanonicalPrefixes);
@@ -63,7 +63,7 @@ fs::path compile_source(const char *argv0, std::string_view path,
 
   // main will invoke clang_main to generate the object file with the default
   // host triple
-  main(static_cast<int>(args.size()), &args[0]);
+  icpp_main(static_cast<int>(args.size()), &args[0]);
   return opath;
 }
 

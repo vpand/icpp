@@ -34,6 +34,8 @@ set(CLANG_DRIVER_ROOT ${THIRD_ROOT}/llvm-project/clang/tools/driver)
 execute_process(COMMAND ${CMAKE_COMMAND} -E copy
   ${CMAKE_CURRENT_SOURCE_DIR}/icpp-driver.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/icpp-driver.cpp)
+# icpp shared library, because of this, you can deploy icpp to 
+# any kind of runtime environment.
 add_clang_tool(icpp
   arch.cpp
   compile.cpp
@@ -95,11 +97,21 @@ target_include_directories(icpp PRIVATE
   libprotobuf
 )
 
+if(APPLE)
+  target_link_options(icpp PRIVATE -Wl,-exported_symbol -Wl,_icpp_main)
+endif()
+if(LINUX)
+  target_link_options(icpp PRIVATE -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/ld.version)
+endif()
+
 if(WIN32 AND NOT CYGWIN)
   # Prevent versioning if the buildhost is targeting for Win32.
 else()
   set_target_properties(icpp PROPERTIES VERSION ${CLANG_EXECUTABLE_VERSION})
 endif()
+
+# remove lib prefix on macOS/Linux
+set_target_properties(icpp PROPERTIES PREFIX "")
 
 # Support plugins.
 if(CLANG_PLUGIN_SUPPORT)
@@ -107,5 +119,14 @@ if(CLANG_PLUGIN_SUPPORT)
 endif()
 
 add_dependencies(icpp clang-resource-headers)
+
+# icpp command line
+add_executable(icppcli icpp-cli.cpp)
+set_target_properties(icppcli PROPERTIES OUTPUT_NAME "icpp")
+target_include_directories(icppcli PRIVATE 
+  ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include
+  boost_dll
+)
+target_link_libraries(icppcli PRIVATE boost_dll)
 
 message(STATUS "Configuring icpp done")
