@@ -1,9 +1,34 @@
 # ICPP - Running C++ like a script
 Interpreting C++, executing the source and executable like a script.
- * Based on [Unicorn Engine](https://github.com/unicorn-engine/unicorn.git) and [Clang/LLVM](https://github.com/llvm/llvm-project.git);
- * Supported C++23;
- * Integrated [Boost](https://github.com/boostorg/boost.git) internally;
  * Writing powerful script using C++ just as easy as Python;
+ * Based on [Unicorn Engine](https://github.com/unicorn-engine/unicorn.git) and [Clang/LLVM](https://github.com/llvm/llvm-project.git);
+ * Integrated [Boost](https://github.com/boostorg/boost.git) internally;
+ * Supported C++23;
+ * Make, install and reuse the existing C++ library as icpp script extension is extremely simple.
+
+|Interpreter|Command Line|
+|-|-|
+|Python| **python** helloworld.py |
+|ICPP  | **icpp** helloworld.cc |
+
+|Module Installer|Command Line|
+|-|-|
+|PIP | **pip** install helloworld.zip |
+|IMOD| **imod** helloworld.zip |
+
+## Scenarios
+Using ICPP to write C++ code just as a script, write and then run directly, no creating project, no configuring build, no compiling, no linking...
+
+No matter if you're a beginner or an expert with C++, ICPP is suitable for you. With ICPP, you can focus on:
+ * Writing snippet code to study any of the newest C++ features;
+ * Writing glue script to do some tasks;
+ * Writing test code before applying to the formal project;
+ * Writing sample code to study some new third C/C++ libraries;
+ * Making native plugin development scriptable, i.e., writing plugin using C++ dynamically.
+ * Tracing, profiling, performance optimizing;
+ * And so on...
+
+**ICPP, make programming all in one..**
 
 ## Usage
 ```sh

@@ -89,7 +89,7 @@ void Object::parseSymbols() {
     auto name = expName.get();
     auto buff = sbuff.data() + addr - saddr;
     // ignore the internal temporary symbols
-    if (name.starts_with("ltmp"))
+    if (name.starts_with("ltmp") || name.starts_with("l_."))
       continue;
     caches->insert({name.data(), buff});
     log_print(Develop, "Cached symbol {}.{},{}.", name.data(),
