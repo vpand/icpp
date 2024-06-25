@@ -6,16 +6,6 @@ Interpreting C++, executing the source and executable like a script.
  * Supported C++23;
  * Make, install and reuse the existing C++ library as icpp script extension is extremely simple.
 
-|Interpreter|Command Line|
-|-|-|
-|Python| **python** helloworld.py |
-|ICPP  | **icpp** helloworld.cc |
-
-|Module Installer|Command Line|
-|-|-|
-|PIP | **pip** install helloworld.zip |
-|IMOD| **imod** helloworld.zip |
-
 ## Scenarios
 Using ICPP to write C++ code just as a script, write and then run directly, no creating project, no configuring build, no compiling, no linking...
 
@@ -31,6 +21,21 @@ No matter if you're a beginner or an expert with C++, ICPP is suitable for you. 
 **ICPP, make programming all in one.**
 
 ## Usage
+
+### ICPP vs Python
+
+|Script Interpreter|Command Line|
+|-|-|
+|Python| % **python** helloworld.py |
+|ICPP  | % **icpp** helloworld.cc |
+
+|Module Installer|Command Line|
+|-|-|
+|PIP | % **pip** install helloworld.zip |
+|IMOD| % **imod** helloworld.zip |
+
+### CLI
+
 ```sh
 vpand@MacBook-Pro icpp % icpp -h              
 OVERVIEW: ICPP v0.0.1.255 based on Unicorn and Clang/LLVM.

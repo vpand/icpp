@@ -66,7 +66,10 @@ def increment_make():
     src_exts = ['.c', '.cc', '.cpp']
     hdr_exts = ['.h', '.hpp']
     for l in lines:
-        parts = l.decode('utf-8').strip().split('modified:')
+        lstr = l.decode('utf-8').strip()
+        parts = lstr.split('modified:')
+        if len(parts) != 2:
+            parts = lstr.split('new file:')
         if len(parts) == 2:
             name = os.path.basename(parts[1]).strip()
             if name.endswith('.proto'):

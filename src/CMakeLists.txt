@@ -29,7 +29,8 @@ if(CLANG_PLUGIN_SUPPORT)
   set(support_plugins SUPPORT_PLUGINS)
 endif()
 
-set(THIRD_ROOT ../third)
+set(THIRD_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../third)
+set(LLVM_OBJDUMP_ROOT ${THIRD_ROOT}/llvm-project/llvm/tools/llvm-objdump)
 set(CLANG_DRIVER_ROOT ${THIRD_ROOT}/llvm-project/clang/tools/driver)
 execute_process(COMMAND ${CMAKE_COMMAND} -E copy
   ${CMAKE_CURRENT_SOURCE_DIR}/icpp-driver.cpp
@@ -47,12 +48,14 @@ add_clang_tool(icpp
   loader.cpp
   log.cpp
   object.cpp
+  object-llvm.cpp
   platform.cpp
   profile.cpp
   runcfg.cpp
   runtime.cpp
   trace.cpp
   utils.cpp
+  ${LLVM_OBJDUMP_ROOT}/SourcePrinter.cpp
   ${CLANG_DRIVER_ROOT}/driver.cpp
   ${CLANG_DRIVER_ROOT}/cc1_main.cpp
   ${CLANG_DRIVER_ROOT}/cc1as_main.cpp
@@ -87,6 +90,7 @@ clang_target_link_libraries(icpp
 target_include_directories(icpp PRIVATE
   ${THIRD_ROOT}/llvm-project/llvm/include
   ${THIRD_ROOT}/llvm-project/clang/include
+  ${LLVM_OBJDUMP_ROOT}
   ${THIRD_ROOT}/unicorn/include
   ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include
@@ -104,9 +108,15 @@ if(LINUX)
   target_link_options(icpp PRIVATE -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/ld.version)
 endif()
 
+# llvm disabled rtti
 if(WIN32 AND NOT CYGWIN)
-  # Prevent versioning if the buildhost is targeting for Win32.
+  if (MSVC)
+    add_compile_options(/GR-)
+  else()
+    add_compile_options(-fno-rtti)
+  endif()
 else()
+  add_compile_options(-fno-rtti)
   set_target_properties(icpp PROPERTIES VERSION ${CLANG_EXECUTABLE_VERSION})
 endif()
 

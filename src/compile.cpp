@@ -36,6 +36,8 @@ fs::path compile_source(const char *argv0, std::string_view path,
   // make clang driver to use our fake clang path as the executable path
   args.push_back("-no-canonical-prefixes");
   args.push_back("-std=gnu++23");
+  // used to indicate the source location when script crashes
+  args.push_back("-g");
   args.push_back(opt);
   args.push_back("-c");
   args.push_back(path.data());
