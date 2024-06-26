@@ -36,7 +36,13 @@ enum ObjectType {
 struct InsnInfo {
   uint32_t type : 8, // instruction type
       len : 5,       // opcode length
-      reloc : 19;    // relocation index
+      rflag : 1,     // relocation flag, 1 indicates a valid reloc index
+      reloc : 18;    // relocation index
+  uint32_t rva;      // instruction rva
+
+  bool operator<(const InsnInfo &right) const { return rva < right.rva; }
+  bool operator==(const InsnInfo &right) const { return rva == right.rva; }
+  bool operator>(const InsnInfo &right) const { return rva > right.rva; }
 };
 
 struct RelocInfo {
@@ -69,6 +75,7 @@ public:
   uc_mode ucMode();
 
   const void *mainEntry();
+  const InsnInfo *insnInfo(uint64_t vm);
   std::string sourceInfo(uint64_t vm);
 
 protected:

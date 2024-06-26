@@ -168,6 +168,19 @@ const void *Object::mainEntry() {
   return found->second;
 }
 
+const InsnInfo *Object::insnInfo(uint64_t vm) {
+  auto rva = static_cast<uint32_t>(vm2rva(vm));
+  // find insninfo related to this vm address
+  auto found =
+      std::lower_bound(iinfs_.begin(), iinfs_.end(), InsnInfo{.rva = rva});
+  if (found == iinfs_.end()) {
+    log_print(Runtime, "Failed to find instruction information of rva {:x}.",
+              rva);
+    abort();
+  }
+  return &*found;
+}
+
 Object::~Object() {}
 
 MachOObject::MachOObject(std::string_view path) : Object(path) {}

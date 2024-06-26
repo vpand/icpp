@@ -47,7 +47,7 @@ private:
   void execMain();
   void execDtor();
   void execLoop(uint64_t pc);
-  bool execPreprocess(uint64_t &pc, int &step);
+  bool execPreprocess(const InsnInfo *&inst, uint64_t &pc, int &step);
 
   void initMainRegisterAArch64();
   void initMainRegisterSysVX64();
@@ -100,23 +100,289 @@ void ExecEngine::execMain() {
   execLoop(reinterpret_cast<uint64_t>(object_->mainEntry()));
 }
 
-bool ExecEngine::execPreprocess(uint64_t &pc, int &step) {
+bool ExecEngine::execPreprocess(const InsnInfo *&inst, uint64_t &pc,
+                                int &step) {
   // we should process the relocation, branch, jump, call and syscall
   // instructions manually, the unicorn engine can just execute those simple
   // instructions (i.e., instruction without relocation and jump operation) in
   // our case
+  unsigned origstep = step;
+  auto curi = inst;
   if (step <= 0) {
     // calculate the maximized steps that can be passed to uc_emu_start
-  } else if (step == 1) {
-    // check whether the current instruction has relocation/jump-operation or
-    // not
+    for (step = 0; curi->type == INSN_HARDWARE; curi++)
+      ;
   } else {
     // check whether the step-count instructions have relocation/jump-operation
     // or not if so, the step size should be re-adjusted
+    int tmpstep = 0;
+    for (; curi->type == INSN_HARDWARE; tmpstep++)
+      ;
+    step = std::min(step, tmpstep);
   }
-  // indicates the current instruction hasn't been processed and should let
-  // uc_emu_start continue to execute it
-  return false;
+  if (step) {
+    // indicates the current instruction hasn't been processed and should let
+    // uc_emu_start continue to execute it
+    return false;
+  }
+  // interpret the pre-decoded instructions
+  for (unsigned i = 0; i < origstep && inst->type != INSN_HARDWARE; i++) {
+    switch (inst->type) {
+    // common instruction
+    case INSN_ABORT:
+      UNIMPL_ABORT();
+      break;
+    // arm64 instruction
+    case INSN_ARM64_RETURN:
+      UNIMPL_ABORT();
+      break;
+    case INSN_ARM64_SYSCALL:
+      UNIMPL_ABORT();
+      break;
+    case INSN_ARM64_CALL:
+      UNIMPL_ABORT();
+      break;
+    case INSN_ARM64_CALLREG:
+      UNIMPL_ABORT();
+      break;
+    case INSN_ARM64_JUMP:
+      UNIMPL_ABORT();
+      break;
+    case INSN_ARM64_JUMPREG:
+      UNIMPL_ABORT();
+      break;
+    case INSN_ARM64_ADR:
+      UNIMPL_ABORT();
+      break;
+    case INSN_ARM64_ADRP:
+      UNIMPL_ABORT();
+      break;
+    case INSN_ARM64_LDRSWL:
+      UNIMPL_ABORT();
+      break;
+    case INSN_ARM64_LDRWL:
+      UNIMPL_ABORT();
+      break;
+    case INSN_ARM64_LDRXL:
+      UNIMPL_ABORT();
+      break;
+    case INSN_ARM64_LDRSL:
+      UNIMPL_ABORT();
+      break;
+    case INSN_ARM64_LDRDL:
+      UNIMPL_ABORT();
+      break;
+    case INSN_ARM64_LDRQL:
+      UNIMPL_ABORT();
+      break;
+    // x86_64 instruction
+    case INSN_X64_RETURN:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_SYSCALL:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_CALL:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_CALLREG:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_CALLMEM:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_JUMP:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_JUMPREG:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_JUMPMEM:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOV8RR:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOV8RM:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOV8MR:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOV8MI:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOV16RR:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOV16RM:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOV16MR:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOV16MI:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOV32RR:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOV32RM:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOV32MR:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOV32MI:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOV64RR:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOV64RM:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOV64MR:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOV64MI32:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_LEA32:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_LEA64:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOVAPSRM:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOVAPSMR:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOVUPSRM:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOVUPSMR:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOVAPDRM:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOVAPDMR:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOVUPDRM:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOVUPDMR:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOVI:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOVIMEM:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_CMP8MI:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_CMP8MI8:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_CMP16MI:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_CMP16MI8:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_CMP32MI:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_CMP32MI8:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_CMP64MI32:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_CMP64MI8:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_CMP8RM:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_CMP16RM:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_CMP32RM:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_CMP64RM:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOVSX16RM8:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOVSX16RM16:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOVSX16RM32:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOVSX32RM8:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOVSX32RM16:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOVSX32RM32:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOVSX64RM8:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOVSX64RM16:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_MOVSX64RM32:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_TEST8MI:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_TEST8MR:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_TEST16MI:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_TEST16MR:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_TEST32MI:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_TEST32MR:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_TEST64MI32:
+      UNIMPL_ABORT();
+      break;
+    case INSN_X64_TEST64MR:
+      UNIMPL_ABORT();
+      break;
+    default:
+      log_print(Runtime, "Unknown instruction type {} at rva {:x}.", inst->type,
+                object_->vm2rva(pc));
+      abort();
+      break;
+    }
+    // advance to the next instruction
+    pc += inst->len;
+    inst++;
+  }
+  // indicates the current instruction has been processed
+  return true;
 }
 
 void ExecEngine::execLoop(uint64_t pc) {
@@ -141,6 +407,8 @@ void ExecEngine::execLoop(uint64_t pc) {
     UNIMPL_ABORT();
     return;
   }
+  // instruction information related to pc
+  auto inst = object_->insnInfo(pc);
   // executing loop, break when hitting the initialized return address
   while (pc != reinterpret_cast<uint64_t>(topReturn())) {
     // debugging
@@ -154,7 +422,7 @@ void ExecEngine::execLoop(uint64_t pc) {
 
     // preprocess relocation, branch, call, jump and syscall etc.
     auto step = runcfg_.stepSize();
-    if (execPreprocess(pc, step)) {
+    if (execPreprocess(inst, pc, step)) {
       continue;
     }
 
@@ -165,6 +433,8 @@ void ExecEngine::execLoop(uint64_t pc) {
                 << ", current pc=0x" << std::hex << pc << "." << std::endl;
       break;
     }
+    // update inst with step
+    inst += step;
 
     // update current pc
     uc_reg_read(uc_, pcreg, &pc);

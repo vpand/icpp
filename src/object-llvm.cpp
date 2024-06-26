@@ -1084,16 +1084,22 @@ static void parseInstAArch64(const MCInst &inst, uint64_t opcptr,
     iinfo.type = INSN_ABORT;
     break;
   case INSN::RET:
-    iinfo.type = INSN_RETURN;
+    iinfo.type = INSN_ARM64_RETURN;
+    break;
+  case INSN::B:
+    iinfo.type = INSN_ARM64_JUMP;
     break;
   case INSN::BR:
-    iinfo.type = INSN_JUMPREG;
+    iinfo.type = INSN_ARM64_JUMPREG;
+    break;
+  case INSN::BL:
+    iinfo.type = INSN_ARM64_CALL;
     break;
   case INSN::BLR:
-    iinfo.type = INSN_CALLREG;
+    iinfo.type = INSN_ARM64_CALLREG;
     break;
   case INSN::SVC:
-    iinfo.type = INSN_SYSCALL;
+    iinfo.type = INSN_ARM64_SYSCALL;
     break;
   case INSN::ADR:
     iinfo.type = INSN_ARM64_ADR;
@@ -1310,20 +1316,40 @@ static void parseInstX64(const MCInst &inst, uint64_t opcptr,
   case INSN::RET16:
   case INSN::RET32:
   case INSN::RET64:
-    iinfo.type = INSN_RETURN;
+    iinfo.type = INSN_X64_RETURN;
     break;
   case INSN::SYSCALL:
-    iinfo.type = INSN_SYSCALL;
+    iinfo.type = INSN_X64_SYSCALL;
+    break;
+  case INSN::CALLpcrel16:
+  case INSN::CALLpcrel32:
+  case INSN::CALL64pcrel32:
+    iinfo.type = INSN_X64_CALL;
+    break;
+  case INSN::CALL16m:
+  case INSN::CALL32m:
+  case INSN::CALL64m:
+    iinfo.type = INSN_X64_CALLMEM;
     break;
   case INSN::CALL16r:
   case INSN::CALL32r:
   case INSN::CALL64r:
-    iinfo.type = INSN_CALLREG;
+    iinfo.type = INSN_X64_CALLREG;
+    break;
+  case INSN::JMP_1:
+  case INSN::JMP_2:
+  case INSN::JMP_4:
+    iinfo.type = INSN_X64_JUMP;
+    break;
+  case INSN::JMP16m:
+  case INSN::JMP32m:
+  case INSN::JMP64m:
+    iinfo.type = INSN_X64_JUMPMEM;
     break;
   case INSN::JMP16r:
   case INSN::JMP32r:
   case INSN::JMP64r:
-    iinfo.type = INSN_JUMPREG;
+    iinfo.type = INSN_X64_JUMPREG;
     break;
   case INSN::MOV64rm:
     iinfo.type = INSN_X64_MOV64RM;
@@ -1615,6 +1641,7 @@ void Object::decodeInsns() {
           inst, size, BuildIDRef(reinterpret_cast<const uint8_t *>(opc), 16),
           opc, outs());
       InsnInfo iinfo{};
+      iinfo.rva = vm2rva(opc);
       switch (status) {
       case MCDisassembler::Fail: {
         iinfo.type = INSN_ABORT;
@@ -1717,6 +1744,7 @@ void Object::decodeInsns() {
                       rit->target);
           }
           // record its relocation index
+          iinfo.rflag = 1;
           iinfo.reloc = rit - irelocs_.begin();
         }
         // convert llvm opcode to icpp InsnType
@@ -1757,7 +1785,7 @@ void Object::decodeInsns() {
         }
         break;
       }
-      }
+      } // end of switch
       iinfs_.push_back(iinfo);
       opc += iinfo.len;
     }
