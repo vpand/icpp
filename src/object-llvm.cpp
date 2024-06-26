@@ -1130,11 +1130,370 @@ static void parseInstAArch64(const MCInst &inst, uint64_t opcptr,
 #include "llvm/../../lib/Target/X86/X86GenInstrInfo.inc"
 #include "llvm/../../lib/Target/X86/X86GenRegisterInfo.inc"
 
-static uint16_t llvm2ucRegisterX64(unsigned reg) {}
+static uint16_t llvm2ucRegisterX64(unsigned reg) {
+  namespace INSN = llvm::X86;
+
+  if (INSN::AH == reg)
+    return UC_X86_REG_AH;
+  if (INSN::AL == reg)
+    return UC_X86_REG_AL;
+  if (INSN::AX == reg)
+    return UC_X86_REG_AX;
+  if (INSN::BH == reg)
+    return UC_X86_REG_BH;
+  if (INSN::BL == reg)
+    return UC_X86_REG_BL;
+  if (INSN::BP == reg)
+    return UC_X86_REG_BP;
+  if (INSN::BPL == reg)
+    return UC_X86_REG_BPL;
+  if (INSN::BX == reg)
+    return UC_X86_REG_BX;
+  if (INSN::CH == reg)
+    return UC_X86_REG_CH;
+  if (INSN::CL == reg)
+    return UC_X86_REG_CL;
+  if (INSN::CS == reg)
+    return UC_X86_REG_CS;
+  if (INSN::CX == reg)
+    return UC_X86_REG_CX;
+  if (INSN::DH == reg)
+    return UC_X86_REG_DH;
+  if (INSN::DI == reg)
+    return UC_X86_REG_DI;
+  if (INSN::DIL == reg)
+    return UC_X86_REG_DIL;
+  if (INSN::DL == reg)
+    return UC_X86_REG_DL;
+  if (INSN::DS == reg)
+    return UC_X86_REG_DS;
+  if (INSN::DX == reg)
+    return UC_X86_REG_DX;
+  if (INSN::EAX == reg)
+    return UC_X86_REG_EAX;
+  if (INSN::EBP == reg)
+    return UC_X86_REG_EBP;
+  if (INSN::EBX == reg)
+    return UC_X86_REG_EBX;
+  if (INSN::ECX == reg)
+    return UC_X86_REG_ECX;
+  if (INSN::EDI == reg)
+    return UC_X86_REG_EDI;
+  if (INSN::EDX == reg)
+    return UC_X86_REG_EDX;
+  if (INSN::EFLAGS == reg)
+    return UC_X86_REG_EFLAGS;
+  if (INSN::EIP == reg)
+    return UC_X86_REG_EIP;
+  if (INSN::ES == reg)
+    return UC_X86_REG_ES;
+  if (INSN::ESI == reg)
+    return UC_X86_REG_ESI;
+  if (INSN::ESP == reg)
+    return UC_X86_REG_ESP;
+  if (INSN::FPSW == reg)
+    return UC_X86_REG_FPSW;
+  if (INSN::FS == reg)
+    return UC_X86_REG_FS;
+  if (INSN::GS == reg)
+    return UC_X86_REG_GS;
+  if (INSN::IP == reg)
+    return UC_X86_REG_IP;
+  if (INSN::RAX == reg)
+    return UC_X86_REG_RAX;
+  if (INSN::RBP == reg)
+    return UC_X86_REG_RBP;
+  if (INSN::RBX == reg)
+    return UC_X86_REG_RBX;
+  if (INSN::RCX == reg)
+    return UC_X86_REG_RCX;
+  if (INSN::RDI == reg)
+    return UC_X86_REG_RDI;
+  if (INSN::RDX == reg)
+    return UC_X86_REG_RDX;
+  if (INSN::RIP == reg)
+    return UC_X86_REG_RIP;
+  if (INSN::RSI == reg)
+    return UC_X86_REG_RSI;
+  if (INSN::RSP == reg)
+    return UC_X86_REG_RSP;
+  if (INSN::SI == reg)
+    return UC_X86_REG_SI;
+  if (INSN::SIL == reg)
+    return UC_X86_REG_SIL;
+  if (INSN::SP == reg)
+    return UC_X86_REG_SP;
+  if (INSN::SPL == reg)
+    return UC_X86_REG_SPL;
+  if (INSN::SS == reg)
+    return UC_X86_REG_SS;
+  if (INSN::MM0 <= reg && reg <= INSN::MM7)
+    return UC_X86_REG_MM0 + reg - INSN::MM0;
+  if (INSN::R8 <= reg && reg <= INSN::R15)
+    return UC_X86_REG_R8 + reg - INSN::R8;
+  if (INSN::ST0 <= reg && reg <= INSN::ST7)
+    return UC_X86_REG_ST0 + reg - INSN::ST0;
+  if (INSN::XMM0 <= reg && reg <= INSN::XMM31)
+    return UC_X86_REG_XMM0 + reg - INSN::XMM0;
+  if (INSN::YMM0 <= reg && reg <= INSN::YMM31)
+    return UC_X86_REG_YMM0 + reg - INSN::YMM0;
+  if (INSN::ZMM0 <= reg && reg <= INSN::ZMM31)
+    return UC_X86_REG_ZMM0 + reg - INSN::ZMM0;
+  if (INSN::R8B == reg)
+    return UC_X86_REG_R8B;
+  if (INSN::R9B == reg)
+    return UC_X86_REG_R9B;
+  if (INSN::R10B == reg)
+    return UC_X86_REG_R10B;
+  if (INSN::R11B == reg)
+    return UC_X86_REG_R11B;
+  if (INSN::R12B == reg)
+    return UC_X86_REG_R12B;
+  if (INSN::R13B == reg)
+    return UC_X86_REG_R13B;
+  if (INSN::R14B == reg)
+    return UC_X86_REG_R14B;
+  if (INSN::R15B == reg)
+    return UC_X86_REG_R15B;
+  if (INSN::R8D == reg)
+    return UC_X86_REG_R8D;
+  if (INSN::R9D == reg)
+    return UC_X86_REG_R9D;
+  if (INSN::R10D == reg)
+    return UC_X86_REG_R10D;
+  if (INSN::R11D == reg)
+    return UC_X86_REG_R11D;
+  if (INSN::R12D == reg)
+    return UC_X86_REG_R12D;
+  if (INSN::R13D == reg)
+    return UC_X86_REG_R13D;
+  if (INSN::R14D == reg)
+    return UC_X86_REG_R14D;
+  if (INSN::R15D == reg)
+    return UC_X86_REG_R15D;
+  if (INSN::R8W == reg)
+    return UC_X86_REG_R8W;
+  if (INSN::R9W == reg)
+    return UC_X86_REG_R9W;
+  if (INSN::R10W == reg)
+    return UC_X86_REG_R10W;
+  if (INSN::R11W == reg)
+    return UC_X86_REG_R11W;
+  if (INSN::R12W == reg)
+    return UC_X86_REG_R12W;
+  if (INSN::R13W == reg)
+    return UC_X86_REG_R13W;
+  if (INSN::R14W == reg)
+    return UC_X86_REG_R14W;
+  if (INSN::R15W == reg)
+    return UC_X86_REG_R15W;
+  if (INSN::EFLAGS == reg)
+    return UC_X86_REG_RFLAGS;
+
+  log_print(Runtime, "Unknown llvm instruction register operand type: {}.",
+            reg);
+  abort();
+}
 
 static void parseInstX64(const MCInst &inst, uint64_t opcptr,
                          std::map<std::string, std::string> &decinfo,
-                         InsnInfo &iinfo) {}
+                         InsnInfo &iinfo) {
+  namespace INSN = llvm::X86;
+  switch (inst.getOpcode()) {
+  case INSN::INT:
+  case INSN::INT3:
+  case INSN::INTO:
+  case INSN::TRAP:
+    iinfo.type = INSN_ABORT;
+    break;
+  case INSN::RET:
+  case INSN::RET16:
+  case INSN::RET32:
+  case INSN::RET64:
+    iinfo.type = INSN_RETURN;
+    break;
+  case INSN::SYSCALL:
+    iinfo.type = INSN_SYSCALL;
+    break;
+  case INSN::CALL16r:
+  case INSN::CALL32r:
+  case INSN::CALL64r:
+    iinfo.type = INSN_CALLREG;
+    break;
+  case INSN::JMP16r:
+  case INSN::JMP32r:
+  case INSN::JMP64r:
+    iinfo.type = INSN_JUMPREG;
+    break;
+  case INSN::MOV64rm:
+    iinfo.type = INSN_X64_MOV64RM;
+    break;
+  case INSN::MOV32rm:
+    iinfo.type = INSN_X64_MOV32RM;
+    break;
+  case INSN::MOV16rm:
+    iinfo.type = INSN_X64_MOV16RM;
+    break;
+  case INSN::MOV8rm:
+    iinfo.type = INSN_X64_MOV8RM;
+    break;
+  case INSN::MOV64mr:
+    iinfo.type = INSN_X64_MOV64MR;
+    break;
+  case INSN::MOV32mr:
+    iinfo.type = INSN_X64_MOV32MR;
+    break;
+  case INSN::MOV16mr:
+    iinfo.type = INSN_X64_MOV16MR;
+    break;
+  case INSN::MOV8mr:
+    iinfo.type = INSN_X64_MOV8MR;
+    break;
+  case INSN::MOV64mi32:
+    iinfo.type = INSN_X64_MOV64MI32;
+    break;
+  case INSN::MOV32mi:
+    iinfo.type = INSN_X64_MOV32MI;
+    break;
+  case INSN::MOV16mi:
+    iinfo.type = INSN_X64_MOV16MI;
+    break;
+  case INSN::MOV8mi:
+    iinfo.type = INSN_X64_MOV8MI;
+    break;
+  case INSN::LEA32r:
+    iinfo.type = INSN_X64_LEA32;
+    break;
+  case INSN::LEA64r:
+    iinfo.type = INSN_X64_LEA64;
+    break;
+  case INSN::MOVAPSrm:
+    iinfo.type = INSN_X64_MOVAPSRM;
+    break;
+  case INSN::MOVAPSmr:
+    iinfo.type = INSN_X64_MOVAPSMR;
+    break;
+  case INSN::MOVUPSrm:
+    iinfo.type = INSN_X64_MOVUPSRM;
+    break;
+  case INSN::MOVUPSmr:
+    iinfo.type = INSN_X64_MOVUPSMR;
+    break;
+  case INSN::MOVAPDrm:
+    iinfo.type = INSN_X64_MOVAPDRM;
+    break;
+  case INSN::MOVAPDmr:
+    iinfo.type = INSN_X64_MOVAPDMR;
+    break;
+  case INSN::MOVUPDrm:
+    iinfo.type = INSN_X64_MOVUPDRM;
+    break;
+  case INSN::MOVUPDmr:
+    iinfo.type = INSN_X64_MOVUPDMR;
+    break;
+  case INSN::MOV32ri:
+  case INSN::MOV64ri:
+    iinfo.type = INSN_X64_MOVI;
+    break;
+  case INSN::MOV32ao16:
+  case INSN::MOV32ao32:
+  case INSN::MOV32ao64:
+  case INSN::MOV64ao32:
+  case INSN::MOV64ao64:
+    iinfo.type = INSN_X64_MOVIMEM;
+    break;
+  case INSN::CMP8mi:
+    iinfo.type = INSN_X64_CMP8MI;
+    break;
+  case INSN::CMP8mi8:
+    iinfo.type = INSN_X64_CMP8MI8;
+    break;
+  case INSN::CMP16mi:
+    iinfo.type = INSN_X64_CMP16MI;
+    break;
+  case INSN::CMP16mi8:
+    iinfo.type = INSN_X64_CMP16MI8;
+    break;
+  case INSN::CMP32mi:
+    iinfo.type = INSN_X64_CMP32MI;
+    break;
+  case INSN::CMP32mi8:
+    iinfo.type = INSN_X64_CMP32MI8;
+    break;
+  case INSN::CMP64mi32:
+    iinfo.type = INSN_X64_CMP64MI32;
+    break;
+  case INSN::CMP64mi8:
+    iinfo.type = INSN_X64_CMP64MI8;
+    break;
+  case INSN::CMP8rm:
+    iinfo.type = INSN_X64_CMP8RM;
+    break;
+  case INSN::CMP16rm:
+    iinfo.type = INSN_X64_CMP16RM;
+    break;
+  case INSN::CMP32rm:
+    iinfo.type = INSN_X64_CMP32RM;
+    break;
+  case INSN::CMP64rm:
+    iinfo.type = INSN_X64_CMP64RM;
+    break;
+  case INSN::MOVSX16rm8:
+    iinfo.type = INSN_X64_MOVSX16RM8;
+    break;
+  case INSN::MOVSX16rm16:
+    iinfo.type = INSN_X64_MOVSX16RM16;
+    break;
+  case INSN::MOVSX16rm32:
+    iinfo.type = INSN_X64_MOVSX16RM32;
+    break;
+  case INSN::MOVSX32rm8:
+    iinfo.type = INSN_X64_MOVSX32RM8;
+    break;
+  case INSN::MOVSX32rm16:
+    iinfo.type = INSN_X64_MOVSX32RM16;
+    break;
+  case INSN::MOVSX32rm32:
+    iinfo.type = INSN_X64_MOVSX32RM32;
+    break;
+  case INSN::MOVSX64rm8:
+    iinfo.type = INSN_X64_MOVSX64RM8;
+    break;
+  case INSN::MOVSX64rm16:
+    iinfo.type = INSN_X64_MOVSX64RM16;
+    break;
+  case INSN::MOVSX64rm32:
+    iinfo.type = INSN_X64_MOVSX64RM32;
+    break;
+  case INSN::TEST8mi:
+    iinfo.type = INSN_X64_TEST8MI;
+    break;
+  case INSN::TEST8mr:
+    iinfo.type = INSN_X64_TEST8MR;
+    break;
+  case INSN::TEST16mi:
+    iinfo.type = INSN_X64_TEST16MI;
+    break;
+  case INSN::TEST16mr:
+    iinfo.type = INSN_X64_TEST16MR;
+    break;
+  case INSN::TEST32mi:
+    iinfo.type = INSN_X64_TEST32MI;
+    break;
+  case INSN::TEST32mr:
+    iinfo.type = INSN_X64_TEST32MR;
+    break;
+  case INSN::TEST64mi32:
+    iinfo.type = INSN_X64_TEST64MI32;
+    break;
+  case INSN::TEST64mr:
+    iinfo.type = INSN_X64_TEST64MR;
+    break;
+  default:
+    iinfo.type = INSN_HARDWARE;
+    break;
+  }
+}
 
 void Object::decodeInsns() {
   auto Obj = ofile_.get();
