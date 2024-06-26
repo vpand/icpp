@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include <cstdint>
+
 namespace icpp {
 
 enum ArchType {
@@ -105,6 +107,60 @@ enum InsnType {
   INSN_TYPE_MAX,
 };
 
+constexpr int A64_FP = 29;
+constexpr int A64_LR = 30;
+constexpr int A64_SP = 31;
+
+struct ContextA64 {
+  // general purpose register
+  uint64_t r[32]; // 0-28,29-fp,30-lr,31-sp
+  // neon vector register
+  uint8_t v[32][16];
+};
+
+struct ContextX64 {
+  // general purpose register
+  uint64_t rax;
+  uint64_t rbx;
+  uint64_t rcx;
+  uint64_t rdx;
+  uint64_t rbp;
+  uint64_t rsi;
+  uint64_t rdi;
+  uint64_t r8;
+  uint64_t r9;
+  uint64_t r10;
+  uint64_t r11;
+  uint64_t r12;
+  uint64_t r13;
+  uint64_t r14;
+  uint64_t r15;
+  // simd xmm register
+  uint8_t xmm[32][16];
+  // rflags
+  // https://en.wikipedia.org/wiki/FLAGS_register
+  union {
+    struct {
+      uint64_t CF : 1, Rsv1 : 1, PF : 1, Rsv3 : 1, AF : 1, Rsv5 : 1, ZF : 1,
+          SF : 1, TF : 1, IF : 1, DF : 1, OF : 1, IOPL : 2, NT : 1, RSV15 : 1,
+          RF : 1, VM : 1, AC : 1, VIF : 1, VIP : 1, ID : 1, Rsv22 : 10,
+          Rsv32 : 32;
+    } bit;
+    uint64_t val;
+  } rflags;
+  // float number regster
+  uint16_t fctrl;
+  uint8_t fstats[26];
+  uint8_t stmmx[8][10];
+  // stack pointer register
+  uint64_t rsp;
+};
+
 ArchType host_arch();
+
+// call a host function with specified register context
+// ctx is a ContextA64 or ContextX64 instance
+// func is a host function address
+void host_call(void *ctx, const void *func);
 
 } // namespace icpp

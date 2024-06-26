@@ -1764,6 +1764,9 @@ void Object::decodeInsns() {
                                    std::string()})
                           .first;
           auto optr = const_cast<std::string *>(&newi->second);
+          // we encode the instruction operands as follows:
+          // if it's a register, then encode it to uc register index as uint16_t
+          // if it's an immediate, then encode it as uint64_t
           for (unsigned i = 0; i < inst.getNumOperands(); i++) {
             auto opr = inst.getOperand(i);
             if (opr.isImm()) {

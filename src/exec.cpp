@@ -54,6 +54,11 @@ private:
   void initMainRegisterWinX64();
   void initMainRegisterCommonX64();
 
+  ContextA64 loadRegisterAArch64();
+  void saveRegisterAArch64(const ContextA64 &ctx);
+  ContextX64 loadRegisterX64();
+  void saveRegisterX64(const ContextX64 &ctx);
+
   char *topStack() {
     return reinterpret_cast<char *>(stack_.data()) + runcfg_.stackSize();
   }
@@ -100,6 +105,84 @@ void ExecEngine::execMain() {
   execLoop(reinterpret_cast<uint64_t>(object_->mainEntry()));
 }
 
+ContextA64 ExecEngine::loadRegisterAArch64() {
+  ContextA64 ctx;
+  for (int i = 0; i <= 28; i++) {
+    uc_reg_read(uc_, UC_ARM64_REG_X0 + i, &ctx.r[i]);
+  }
+  uc_reg_read(uc_, UC_ARM64_REG_X29, &ctx.r[A64_FP]);
+  uc_reg_read(uc_, UC_ARM64_REG_X30, &ctx.r[A64_LR]);
+  uc_reg_read(uc_, UC_ARM64_REG_SP, &ctx.r[A64_SP]);
+  for (int i = 0; i < 32; i++) {
+    uc_reg_read(uc_, UC_ARM64_REG_V0 + i, &ctx.v[i]);
+  }
+  return ctx;
+}
+
+void ExecEngine::saveRegisterAArch64(const ContextA64 &ctx) {
+  for (int i = 0; i <= 28; i++) {
+    uc_reg_write(uc_, UC_ARM64_REG_X0 + i, &ctx.r[i]);
+  }
+  uc_reg_write(uc_, UC_ARM64_REG_X29, &ctx.r[A64_FP]);
+  uc_reg_write(uc_, UC_ARM64_REG_X30, &ctx.r[A64_LR]);
+  uc_reg_write(uc_, UC_ARM64_REG_SP, &ctx.r[A64_SP]);
+  for (int i = 0; i < 32; i++) {
+    uc_reg_write(uc_, UC_ARM64_REG_V0 + i, &ctx.v[i]);
+  }
+}
+
+ContextX64 ExecEngine::loadRegisterX64() {
+  ContextX64 ctx;
+  uc_reg_read(uc_, UC_X86_REG_RSP, &ctx.rsp);
+  uc_reg_read(uc_, UC_X86_REG_RBP, &ctx.rbp);
+  uc_reg_read(uc_, UC_X86_REG_RAX, &ctx.rax);
+  uc_reg_read(uc_, UC_X86_REG_RBX, &ctx.rbx);
+  uc_reg_read(uc_, UC_X86_REG_RCX, &ctx.rcx);
+  uc_reg_read(uc_, UC_X86_REG_RDX, &ctx.rdx);
+  uc_reg_read(uc_, UC_X86_REG_RSI, &ctx.rsi);
+  uc_reg_read(uc_, UC_X86_REG_RDI, &ctx.rdi);
+  uc_reg_read(uc_, UC_X86_REG_R8, &ctx.r8);
+  uc_reg_read(uc_, UC_X86_REG_R9, &ctx.r9);
+  uc_reg_read(uc_, UC_X86_REG_R10, &ctx.r10);
+  uc_reg_read(uc_, UC_X86_REG_R11, &ctx.r11);
+  uc_reg_read(uc_, UC_X86_REG_R12, &ctx.r12);
+  uc_reg_read(uc_, UC_X86_REG_R13, &ctx.r13);
+  uc_reg_read(uc_, UC_X86_REG_R14, &ctx.r14);
+  uc_reg_read(uc_, UC_X86_REG_R15, &ctx.r15);
+  for (int i = 0; i < 8; i++) {
+    uc_reg_read(uc_, UC_X86_REG_ST0 + i, &ctx.stmmx[i]);
+  }
+  for (int i = 0; i < 32; i++) {
+    uc_reg_read(uc_, UC_X86_REG_XMM0, &ctx.xmm[i]);
+  }
+  return ctx;
+}
+
+void ExecEngine::saveRegisterX64(const ContextX64 &ctx) {
+  uc_reg_write(uc_, UC_X86_REG_RSP, &ctx.rsp);
+  uc_reg_write(uc_, UC_X86_REG_RBP, &ctx.rbp);
+  uc_reg_write(uc_, UC_X86_REG_RAX, &ctx.rax);
+  uc_reg_write(uc_, UC_X86_REG_RBX, &ctx.rbx);
+  uc_reg_write(uc_, UC_X86_REG_RCX, &ctx.rcx);
+  uc_reg_write(uc_, UC_X86_REG_RDX, &ctx.rdx);
+  uc_reg_write(uc_, UC_X86_REG_RSI, &ctx.rsi);
+  uc_reg_write(uc_, UC_X86_REG_RDI, &ctx.rdi);
+  uc_reg_write(uc_, UC_X86_REG_R8, &ctx.r8);
+  uc_reg_write(uc_, UC_X86_REG_R9, &ctx.r9);
+  uc_reg_write(uc_, UC_X86_REG_R10, &ctx.r10);
+  uc_reg_write(uc_, UC_X86_REG_R11, &ctx.r11);
+  uc_reg_write(uc_, UC_X86_REG_R12, &ctx.r12);
+  uc_reg_write(uc_, UC_X86_REG_R13, &ctx.r13);
+  uc_reg_write(uc_, UC_X86_REG_R14, &ctx.r14);
+  uc_reg_write(uc_, UC_X86_REG_R15, &ctx.r15);
+  for (int i = 0; i < 8; i++) {
+    uc_reg_write(uc_, UC_X86_REG_ST0 + i, &ctx.stmmx[i]);
+  }
+  for (int i = 0; i < 32; i++) {
+    uc_reg_write(uc_, UC_X86_REG_XMM0, &ctx.xmm[i]);
+  }
+}
+
 bool ExecEngine::execPreprocess(const InsnInfo *&inst, uint64_t &pc,
                                 int &step) {
   // we should process the relocation, branch, jump, call and syscall
@@ -127,6 +210,7 @@ bool ExecEngine::execPreprocess(const InsnInfo *&inst, uint64_t &pc,
   }
   // interpret the pre-decoded instructions
   for (unsigned i = 0; i < origstep && inst->type != INSN_HARDWARE; i++) {
+    bool jump = false;
     switch (inst->type) {
     // common instruction
     case INSN_ABORT:
@@ -139,9 +223,27 @@ bool ExecEngine::execPreprocess(const InsnInfo *&inst, uint64_t &pc,
     case INSN_ARM64_SYSCALL:
       UNIMPL_ABORT();
       break;
-    case INSN_ARM64_CALL:
-      UNIMPL_ABORT();
+    // encoded meta data layout:[uint64_t]
+    case INSN_ARM64_CALL: {
+      auto retaddr = pc + inst->len;
+      if (inst->rflag) {
+        // call external function
+        auto target = object_->relocInfo(inst->reloc);
+        auto context = loadRegisterAArch64();
+        context.r[A64_LR] = retaddr; // set return address
+        host_call(&context, target);
+        saveRegisterAArch64(context);
+      } else {
+        // call internal function
+        auto metaptr = object_->metaInfo<uint64_t>(inst, pc);
+        // set return address
+        uc_reg_write(uc_, UC_ARM64_REG_LR, &retaddr);
+        pc += (metaptr[0] << 2);      // advance pc with bl instruction
+        inst = object_->insnInfo(pc); // update current inst
+        jump = true;
+      }
       break;
+    }
     case INSN_ARM64_CALLREG:
       UNIMPL_ABORT();
       break;
@@ -154,9 +256,19 @@ bool ExecEngine::execPreprocess(const InsnInfo *&inst, uint64_t &pc,
     case INSN_ARM64_ADR:
       UNIMPL_ABORT();
       break;
-    case INSN_ARM64_ADRP:
-      UNIMPL_ABORT();
+    // encoded meta data layout:[uint16_t, uint64_t]
+    case INSN_ARM64_ADRP: {
+      auto metaptr = object_->metaInfo<uint16_t>(inst, pc);
+      uint64_t target = 0;
+      if (inst->rflag) {
+        target = reinterpret_cast<uint64_t>(object_->relocInfo(inst->reloc));
+      } else {
+        auto imm = *reinterpret_cast<const uint64_t *>(&metaptr[1]);
+        target = pc + ((imm << 12) & ~((1 << 12) - 1));
+      }
+      uc_reg_write(uc_, metaptr[0], &target);
       break;
+    }
     case INSN_ARM64_LDRSWL:
       UNIMPL_ABORT();
       break;
@@ -377,9 +489,11 @@ bool ExecEngine::execPreprocess(const InsnInfo *&inst, uint64_t &pc,
       abort();
       break;
     }
-    // advance to the next instruction
-    pc += inst->len;
-    inst++;
+    // advance to the next instruction if didn't jump
+    if (!jump) {
+      pc += inst->len;
+      inst++;
+    }
   }
   // indicates the current instruction has been processed
   return true;

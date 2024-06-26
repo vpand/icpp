@@ -69,6 +69,15 @@ public:
 
   constexpr ArchType arch() { return arch_; }
 
+  constexpr const RelocInfo *relocInfo(size_t i) { return &irelocs_[i]; }
+
+  template <typename T> const T *metaInfo(const InsnInfo *inst, uint64_t vm) {
+    auto found =
+        idecinfs_.find(std::string(reinterpret_cast<char *>(vm), inst->len));
+    assert(found != idecinfs_.end() && "Null meta information is impossiple.");
+    return reinterpret_cast<T *>(found->second.data());
+  }
+
   constexpr uint64_t vm2rva(uint64_t vm) { return textrva_ + vm - textvm_; }
 
   uc_arch ucArch();
