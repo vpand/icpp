@@ -545,6 +545,21 @@ DisassemblerTarget::DisassemblerTarget(const Target *TheTarget, ObjectFile &Obj,
                                        SubtargetFeatures &Features)
     : TheTarget(TheTarget), Printer(&selectPrettyPrinter(Triple(TripleName))),
       RegisterInfo(TheTarget->createMCRegInfo(TripleName)) {
+  static bool init_llvm = false;
+  if (!init_llvm) {
+    init_llvm = true;
+    // Initialize All target infos
+#define init_target(name)                                                      \
+  LLVMInitialize##name##Target();                                              \
+  LLVMInitialize##name##TargetMC();                                            \
+  LLVMInitialize##name##TargetInfo();                                          \
+  LLVMInitialize##name##AsmPrinter();                                          \
+  LLVMInitialize##name##AsmParser();                                           \
+  LLVMInitialize##name##Disassembler();
+    init_target(AArch64);
+    init_target(X86);
+  }
+
   if (!RegisterInfo)
     reportError(Obj.getFileName(), "no register info for target " + TripleName);
 
@@ -1001,7 +1016,7 @@ static SymbolInfoTy createDummySymbolInfo(const ObjectFile &Obj,
 
 std::string Object::sourceInfo(uint64_t vm) {
   auto Obj = ofile_.get();
-  std::string TripleName, Output;
+  std::string TripleName(triple()), Output;
   const Target *TheTarget = getTarget(Obj, TripleName);
   std::string MCPU;
   std::vector<std::string> MAttrs;
@@ -1523,7 +1538,7 @@ static void parseInstX64(const MCInst &inst, uint64_t opcptr,
 
 void Object::decodeInsns() {
   auto Obj = ofile_.get();
-  std::string TripleName;
+  std::string TripleName(triple());
   const Target *TheTarget = getTarget(Obj, TripleName);
   std::string MCPU;
   std::vector<std::string> MAttrs;
@@ -1609,25 +1624,22 @@ void Object::decodeInsns() {
   textsecti_ = 0;
   for (auto &s : ofile_->sections()) {
     auto expName = s.getName();
-    if (!expName) {
+    if (!expName || textname != expName->data()) {
       textsecti_++;
       continue;
     }
-    if (textname == expName->data()) {
-      for (auto r : s.relocations()) {
-        auto sym = r.getSymbol();
-        auto expType = sym->getType();
-        if (!expType)
-          continue;
-        // only load data/function symbols
-        switch (expType.get()) {
-        case SymbolRef::ST_Data:
-        case SymbolRef::ST_Function:
-          relocs.insert({r.getOffset(), r});
-          break;
-        default:
-          break;
-        }
+    for (auto r : s.relocations()) {
+      auto sym = r.getSymbol();
+      auto expType = sym->getType();
+      if (!expType)
+        continue;
+      // only load data/function symbols
+      switch (expType.get()) {
+      case SymbolRef::ST_Data:
+      case SymbolRef::ST_Function:
+        relocs.insert({r.getOffset(), r});
+        break;
+      default:
         break;
       }
     }
@@ -1663,7 +1675,7 @@ void Object::decodeInsns() {
           auto expName = sym->getName();
           auto expType = sym->getType();
           auto expFlags = sym->getFlags();
-          if (!expName || !expName || !expFlags) {
+          if (!expName || !expType || !expFlags) {
             // never be here
             log_print(Runtime,
                       "Fatal error, the symbol name/type/flags of '{:x}' is "

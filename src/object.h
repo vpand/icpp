@@ -7,6 +7,7 @@
 #pragma once
 
 #include "arch.h"
+#include <cassert>
 #include <map>
 #include <memory>
 #include <string_view>
@@ -68,6 +69,8 @@ public:
   constexpr ObjectType type() { return type_; }
 
   constexpr ArchType arch() { return arch_; }
+
+  const char *triple();
 
   constexpr const RelocInfo *relocInfo(size_t i) { return &irelocs_[i]; }
 

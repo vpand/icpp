@@ -14,6 +14,41 @@ namespace icpp {
 
 Object::Object(std::string_view path) : path_(path) {}
 
+const char *Object::triple() {
+  switch (type_) {
+  case ELF_Reloc:
+  case ELF_Exe:
+    switch (arch_) {
+    case AArch64:
+      return "aarch64-none-linux-android";
+    case X86_64:
+      return "x86_64-none-linux-android";
+    default:
+      return "";
+    }
+  case MachO_Reloc:
+  case MachO_Exe:
+    switch (arch_) {
+    case AArch64:
+      return "arm64-apple-macosx";
+    case X86_64:
+      return "x86_64-apple-macosx";
+    default:
+      return "";
+    }
+  case COFF_Reloc:
+  case COFF_Exe:
+    switch (arch_) {
+    case X86_64:
+      return "x86_64-pc-windows-msvc";
+    default:
+      return "";
+    }
+  default:
+    return "";
+  }
+}
+
 void Object::createObject(ObjectType type) {
   // herein we pass IsVolatile as true to disable llvm to mmap this file
   // because some data sections may be modified at runtime
@@ -42,6 +77,7 @@ void Object::createObject(ObjectType type) {
     }
     parseSymbols();
     parseSections();
+    decodeInsns();
   } else {
     std::cout << "Failed to create llvm object: "
               << llvm::toString(std::move(expObj.takeError())) << std::endl;
