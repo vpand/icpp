@@ -43,12 +43,17 @@ struct ExecEngine {
 
 private:
   void execCtor();
-  void initMainRegister();
   void execMain();
   void execDtor();
   void execLoop(uint64_t pc);
-  bool interpret(const InsnInfo *&inst, uint64_t &pc, int &step);
 
+  bool interpret(const InsnInfo *&inst, uint64_t &pc, int &step);
+  bool interpretCallAArch64(const InsnInfo *&inst, uint64_t &pc,
+                            uint64_t target);
+  bool interpretJumpAArch64(const InsnInfo *&inst, uint64_t &pc,
+                            uint64_t target);
+
+  void initMainRegister();
   void initMainRegisterAArch64();
   void initMainRegisterSysVX64();
   void initMainRegisterWinX64();
@@ -183,6 +188,48 @@ void ExecEngine::saveRegisterX64(const ContextX64 &ctx) {
   }
 }
 
+bool ExecEngine::interpretCallAArch64(const InsnInfo *&inst, uint64_t &pc,
+                                      uint64_t target) {
+  auto retaddr = pc + inst->len;
+  if (object_->cover(target)) {
+    // call internal function
+    // set return address
+    uc_reg_write(uc_, UC_ARM64_REG_LR, &retaddr);
+    pc = target;
+    inst = object_->insnInfo(pc); // update current inst
+    return true;
+  } else {
+    // call external function
+    auto context = loadRegisterAArch64();
+    context.r[A64_LR] = retaddr; // set return address
+    host_call(&context, reinterpret_cast<const void *>(target));
+    saveRegisterAArch64(context);
+    return false;
+  }
+}
+
+bool ExecEngine::interpretJumpAArch64(const InsnInfo *&inst, uint64_t &pc,
+                                      uint64_t target) {
+  if (object_->cover(target)) {
+    // jump to internal destination
+    pc = target;
+    inst = object_->insnInfo(pc); // update current inst
+    return true;
+  } else {
+    // jump to external function
+    auto context = loadRegisterAArch64();
+    if (object_->cover(context.r[A64_LR])) {
+      // return to our control
+      pc = context.r[A64_LR];
+      host_call(&context, reinterpret_cast<const void *>(target));
+      saveRegisterAArch64(context);
+      return true;
+    }
+    UNIMPL_ABORT();
+    return false;
+  }
+}
+
 bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
   // we should interpret the relocation, branch, jump, call and syscall
   // instructions manually, the unicorn engine can just execute those simple
@@ -209,6 +256,11 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
   }
   // interpret the pre-decoded instructions
   for (unsigned i = 0; i < origstep && inst->type != INSN_HARDWARE; i++) {
+#if 0
+    log_print(Develop, "Interpret {:x} I{}", object_->vm2rva(pc), inst->type);
+#endif
+
+    // call and return within object should update this to true
     bool jump = false;
     switch (inst->type) {
     // common instruction
@@ -234,34 +286,44 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       break;
     // encoded meta data layout:[uint64_t]
     case INSN_ARM64_CALL: {
-      auto retaddr = pc + inst->len;
+      uint64_t target;
       if (inst->rflag) {
-        // call external function
-        auto target = object_->relocTarget(inst->reloc);
-        auto context = loadRegisterAArch64();
-        context.r[A64_LR] = retaddr; // set return address
-        host_call(&context, target);
-        saveRegisterAArch64(context);
+        target = reinterpret_cast<uint64_t>(object_->relocTarget(inst->reloc));
       } else {
-        // call internal function
         auto metaptr = object_->metaInfo<uint64_t>(inst, pc);
-        // set return address
-        uc_reg_write(uc_, UC_ARM64_REG_LR, &retaddr);
-        pc += (metaptr[0] << 2);      // advance pc with bl instruction
-        inst = object_->insnInfo(pc); // update current inst
-        jump = true;
+        target = pc + (metaptr[0] << 2);
       }
+      jump = interpretCallAArch64(inst, pc, reinterpret_cast<uint64_t>(target));
       break;
     }
-    case INSN_ARM64_CALLREG:
-      UNIMPL_ABORT();
+    // encoded meta data layout:[uint16_t]
+    case INSN_ARM64_CALLREG: {
+      auto metaptr = object_->metaInfo<uint16_t>(inst, pc);
+      uint64_t target;
+      uc_reg_read(uc_, metaptr[0], &target);
+      jump = interpretCallAArch64(inst, pc, target);
       break;
-    case INSN_ARM64_JUMP:
-      UNIMPL_ABORT();
+    }
+    // encoded meta data layout:[uint64_t]
+    case INSN_ARM64_JUMP: {
+      uint64_t target;
+      if (inst->rflag) {
+        target = reinterpret_cast<uint64_t>(object_->relocTarget(inst->reloc));
+      } else {
+        auto metaptr = object_->metaInfo<uint64_t>(inst, pc);
+        target = pc + (metaptr[0] << 2);
+      }
+      jump = interpretJumpAArch64(inst, pc, target);
       break;
-    case INSN_ARM64_JUMPREG:
-      UNIMPL_ABORT();
+    }
+    // encoded meta data layout:[uint16_t]
+    case INSN_ARM64_JUMPREG: {
+      auto metaptr = object_->metaInfo<uint16_t>(inst, pc);
+      uint64_t target;
+      uc_reg_read(uc_, metaptr[0], &target);
+      jump = interpretJumpAArch64(inst, pc, target);
       break;
+    }
     case INSN_ARM64_ADR:
       UNIMPL_ABORT();
       break;
@@ -549,6 +611,10 @@ void ExecEngine::execLoop(uint64_t pc) {
       continue;
     }
 
+#if 0
+    log_print(Develop, "Emulation {:x}", object_->vm2rva(pc));
+#endif
+
     // running instructions by unicorn engine
     auto err = uc_emu_start(uc_, pc, -1, 0, step);
     if (err != UC_ERR_OK) {
@@ -556,11 +622,15 @@ void ExecEngine::execLoop(uint64_t pc) {
                 << ", current pc=0x" << std::hex << pc << "." << std::endl;
       break;
     }
-    // update inst with step
-    inst += step;
 
     // update current pc
     uc_reg_read(uc_, pcreg, &pc);
+    // update inst with step
+    inst += step;
+    if (inst->rva != object_->vm2rva(pc)) {
+      // last instruction is jump type
+      inst = object_->insnInfo(pc);
+    }
   }
   if (debugger_)
     debugger_->leave();

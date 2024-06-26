@@ -7,7 +7,11 @@
 #include "loader.h"
 #include "log.h"
 #include "object.h"
+#include <cstdio>
+#include <iostream>
+#include <locale>
 #include <mutex>
+#include <stdio.h>
 #include <unordered_map>
 
 #ifdef _WIN32
@@ -17,6 +21,28 @@
 #endif
 
 namespace icpp {
+
+// these global variables will have function type in object file
+// we must fix them as data type to make its related instructions to execute
+// correctly
+static const void *global_vars[] = {
+    reinterpret_cast<const void *>(&std::cout),
+    reinterpret_cast<const void *>(&std::wcout),
+    reinterpret_cast<const void *>(&std::ctype<char>::id),
+    reinterpret_cast<const void *>(&std::ctype<wchar_t>::id),
+    reinterpret_cast<const void *>(&stdin),
+    reinterpret_cast<const void *>(&stdout),
+    reinterpret_cast<const void *>(&stderr),
+};
+
+static bool is_global_var(const void *p) {
+  for (size_t i = 0; i < std::size(global_vars); i++) {
+    if (p == global_vars[i]) {
+      return true;
+    }
+  }
+  return false;
+}
 
 struct SymbolCache {
   const void *resolve(std::string_view name, bool data);
@@ -32,6 +58,8 @@ const void *SymbolCache::resolve(std::string_view name, bool data) {
   std::lock_guard lock(mutext_);
   auto found = syms_.find(name.data());
   if (found != syms_.end()) {
+    if (data || is_global_var(found->second))
+      return &found->second;
     return found->second;
   }
   return lookup(name, data);
@@ -53,8 +81,10 @@ const void *SymbolCache::lookup(std::string_view name, bool data) {
   }
 #endif
   // cache it
-  syms_.insert({sym, addr});
-  return addr;
+  auto newit = syms_.insert({sym, addr}).first;
+  if (data || is_global_var(newit->second))
+    return &newit->second;
+  return newit->second;
 }
 
 Loader::Loader(Object *object, const std::vector<std::string> &deps)

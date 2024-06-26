@@ -1758,15 +1758,18 @@ void Object::decodeInsns() {
                                     RelocInfo{name.data(), rtaddr});
             }
           }
-          log_print(Develop, "Relocated symbol {} at {}.", rit->name,
-                    rit->target);
+          if (0) {
+            log_print(Develop, "Relocated {} symbol {} at {}.",
+                      expType.get() == SymbolRef::ST_Data ? "data" : "func",
+                      rit->name, rit->target);
+          }
         }
         // record its relocation index
         iinfo.rflag = 1;
         iinfo.reloc = rit - irelocs_.begin();
       }
       // convert llvm opcode to icpp InsnType
-      std::function<uint8_t(unsigned)> llvm2uc_register;
+      std::function<uint16_t(unsigned)> llvm2uc_register;
       if (arch() == AArch64) {
         llvm2uc_register = llvm2ucRegisterAArch64;
         parseInstAArch64(inst, opc, idecinfs_, iinfo);

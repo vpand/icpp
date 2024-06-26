@@ -140,9 +140,10 @@ void Object::parseSymbols() {
     if (name.starts_with("ltmp") || name.starts_with("l_."))
       continue;
     caches->insert({name.data(), buff});
-    log_print(Develop, "Cached symbol {}.{},{}.", name.data(),
-              static_cast<const void *>(name.data()),
-              static_cast<const void *>(buff));
+    if (0) {
+      log_print(Develop, "Cached symbol {}.{:x}.{}.", name.data(), addr,
+                static_cast<const void *>(buff));
+    }
   }
 }
 
