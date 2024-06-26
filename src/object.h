@@ -70,9 +70,13 @@ public:
 
   constexpr ArchType arch() { return arch_; }
 
+  constexpr bool cover(uint64_t vm) {
+    return textvm_ <= vm && vm < textvm_ + textsz_;
+  }
+
   const char *triple();
 
-  constexpr const RelocInfo *relocInfo(size_t i) { return &irelocs_[i]; }
+  constexpr const void *relocTarget(size_t i) { return irelocs_[i].target; }
 
   template <typename T> const T *metaInfo(const InsnInfo *inst, uint64_t vm) {
     auto found =
@@ -108,10 +112,10 @@ private:
   // <data name, data pointer>
   std::unordered_map<std::string_view, const void *> datas_;
   // text section index, rva, size and vm values
-  uint32_t textsecti_;
-  uint32_t textsz_;
-  uint64_t textrva_;
-  uint64_t textvm_;
+  uint32_t textsecti_ = 0;
+  uint32_t textsz_ = 0;
+  uint64_t textrva_ = 0;
+  uint64_t textvm_ = 0;
   // dynamically allocated sections
   std::vector<DynSection> dynsects_;
   // instruction informations

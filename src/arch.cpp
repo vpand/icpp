@@ -23,7 +23,6 @@ ArchType host_arch() {
 #endif
 }
 
-#define switch_stack_size 0x1000
 #define switch_stack_strsize "0x1000"
 
 #define save_gpr_a64()                                                         \
@@ -275,14 +274,9 @@ void __NAKED__ host_call_asm(void *ctx, const void *func) {
   __ASM__("sub sp, sp, #" switch_stack_strsize); /*let sp be our temp stack*/
   __ASM__("blr x17");                            /*exec the insn*/
 
-  __ASM__("mov x30, x29"); /*save call-before sp*/
-#if __APPLE__
-  __ASM__("mov x17, sp"); /*save call-after sp*/
-  __ASM__("mov sp, x29"); /*restore current sp*/
-#else
+  __ASM__("mov x30, x29");                       /*save call-before sp*/
   __ASM__("add sp, sp, #" switch_stack_strsize); /*restore current sp*/
-#endif
-  save_gpr_a64(); /*save exec context to buffer*/
+  save_gpr_a64();                                /*save exec context to buffer*/
   save_neon_a64();
 
   __ASM__("ldr x0, [sp, #0x3f0]"); /*load ctx*/

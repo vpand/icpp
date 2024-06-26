@@ -41,14 +41,19 @@ const void *SymbolCache::lookup(std::string_view name, bool data) {
 #ifdef _WIN32
 #error Un-implement symbol lookup on Windows.
 #else
-  auto addr = dlsym(RTLD_DEFAULT, name.data());
+#if __APPLE__
+  auto sym = name.data() + 1;
+#else
+  auto sym = name.data();
+#endif
+  auto addr = dlsym(RTLD_DEFAULT, sym);
   if (!addr) {
     log_print(Runtime, "Fatal error, failed to resolve symbol: {}.", dlerror());
     abort();
   }
 #endif
   // cache it
-  syms_.insert({name.data(), addr});
+  syms_.insert({sym, addr});
   return addr;
 }
 

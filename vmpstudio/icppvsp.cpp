@@ -108,10 +108,12 @@ void vsp_icpp_t::process(const icpp::ProtocolHdr *hdr, const void *body,
       if (api->curArchType() == vsp_arch_x64)
         pcflag = "rip = ";
       auto pos = resp.result().find(pcflag);
-      auto pc = std::stoull(
-          std::string(resp.result().data() + pos + pcflag.length(), 16),
-          nullptr, 16);
-      api->gotoCPUAddress(pc);
+      if (pos != std::string::npos) {
+        auto pc = std::stoull(
+            std::string(resp.result().data() + pos + pcflag.length(), 16),
+            nullptr, 16);
+        api->gotoCPUAddress(pc);
+      }
     }
     log_print("{}\n", resp.result());
     break;
@@ -219,14 +221,14 @@ __VSP_API__ void vi_connect() {
   if (vivsp.running()) {
     return;
   }
-  vivsp.start();
+  vivsp.run();
 }
 
 __VSP_API__ void vi_disconnect() {
   if (!vivsp.running()) {
     return;
   }
-  vivsp.stop();
+  vivsp.run();
 }
 
 __VSP_API__ void vi_pause() {

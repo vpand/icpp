@@ -75,8 +75,8 @@ void Object::createObject(ObjectType type) {
       arch_ = Unsupported;
       break;
     }
-    parseSymbols();
     parseSections();
+    parseSymbols();
     decodeInsns();
   } else {
     std::cout << "Failed to create llvm object: "
@@ -123,9 +123,19 @@ void Object::parseSymbols() {
       continue;
     auto saddr = sect->getAddress();
     auto sbuff = expSContent.get();
+    auto snameExp = sect->getName();
+    if (!snameExp)
+      continue;
     auto addr = expAddr.get();
     auto name = expName.get();
     auto buff = sbuff.data() + addr - saddr;
+    for (auto &ds : dynsects_) {
+      if (snameExp.get() == ds.name) {
+        // dynamically allocated section
+        buff = ds.buffer.data() + addr - saddr;
+        break;
+      }
+    }
     // ignore the internal temporary symbols
     if (name.starts_with("ltmp") || name.starts_with("l_."))
       continue;
@@ -150,9 +160,11 @@ void Object::parseSections() {
   for (auto &s : ofile_->sections()) {
     auto expName = s.getName();
     if (!expName) {
-      textsecti_++;
+      if (!textsz_)
+        textsecti_++;
       continue;
     }
+
     auto name = expName.get();
     if (textname == name.data()) {
       auto expContent = s.getContents();
@@ -169,7 +181,9 @@ void Object::parseSections() {
       dynsects_.push_back(
           {name.data(), s.getAddress(), std::string(s.getSize(), 0)});
     }
-    textsecti_++;
+
+    if (!textsz_)
+      textsecti_++;
   }
 }
 

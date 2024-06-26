@@ -47,7 +47,7 @@ private:
   void execMain();
   void execDtor();
   void execLoop(uint64_t pc);
-  bool execPreprocess(const InsnInfo *&inst, uint64_t &pc, int &step);
+  bool interpret(const InsnInfo *&inst, uint64_t &pc, int &step);
 
   void initMainRegisterAArch64();
   void initMainRegisterSysVX64();
@@ -183,9 +183,8 @@ void ExecEngine::saveRegisterX64(const ContextX64 &ctx) {
   }
 }
 
-bool ExecEngine::execPreprocess(const InsnInfo *&inst, uint64_t &pc,
-                                int &step) {
-  // we should process the relocation, branch, jump, call and syscall
+bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
+  // we should interpret the relocation, branch, jump, call and syscall
   // instructions manually, the unicorn engine can just execute those simple
   // instructions (i.e., instruction without relocation and jump operation) in
   // our case
@@ -193,13 +192,13 @@ bool ExecEngine::execPreprocess(const InsnInfo *&inst, uint64_t &pc,
   auto curi = inst;
   if (step <= 0) {
     // calculate the maximized steps that can be passed to uc_emu_start
-    for (step = 0; curi->type == INSN_HARDWARE; curi++)
+    for (step = 0; curi->type == INSN_HARDWARE; curi++, step++)
       ;
   } else {
     // check whether the step-count instructions have relocation/jump-operation
     // or not if so, the step size should be re-adjusted
     int tmpstep = 0;
-    for (; curi->type == INSN_HARDWARE; tmpstep++)
+    for (; curi->type == INSN_HARDWARE; curi++, tmpstep++)
       ;
     step = std::min(step, tmpstep);
   }
@@ -217,9 +216,19 @@ bool ExecEngine::execPreprocess(const InsnInfo *&inst, uint64_t &pc,
       UNIMPL_ABORT();
       break;
     // arm64 instruction
-    case INSN_ARM64_RETURN:
-      UNIMPL_ABORT();
+    case INSN_ARM64_RETURN: {
+      uint64_t retaddr;
+      uc_reg_read(uc_, UC_ARM64_REG_LR, &retaddr);
+      if (object_->cover(retaddr)) {
+        pc = retaddr;
+        inst = object_->insnInfo(pc);
+        jump = true;
+      } else if (reinterpret_cast<const void *>(retaddr) == topReturn()) {
+        pc = retaddr; // finished interpreting
+        return true;
+      }
       break;
+    }
     case INSN_ARM64_SYSCALL:
       UNIMPL_ABORT();
       break;
@@ -228,7 +237,7 @@ bool ExecEngine::execPreprocess(const InsnInfo *&inst, uint64_t &pc,
       auto retaddr = pc + inst->len;
       if (inst->rflag) {
         // call external function
-        auto target = object_->relocInfo(inst->reloc);
+        auto target = object_->relocTarget(inst->reloc);
         auto context = loadRegisterAArch64();
         context.r[A64_LR] = retaddr; // set return address
         host_call(&context, target);
@@ -261,7 +270,7 @@ bool ExecEngine::execPreprocess(const InsnInfo *&inst, uint64_t &pc,
       auto metaptr = object_->metaInfo<uint16_t>(inst, pc);
       uint64_t target = 0;
       if (inst->rflag) {
-        target = reinterpret_cast<uint64_t>(object_->relocInfo(inst->reloc));
+        target = reinterpret_cast<uint64_t>(object_->relocTarget(inst->reloc));
       } else {
         auto imm = *reinterpret_cast<const uint64_t *>(&metaptr[1]);
         target = pc + ((imm << 12) & ~((1 << 12) - 1));
@@ -534,9 +543,9 @@ void ExecEngine::execLoop(uint64_t pc) {
       }
     }
 
-    // preprocess relocation, branch, call, jump and syscall etc.
+    // interpret relocation, branch, call, jump and syscall etc.
     auto step = runcfg_.stepSize();
-    if (execPreprocess(inst, pc, step)) {
+    if (interpret(inst, pc, step)) {
       continue;
     }
 
