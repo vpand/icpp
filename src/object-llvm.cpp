@@ -1034,9 +1034,103 @@ std::string Object::sourceInfo(uint64_t vm) {
   return Output;
 }
 
+#define GET_REGINFO_ENUM
+#define GET_INSTRINFO_ENUM
+#include "llvm/../../lib/Target/AArch64/AArch64GenInstrInfo.inc"
+#include "llvm/../../lib/Target/AArch64/AArch64GenRegisterInfo.inc"
+
+static uint16_t llvm2ucRegisterAArch64(unsigned reg) {
+  namespace INSN = llvm::AArch64;
+
+  // x
+  if (INSN::X0 <= reg && reg <= INSN::X28)
+    return UC_ARM64_REG_X0 + reg - INSN::X0;
+  if (INSN::FP == reg)
+    return UC_ARM64_REG_FP;
+  if (INSN::LR == reg)
+    return UC_ARM64_REG_LR;
+  if (INSN::SP == reg)
+    return UC_ARM64_REG_SP;
+  // w
+  if (INSN::W0 <= reg && reg <= INSN::W30)
+    return UC_ARM64_REG_W0 + reg - INSN::W0;
+  // s
+  if (INSN::S0 <= reg && reg <= INSN::S31)
+    return UC_ARM64_REG_S0 + reg - INSN::S0;
+  // d
+  if (INSN::D0 <= reg && reg <= INSN::D31)
+    return UC_ARM64_REG_D0 + reg - INSN::D0;
+  // b
+  if (INSN::B0 <= reg && reg <= INSN::B31)
+    return UC_ARM64_REG_B0 + reg - INSN::B0;
+  // h
+  if (INSN::H0 <= reg && reg <= INSN::H31)
+    return UC_ARM64_REG_H0 + reg - INSN::H0;
+  // q
+  if (INSN::Q0 <= reg && reg <= INSN::Q31)
+    return UC_ARM64_REG_Q0 + reg - INSN::Q0;
+
+  log_print(Runtime, "Unknown llvm instruction register operand type: {}.",
+            reg);
+  abort();
+}
+
 static void parseInstAArch64(const MCInst &inst, uint64_t opcptr,
                              std::map<std::string, std::string> &decinfo,
-                             InsnInfo &iinfo) {}
+                             InsnInfo &iinfo) {
+  namespace INSN = llvm::AArch64;
+  switch (inst.getOpcode()) {
+  case INSN::BRK:
+    iinfo.type = INSN_ABORT;
+    break;
+  case INSN::RET:
+    iinfo.type = INSN_RETURN;
+    break;
+  case INSN::BR:
+    iinfo.type = INSN_JUMPREG;
+    break;
+  case INSN::BLR:
+    iinfo.type = INSN_CALLREG;
+    break;
+  case INSN::SVC:
+    iinfo.type = INSN_SYSCALL;
+    break;
+  case INSN::ADR:
+    iinfo.type = INSN_ARM64_ADR;
+    break;
+  case INSN::ADRP:
+    iinfo.type = INSN_ARM64_ADRP;
+    break;
+  case INSN::LDRSWl:
+    iinfo.type = INSN_ARM64_LDRSWL;
+    break;
+  case INSN::LDRWl:
+    iinfo.type = INSN_ARM64_LDRWL;
+    break;
+  case INSN::LDRXl:
+    iinfo.type = INSN_ARM64_LDRXL;
+    break;
+  case INSN::LDRSl:
+    iinfo.type = INSN_ARM64_LDRSL;
+    break;
+  case INSN::LDRDl:
+    iinfo.type = INSN_ARM64_LDRDL;
+    break;
+  case INSN::LDRQl:
+    iinfo.type = INSN_ARM64_LDRQL;
+    break;
+  default:
+    iinfo.type = INSN_HARDWARE;
+    break;
+  }
+}
+
+#define GET_REGINFO_ENUM
+#define GET_INSTRINFO_ENUM
+#include "llvm/../../lib/Target/X86/X86GenInstrInfo.inc"
+#include "llvm/../../lib/Target/X86/X86GenRegisterInfo.inc"
+
+static uint16_t llvm2ucRegisterX64(unsigned reg) {}
 
 static void parseInstX64(const MCInst &inst, uint64_t opcptr,
                          std::map<std::string, std::string> &decinfo,
@@ -1057,7 +1151,7 @@ void Object::decodeInsns() {
   if (!MAttrs.empty()) {
     for (unsigned I = 0; I != MAttrs.size(); ++I)
       Features.AddFeature(MAttrs[I]);
-  } else if (MCPU.empty() && Obj->getArch() == llvm::Triple::aarch64) {
+  } else if (MCPU.empty() && Obj->getArch() == Triple::aarch64) {
     Features.AddFeature("+all");
   }
 
@@ -1081,9 +1175,9 @@ void Object::decodeInsns() {
     if (Elf32BE && (Elf32BE->isRelocatableObject() ||
                     !(Elf32BE->getPlatformFlags() & ELF::EF_ARM_BE8))) {
       Features.AddFeature("+big-endian-instructions");
-      ARMPrettyPrinterInst.setInstructionEndianness(llvm::endianness::big);
+      ARMPrettyPrinterInst.setInstructionEndianness(endianness::big);
     } else {
-      ARMPrettyPrinterInst.setInstructionEndianness(llvm::endianness::little);
+      ARMPrettyPrinterInst.setInstructionEndianness(endianness::little);
     }
   }
 
@@ -1123,6 +1217,7 @@ void Object::decodeInsns() {
     }
   }
 
+  using SymbolRef = object::SymbolRef;
   // load text relocations
   std::map<uint64_t, object::RelocationRef> relocs;
   auto textname = textSectName();
@@ -1136,82 +1231,177 @@ void Object::decodeInsns() {
     if (textname == expName->data()) {
       for (auto r : s.relocations()) {
         auto sym = r.getSymbol();
-        auto expFlags = sym->getFlags();
-        if (!expFlags)
-          continue;
-        // only load undefined extern symbols
-        if (expFlags.get() & object::SymbolRef::SF_Undefined) {
-          relocs.insert({r.getOffset(), r});
-        }
-      }
-      break;
-    }
-  }
-
-  int skipsz = arch_ == AArch64 ? 4 : 1;
-  // decode instructions in text section
-  MCInst inst;
-  for (auto opc = textvm_, opcend = textvm_ + textsz_; opc < opcend;) {
-    uint64_t size = 0;
-    auto status = PrimaryTarget.DisAsm->getInstruction(
-        inst, size, BuildIDRef(reinterpret_cast<const uint8_t *>(opc), 16), opc,
-        outs());
-    InsnInfo iinfo{};
-    switch (status) {
-    case MCDisassembler::Fail: {
-      iinfo.type = INSN_ABORT;
-      iinfo.len = skipsz;
-      break;
-    }
-    case MCDisassembler::SoftFail: {
-      iinfo.type = INSN_ABORT;
-      iinfo.len = size ? static_cast<uint32_t>(size) : skipsz;
-      break;
-    }
-    default: {
-      iinfo.len = static_cast<uint32_t>(size);
-      // check and resolve the relocation symbol
-      auto found = relocs.find(vm2rva(opc));
-      if (found != relocs.end()) {
-        auto sym = found->second.getSymbol();
-        auto expName = sym->getName();
         auto expType = sym->getType();
-        if (!expName || !expName) {
-          // never be here
-          log_print(Runtime,
-                    "Fatal error, the symbol name/type '{:x}' is missing for "
-                    "relocation.",
-                    vm2rva(opc));
-          abort();
+        if (!expType)
+          continue;
+        // only load data/function symbols
+        switch (expType.get()) {
+        case SymbolRef::ST_Data:
+        case SymbolRef::ST_Function:
+          relocs.insert({r.getOffset(), r});
+          break;
+        default:
+          break;
         }
-        auto name = expName.get();
-        // check the existed relocation
-        auto rit = irelocs_.end();
-        for (auto it = irelocs_.begin(), end = irelocs_.end(); it != end;
-             it++) {
-          if (name == it->name) {
-            rit = it;
-            break;
+        break;
+      }
+    }
+
+    int skipsz = arch_ == AArch64 ? 4 : 1;
+    // decode instructions in text section
+    MCInst inst;
+    for (auto opc = textvm_, opcend = textvm_ + textsz_; opc < opcend;) {
+      uint64_t size = 0;
+      auto status = PrimaryTarget.DisAsm->getInstruction(
+          inst, size, BuildIDRef(reinterpret_cast<const uint8_t *>(opc), 16),
+          opc, outs());
+      InsnInfo iinfo{};
+      switch (status) {
+      case MCDisassembler::Fail: {
+        iinfo.type = INSN_ABORT;
+        iinfo.len = skipsz;
+        break;
+      }
+      case MCDisassembler::SoftFail: {
+        iinfo.type = INSN_ABORT;
+        iinfo.len = size ? static_cast<uint32_t>(size) : skipsz;
+        break;
+      }
+      default: {
+        iinfo.len = static_cast<uint32_t>(size);
+        // check and resolve the relocation symbol
+        auto found = relocs.find(vm2rva(opc));
+        if (found != relocs.end()) {
+          auto cureloc = found->second;
+          auto sym = cureloc.getSymbol();
+          auto expName = sym->getName();
+          auto expType = sym->getType();
+          auto expFlags = sym->getFlags();
+          if (!expName || !expName || !expFlags) {
+            // never be here
+            log_print(Runtime,
+                      "Fatal error, the symbol name/type/flags of '{:x}' is "
+                      "missing for "
+                      "relocation.",
+                      vm2rva(opc));
+            abort();
+          }
+          auto name = expName.get();
+          // check the existed relocation
+          auto rit = irelocs_.end();
+          for (auto it = irelocs_.begin(), end = irelocs_.end(); it != end;
+               it++) {
+            if (name == it->name) {
+              rit = it;
+              break;
+            }
+          }
+          if (rit == irelocs_.end()) {
+            if (expFlags.get() & SymbolRef::SF_Undefined) {
+              // locate and insert a new extern relocation
+              auto rtaddr = Loader::locateSymbol(name, expType.get() ==
+                                                           SymbolRef::ST_Data);
+              rit = irelocs_.insert(irelocs_.end(),
+                                    RelocInfo{name.data(), rtaddr});
+            } else {
+              // insert a new local relocation
+              auto expSect = sym->getSection();
+              if (!expSect) {
+                // never be here
+                log_print(Runtime,
+                          "Fatal error, the symbol section of '{}'.'{:x}' is "
+                          "missing for "
+                          "relocation.",
+                          name.data(), vm2rva(opc));
+                abort();
+              }
+              bool dyn = false;
+              auto sectname = expSect.get()->getName();
+              if (!sectname) {
+                // never be here
+                log_print(
+                    Runtime,
+                    "Fatal error, the section name is missing for relocation.");
+                abort();
+              }
+              for (auto &ds : dynsects_) {
+                if (sectname.get() == ds.name) {
+                  // dynamically allocated section
+                  dyn = true;
+
+                  auto rtaddr = reinterpret_cast<const void *>(
+                      ds.buffer.data() + cureloc.getOffset());
+                  rit = irelocs_.insert(irelocs_.end(),
+                                        RelocInfo{name.data(), rtaddr});
+                  break;
+                }
+              }
+              if (!dyn) {
+                // inner section from file
+                auto expContent = expSect.get()->getContents();
+                if (!expContent) {
+                  // never be here
+                  log_print(
+                      Runtime,
+                      "Fatal error, the section content of '{}' is missing for "
+                      "relocation.",
+                      sectname->data());
+                  abort();
+                }
+                auto rtaddr = reinterpret_cast<const void *>(
+                    expContent->data() + cureloc.getOffset());
+                rit = irelocs_.insert(irelocs_.end(),
+                                      RelocInfo{name.data(), rtaddr});
+              }
+            }
+            log_print(Develop, "Relocated symbol {} at {}.", rit->name,
+                      rit->target);
+          }
+          // record its relocation index
+          iinfo.reloc = rit - irelocs_.begin();
+        }
+        // convert llvm opcode to icpp InsnType
+        std::function<uint8_t(unsigned)> llvm2uc_register;
+        if (arch() == AArch64) {
+          llvm2uc_register = llvm2ucRegisterAArch64;
+          parseInstAArch64(inst, opc, idecinfs_, iinfo);
+        } else {
+          llvm2uc_register = llvm2ucRegisterX64;
+          parseInstX64(inst, opc, idecinfs_, iinfo);
+        }
+        // encode none-hardware instruction
+        if (iinfo.type != INSN_HARDWARE) {
+          auto newi = idecinfs_
+                          .insert({std::string(reinterpret_cast<char *>(opc),
+                                               iinfo.len),
+                                   std::string()})
+                          .first;
+          auto optr = const_cast<std::string *>(&newi->second);
+          for (unsigned i = 0; i < inst.getNumOperands(); i++) {
+            auto opr = inst.getOperand(i);
+            if (opr.isImm()) {
+              auto imm = opr.getImm();
+              optr->append(
+                  std::string(reinterpret_cast<char *>(&imm), sizeof(imm)));
+            } else if (opr.isReg()) {
+              auto reg = llvm2uc_register(opr.getReg());
+              optr->append(
+                  std::string(reinterpret_cast<char *>(&reg), sizeof(reg)));
+            } else {
+              // nerver be here
+              log_print(Runtime,
+                        "Fatal error when decoding instruction at {:x}.",
+                        vm2rva(opc));
+              abort();
+            }
           }
         }
-        if (rit == irelocs_.end()) {
-          // locate and insert a new relocation
-          auto rtaddr = Loader::locateSymbol(
-              name, expType.get() == object::SymbolRef::ST_Data);
-          rit = irelocs_.insert(irelocs_.end(), RelocInfo{name.data(), rtaddr});
-        }
-        // record its relocation index
-        iinfo.reloc = rit - irelocs_.begin();
+        break;
       }
-      // convert llvm opcode to icpp InsnType
-      if (arch() == AArch64)
-        parseInstAArch64(inst, opc, idecinfs_, iinfo);
-      else
-        parseInstX64(inst, opc, idecinfs_, iinfo);
-      break;
+      }
+      iinfs_.push_back(iinfo);
+      opc += iinfo.len;
     }
-    }
-    opc += iinfo.len;
   }
 }
 

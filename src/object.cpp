@@ -15,7 +15,9 @@ namespace icpp {
 Object::Object(std::string_view path) : path_(path) {}
 
 void Object::createObject(ObjectType type) {
-  auto errBuff = llvm::MemoryBuffer::getFile(path_);
+  // herein we pass IsVolatile as true to disable llvm to mmap this file
+  // because some data sections may be modified at runtime
+  auto errBuff = llvm::MemoryBuffer::getFile(path_, false, true, true);
   if (!errBuff) {
     std::cout << "Failed to read '" << path_
               << "': " << errBuff.getError().message() << std::endl;
@@ -39,7 +41,7 @@ void Object::createObject(ObjectType type) {
       break;
     }
     parseSymbols();
-    parseTextSection();
+    parseSections();
   } else {
     std::cout << "Failed to create llvm object: "
               << llvm::toString(std::move(expObj.takeError())) << std::endl;
@@ -106,7 +108,7 @@ std::string_view Object::textSectName() {
   return textname;
 }
 
-void Object::parseTextSection() {
+void Object::parseSections() {
   auto textname = textSectName();
   textsecti_ = 0;
   for (auto &s : ofile_->sections()) {
@@ -115,7 +117,8 @@ void Object::parseTextSection() {
       textsecti_++;
       continue;
     }
-    if (textname == expName->data()) {
+    auto name = expName.get();
+    if (textname == name.data()) {
       auto expContent = s.getContents();
       if (!expContent) {
         log_print(Runtime, "Empty object file, there's no {} section.",
@@ -126,7 +129,9 @@ void Object::parseTextSection() {
       textrva_ = s.getAddress();
       textvm_ = reinterpret_cast<uint64_t>(expContent->data());
       log_print(Develop, "Text rva={:x}, vm={:x}.", textrva_, textvm_);
-      break;
+    } else if (name.ends_with("bss") || name.ends_with("common")) {
+      dynsects_.push_back(
+          {name.data(), s.getAddress(), std::string(s.getSize(), 0)});
     }
     textsecti_++;
   }

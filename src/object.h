@@ -41,8 +41,15 @@ struct InsnInfo {
 
 struct RelocInfo {
   // symbol name
-  const char *name;
+  std::string name;
   const void *target; // symbol runtime vm address
+};
+
+struct DynSection {
+  std::string name; // section name
+  uint64_t rva;     // address in file
+  // dynamically allocated buffer for this section, e.g.: bss common
+  std::string buffer;
 };
 
 class Object {
@@ -67,7 +74,7 @@ public:
 protected:
   void createObject(ObjectType type);
   void parseSymbols();
-  void parseTextSection();
+  void parseSections();
   void decodeInsns();
   std::string_view textSectName();
 
@@ -86,6 +93,8 @@ private:
   uint32_t textsz_;
   uint64_t textrva_;
   uint64_t textvm_;
+  // dynamically allocated sections
+  std::vector<DynSection> dynsects_;
   // instruction informations
   std::vector<InsnInfo> iinfs_;
   // instruction decoded informations from machine opcode

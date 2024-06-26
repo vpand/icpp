@@ -55,8 +55,11 @@ def main(argv):
     gits.wait()
     lines = gits.stdout.readlines()
     modifiedfs = []
-    for l in lines:
-        parts = l.decode('utf-8').strip().split('modified:')
+    for l in lines:        
+        lstr = l.decode('utf-8').strip()
+        parts = lstr.split('modified:')
+        if len(parts) != 2:
+            parts = lstr.split('new file:')
         if len(parts) == 2:
             # save the modified files
             modifiedfs.append(os.path.basename(parts[1]))
