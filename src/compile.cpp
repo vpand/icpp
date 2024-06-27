@@ -16,9 +16,29 @@ extern std::string GetExecutablePath(const char *argv0, bool CanonicalPrefixes);
 
 namespace icpp {
 
+static fs::path check_cache(std::string_view path) {
+  auto srcpath = fs::path(path);
+  auto cachepath = srcpath.parent_path() / (srcpath.stem().string() + ".io");
+  if (!fs::exists(cachepath)) {
+    return "";
+  }
+  auto srctm = fs::last_write_time(srcpath);
+  auto objtm = fs::last_write_time(cachepath);
+  if (srctm > objtm) {
+    // source has been updated, so the cache file becomes invalid
+    return "";
+  }
+  return cachepath;
+}
+
 fs::path compile_source(const char *argv0, std::string_view path,
                         const char *opt,
                         const std::vector<const char *> &incdirs) {
+  // directly return the cache file if there exists one
+  auto cache = check_cache(path);
+  if (cache.has_filename()) {
+    return cache;
+  }
   // construct a temporary output object file path
   auto opath = fs::temp_directory_path() / icpp::rand_filename(8, ".o");
   log_print(Develop, "Object path: {}", opath.c_str());

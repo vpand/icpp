@@ -23,12 +23,6 @@ enum ObjectType {
   COFF_Exe = 5;
 }
 
-message DynSection {
-  string name = 1; // section name
-  uint32 size = 2; // section size
-  uint32 rva = 3;  // rva address in file
-};
-
 message SymbolList {
   repeated string names = 1; // for dependent module
   repeated uint32 rvas = 2;  // for object itself
@@ -56,24 +50,15 @@ message InterpObject {
   // architecture and orignal object file type
   ArchType arch = 3;
   ObjectType otype = 4;
-  /*
-  map <name, rva> of the internal functions and datas
-  */
-  map<string, uint32> funcs = 5;
-  map<string, uint32> datas = 6;
-  // text section information
-  uint32 textsecti = 7;
-  uint32 textsz = 8;
-  uint32 textrva = 9;
-
-  // dynamically allocated section, e.g.: bss common
-  repeated DynSection dynsects = 10;
 
   // instruction details, e.g.: type, reloc, length, etc.
-  repeated uint64 instinfos = 11;
+  repeated uint64 instinfos = 5;
   // decoded instruction operand meta datas
-  map<string, bytes> instmetas = 12;
+  map<string, bytes> instmetas = 6;
 
   // map <module, symbols> of the instruction relocation symbols
-  map<string, SymbolList> irefsyms = 13;
+  map<string, SymbolList> irefsyms = 7;
+
+  // the original object buffer
+  bytes objbuf = 8;
 }

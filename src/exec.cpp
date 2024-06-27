@@ -974,12 +974,20 @@ void exec_main(std::string_view path, const std::vector<std::string> &deps,
   case fm::pecoff_executable:
     object = std::make_unique<COFFExeObject>(srcpath, path);
     break;
-  default:
+  default: {
+    if (path.ends_with(".io")) {
+      auto tmp = std::make_unique<InterpObject>(srcpath, path);
+      if (tmp->valid()) {
+        object = std::move(tmp);
+        break;
+      }
+    }
     std::cout << "Unsupported input file type " << magic
               << ", currently supported file type includes "
                  "MachO/ELF/PE-Object/Executable."
               << std::endl;
     return;
+  }
   }
   if (!object->valid()) {
     std::cout << "Unsupported input file type " << magic

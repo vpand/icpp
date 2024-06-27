@@ -17,9 +17,13 @@ class Object;
 class Loader {
 public:
   Loader(Object *object, const std::vector<std::string> &deps);
+  Loader(std::string_view module);
   ~Loader();
 
   bool valid();
+
+  // locate the symbol runtime address in this loader
+  const void *locate(std::string_view name);
 
   // locate the symbol runtime address
   static const void *locateSymbol(std::string_view name, bool data);
@@ -28,7 +32,8 @@ public:
   static std::string_view locateModule(const void *addr, bool update = false);
 
 private:
-  Object *object_;
+  Object *object_ = nullptr;
+  const void *handle_;
 };
 
 } // namespace icpp

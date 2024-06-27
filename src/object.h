@@ -105,7 +105,7 @@ protected:
   void decodeInsns();
   std::string_view textSectName();
 
-private:
+protected:
   ObjectType type_;
   ArchType arch_;
   std::string_view srcpath_;
@@ -113,9 +113,9 @@ private:
   std::unique_ptr<llvm::MemoryBuffer> fbuf_;
   std::unique_ptr<CObjectFile> ofile_;
   // <entry name, opcodes pointer>
-  std::unordered_map<std::string_view, const void *> funcs_;
+  std::unordered_map<std::string, const void *> funcs_;
   // <data name, data pointer>
-  std::unordered_map<std::string_view, const void *> datas_;
+  std::unordered_map<std::string, const void *> datas_;
   // text section index, rva, size and vm values
   uint32_t textsecti_ = 0;
   uint32_t textsz_ = 0;
@@ -184,6 +184,12 @@ class COFFExeObject : public COFFObject {
 public:
   COFFExeObject(std::string_view srcpath, std::string_view path);
   virtual ~COFFExeObject();
+};
+
+class InterpObject : public Object {
+public:
+  InterpObject(std::string_view srcpath, std::string_view path);
+  virtual ~InterpObject();
 };
 
 } // namespace icpp

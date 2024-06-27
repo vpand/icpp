@@ -96,7 +96,7 @@ void Object::parseSymbols() {
     auto expType = sym.getType();
     if (!expType)
       continue;
-    std::unordered_map<std::string_view, const void *> *caches = nullptr;
+    std::unordered_map<std::string, const void *> *caches = nullptr;
     switch (expType.get()) {
     case SymbolRef::ST_Data:
       caches = &datas_;
@@ -248,30 +248,7 @@ std::string Object::generateCache() {
   iobject.set_version(version_value().value);
   iobject.set_arch(static_cast<iobj::ArchType>(arch_));
   iobject.set_otype(static_cast<iobj::ObjectType>(type_));
-  iobject.set_textrva(textrva_);
-  iobject.set_textsecti(textsecti_);
-  iobject.set_textsz(textsz_);
 
-  auto ifns = iobject.mutable_funcs();
-  for (auto &f : funcs_) {
-    // rva to text section
-    ifns->insert(
-        {f.first.data(), reinterpret_cast<uint64_t>(f.second) - textvm_});
-  }
-  auto idts = iobject.mutable_datas();
-  for (auto &d : datas_) {
-    // rva to text section
-    idts->insert(
-        {d.first.data(), reinterpret_cast<uint64_t>(d.second) - textvm_});
-  }
-  auto idyns = iobject.mutable_dynsects();
-  for (auto &d : dynsects_) {
-    iobj::DynSection id;
-    id.set_name(d.name);
-    id.set_size(d.buffer.size());
-    id.set_rva(d.rva);
-    idyns->Add(std::move(id));
-  }
   auto iins = iobject.mutable_instinfos();
   for (auto &i : iinfs_) {
     iins->Add(*reinterpret_cast<uint64_t *>(&i));
@@ -281,10 +258,11 @@ std::string Object::generateCache() {
     // as we use string as protobuf's map key, so we have to encode it as a real
     // string, otherwise its serialization will warn
     auto keysz = base64::encoded_size(m.first.length());
-    std::string key(keysz, '\0');
-    base64::encode(reinterpret_cast<void *>(const_cast<char *>(key.data())),
-                   m.first.data(), m.first.length());
-    imetas->insert({key, m.second});
+    std::string tmpkey(keysz, '\0');
+    keysz = base64::encode(
+        reinterpret_cast<void *>(const_cast<char *>(tmpkey.data())),
+        m.first.data(), m.first.length());
+    imetas->insert({std::string(tmpkey.data(), keysz), m.second});
   }
   auto irefs = iobject.mutable_irefsyms();
   Loader::locateModule("", true); // update loader's module list
@@ -308,10 +286,13 @@ std::string Object::generateCache() {
                                         textvm_);
     }
   }
+  iobject.set_objbuf(
+      std::string(fbuf_.get()->getBufferStart(), fbuf_.get()->getBufferSize()));
 
   // save to io file
   auto srcpath = fs::path(srcpath_);
-  auto cachepath = (srcpath.parent_path() / (srcpath.stem().string() + ".io")).string();
+  auto cachepath =
+      (srcpath.parent_path() / (srcpath.stem().string() + ".io")).string();
   std::ofstream fout(cachepath, std::ios::binary);
   if (fout.is_open()) {
     iobject.SerializeToOstream(&fout);
@@ -391,5 +372,99 @@ COFFExeObject::COFFExeObject(std::string_view srcpath, std::string_view path)
 }
 
 COFFExeObject::~COFFExeObject() {}
+
+InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
+    : Object(srcpath, path) {
+  namespace iobj = com::vpand::icppiobj;
+  namespace base64 = boost::beast::detail::base64;
+
+  // herein we pass IsVolatile as true to disable llvm to mmap this file
+  // because some data sections may be modified at runtime
+  auto errBuff = llvm::MemoryBuffer::getFile(path_, false, true, true);
+  if (!errBuff) {
+    std::cout << "Failed to read '" << path_
+              << "': " << errBuff.getError().message() << std::endl;
+    return;
+  }
+  if (*reinterpret_cast<const uint32_t *>(errBuff.get()->getBufferStart()) !=
+      iobj_magic) {
+    // it isn't a icpp interpretable object file
+    return;
+  }
+  if (*reinterpret_cast<const uint32_t *>(errBuff.get()->getBufferStart() +
+                                          4) != version_value().value) {
+    log_print(Runtime,
+              "The file {} does be an icpp interpretable object, but its "
+              "version doesn't match this icpp (expected {}).",
+              path_, version_string());
+    return;
+  }
+
+  // construct the object instance
+  iobj::InterpObject iobject;
+  if (!iobject.ParseFromArray(errBuff.get()->getBufferStart(),
+                              errBuff.get()->getBufferSize())) {
+    log_print(Runtime, "Can't load the file {}, it's corrupted.", path_);
+    return;
+  }
+  fbuf_ = std::move(errBuff.get());
+  auto obuf = iobject.objbuf();
+  auto buffRef =
+      llvm::MemoryBufferRef(llvm::StringRef(obuf), llvm::StringRef(path));
+  auto expObj = CObjectFile::createObjectFile(buffRef);
+  if (!expObj) {
+    std::cout << "Failed to create llvm object: "
+              << llvm::toString(std::move(expObj.takeError())) << std::endl;
+    return;
+  }
+  ofile_ = std::move(expObj.get());
+  arch_ = static_cast<ArchType>(iobject.arch());
+  type_ = static_cast<ObjectType>(iobject.otype());
+
+  // parse from original object
+  parseSections();
+  parseSymbols();
+
+  auto iins = iobject.instinfos();
+  for (auto &i : iins) {
+    iinfs_.push_back(*reinterpret_cast<InsnInfo *>(&i));
+  }
+  auto imetas = iobject.instmetas();
+  for (auto &m : imetas) {
+    std::string tmpkey(base64::decoded_size(m.first.length()), '\0');
+    auto decret =
+        base64::decode(tmpkey.data(), m.first.data(), m.first.length());
+    idecinfs_.insert({std::string(tmpkey.data(), decret.first), m.second});
+  }
+  auto irefs = iobject.irefsyms();
+  for (auto &r : irefs) {
+    if (r.second.rvas().size()) {
+      for (auto rva : r.second.rvas()) {
+        irelocs_.push_back(
+            RelocInfo{"self", reinterpret_cast<void *>(rva + textrva_)});
+      }
+      continue;
+    }
+    // dependent module
+    Loader loader(r.first);
+    if (loader.valid()) {
+      for (auto &s : r.second.names()) {
+        auto target = loader.locate(s);
+        if (!target)
+          target = Loader::locateSymbol(s, false);
+        if (!target) {
+          log_print(Runtime, "Can't resolve dependent symbol {}.", s);
+          std::exit(-1);
+        }
+        irelocs_.push_back(RelocInfo{s, target});
+      }
+    } else {
+      log_print(Runtime, "Can't load dependent module {}.", r.first);
+      std::exit(-1);
+    }
+  }
+}
+
+InterpObject::~InterpObject() {}
 
 } // namespace icpp

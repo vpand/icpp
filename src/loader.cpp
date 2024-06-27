@@ -49,6 +49,8 @@ static bool is_global_var(const void *p) {
 }
 
 struct SymbolCache {
+  const void *loadLibrary(std::string_view path);
+  const void *resolve(const void *handle, std::string_view name);
   const void *resolve(std::string_view name, bool data);
   std::string_view find(const void *addr, bool update);
 
@@ -62,7 +64,48 @@ private:
   std::unordered_map<std::string, const void *> syms_;
   std::map<uint64_t, std::string> mods_;
   std::vector<std::map<uint64_t, std::string>::iterator> modits_;
+  std::map<std::string, void *> mhandles_;
 } symcache;
+
+const void *SymbolCache::loadLibrary(std::string_view path) {
+  std::lock_guard lock(mutext_);
+  auto found = mhandles_.find(path.data());
+  if (found == mhandles_.end()) {
+#if _WIN32
+    auto addr = ::LoadLibraryA(path.data());
+#else
+    auto addr = dlopen(path.data(), RTLD_NOW);
+#endif
+    if (!addr) {
+      log_print(Runtime, "Failed to load library: {}", path.data());
+      exit(-1);
+    }
+    found =
+        mhandles_.insert({path.data(), reinterpret_cast<void *>(addr)}).first;
+  }
+  return found->second;
+}
+
+const void *SymbolCache::resolve(const void *handle, std::string_view name) {
+  std::lock_guard lock(mutext_);
+  auto found = syms_.find(name.data());
+  if (found != syms_.end()) {
+    if (is_global_var(found->second))
+      return &found->second;
+    return found->second;
+  }
+
+#if _WIN32
+  auto addr = ::GetProcAddress(
+      reinterpret_cast<HMODULE>(const_cast<void *>(handle)), name.data());
+#else
+  auto addr = dlsym(const_cast<void *>(handle), name.data());
+#endif
+  if (!addr)
+    return nullptr;
+  found = syms_.insert({name.data(), addr}).first;
+  return is_global_var(found->second) ? &found->second : found->second;
+}
 
 const void *SymbolCache::resolve(std::string_view name, bool data) {
   std::lock_guard lock(mutext_);
@@ -164,11 +207,22 @@ std::string_view SymbolCache::find(const void *addr, bool update) {
 }
 
 Loader::Loader(Object *object, const std::vector<std::string> &deps)
-    : object_(object) {}
+    : object_(object) {
+  for (auto &m : deps) {
+    symcache.loadLibrary(m);
+  }
+}
+
+Loader::Loader(std::string_view module)
+    : handle_(symcache.loadLibrary(module)) {}
 
 Loader::~Loader() {}
 
-bool Loader::valid() { return true; }
+bool Loader::valid() { return object_ || handle_; }
+
+const void *Loader::locate(std::string_view name) {
+  return symcache.resolve(handle_, name);
+}
 
 const void *Loader::locateSymbol(std::string_view name, bool data) {
   return symcache.resolve(name, data);
