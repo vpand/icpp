@@ -158,9 +158,14 @@ struct ContextX64 {
 
 ArchType host_arch();
 
-// call a host function with specified register context
-// ctx is a ContextA64 or ContextX64 instance
+// call a host function with specified register context,
+// ctx is a ContextA64 or ContextX64 instance,
 // func is a host function address
 void host_call(void *ctx, const void *func);
+
+// execute a host raw syscall instruction,
+// you can use it with specified register context to do the real work,
+// e.g.: host_call(context, host_naked_syscall)
+void host_naked_syscall();
 
 } // namespace icpp

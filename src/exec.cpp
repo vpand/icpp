@@ -52,6 +52,7 @@ private:
                             uint64_t target);
   bool interpretJumpAArch64(const InsnInfo *&inst, uint64_t &pc,
                             uint64_t target);
+  void interpretPCLdrAArch64(const InsnInfo *&inst, uint64_t &pc);
 
   void initMainRegister();
   void initMainRegisterAArch64();
@@ -230,6 +231,18 @@ bool ExecEngine::interpretJumpAArch64(const InsnInfo *&inst, uint64_t &pc,
   }
 }
 
+void ExecEngine::interpretPCLdrAArch64(const InsnInfo *&inst, uint64_t &pc) {
+  // encoded meta data layout of all LDRxL:[uint16_t, uint64_t]
+  auto metaptr = object_->metaInfo<uint16_t>(inst, pc);
+  uint64_t target = 0;
+  if (inst->rflag)
+    target = reinterpret_cast<uint64_t>(object_->relocTarget(inst->reloc));
+  else
+    target = pc;
+  target += (*reinterpret_cast<const uint64_t *>(&metaptr[1]) << 2);
+  uc_reg_write(uc_, metaptr[0], &target);
+}
+
 bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
   // we should interpret the relocation, branch, jump, call and syscall
   // instructions manually, the unicorn engine can just execute those simple
@@ -265,7 +278,10 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     switch (inst->type) {
     // common instruction
     case INSN_ABORT:
-      UNIMPL_ABORT();
+      log_print(Runtime,
+                "Breakpoint or trap instruction hit at rva {:x}.\nAborting...",
+                object_->vm2rva(pc));
+      abort();
       break;
     // arm64 instruction
     case INSN_ARM64_RETURN: {
@@ -282,7 +298,8 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       break;
     }
     case INSN_ARM64_SYSCALL:
-      UNIMPL_ABORT();
+      interpretCallAArch64(inst, pc,
+                           reinterpret_cast<uint64_t>(host_naked_syscall));
       break;
     // encoded meta data layout:[uint64_t]
     case INSN_ARM64_CALL: {
@@ -324,10 +341,8 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       jump = interpretJumpAArch64(inst, pc, target);
       break;
     }
-    case INSN_ARM64_ADR:
-      UNIMPL_ABORT();
-      break;
     // encoded meta data layout:[uint16_t, uint64_t]
+    case INSN_ARM64_ADR:
     case INSN_ARM64_ADRP: {
       auto metaptr = object_->metaInfo<uint16_t>(inst, pc);
       uint64_t target = 0;
@@ -335,28 +350,21 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
         target = reinterpret_cast<uint64_t>(object_->relocTarget(inst->reloc));
       } else {
         auto imm = *reinterpret_cast<const uint64_t *>(&metaptr[1]);
-        target = pc + ((imm << 12) & ~((1 << 12) - 1));
+        if (inst->type == INSN_ARM64_ADRP)
+          target = pc + ((imm << 12) & ~((1 << 12) - 1));
+        else
+          target = pc + imm;
       }
       uc_reg_write(uc_, metaptr[0], &target);
       break;
     }
     case INSN_ARM64_LDRSWL:
-      UNIMPL_ABORT();
-      break;
     case INSN_ARM64_LDRWL:
-      UNIMPL_ABORT();
-      break;
     case INSN_ARM64_LDRXL:
-      UNIMPL_ABORT();
-      break;
     case INSN_ARM64_LDRSL:
-      UNIMPL_ABORT();
-      break;
     case INSN_ARM64_LDRDL:
-      UNIMPL_ABORT();
-      break;
     case INSN_ARM64_LDRQL:
-      UNIMPL_ABORT();
+      interpretPCLdrAArch64(inst, pc);
       break;
     // x86_64 instruction
     case INSN_X64_RETURN:

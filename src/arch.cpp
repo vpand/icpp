@@ -393,4 +393,20 @@ void host_call(void *ctx, const void *func) {
 #endif
 }
 
+void __NAKED__ host_naked_syscall() {
+#if __arm64__ || __aarch64__
+#if __APPLE__
+  __ASM__("svc #0x80");
+#else
+  __ASM__("svc #0x0");
+#endif
+  __ASM__("ret");
+#elif __x86_64__ || __x64__
+  __AMS__("syscall");
+  __ASM__("ret");
+#else
+#error Unsupported host architecture.
+#endif
+}
+
 } // namespace icpp
