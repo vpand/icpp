@@ -1432,17 +1432,6 @@ static void parseInstX64(const MCInst &inst, uint64_t opcptr,
   case INSN::MOVUPDmr:
     iinfo.type = INSN_X64_MOVUPDMR;
     break;
-  case INSN::MOV32ri:
-  case INSN::MOV64ri:
-    iinfo.type = INSN_X64_MOVI;
-    break;
-  case INSN::MOV32ao16:
-  case INSN::MOV32ao32:
-  case INSN::MOV32ao64:
-  case INSN::MOV64ao32:
-  case INSN::MOV64ao64:
-    iinfo.type = INSN_X64_MOVIMEM;
-    break;
   case INSN::CMP8mi:
     iinfo.type = INSN_X64_CMP8MI;
     break;

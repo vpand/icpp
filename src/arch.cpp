@@ -409,4 +409,38 @@ void __NAKED__ host_naked_syscall() {
 #endif
 }
 
+uint64_t __NAKED__ host_naked_compare(uint64_t left, uint64_t right) {
+#if __arm64__ || __aarch64__
+  __ASM__("brk #0");
+#elif __x86_64__ || __x64__
+#ifdef _WIN32
+  __ASM__("cmpq %rdx, %rcx");
+#else
+  __ASM__("cmpq %rsi, %rdi");
+#endif
+  __ASM__("pushfq");
+  __ASM__("popq %rax");
+  __ASM__("retq");
+#else
+#error Unsupported host architecture.
+#endif
+}
+
+uint64_t __NAKED__ host_naked_test(uint64_t left, uint64_t right) {
+#if __arm64__ || __aarch64__
+  __ASM__("brk #0");
+#elif __x86_64__ || __x64__
+#ifdef _WIN32
+  __ASM__("testq %rdx, %rcx");
+#else
+  __ASM__("testq %rsi, %rdi");
+#endif
+  __ASM__("pushfq");
+  __ASM__("popq %rax");
+  __ASM__("retq");
+#else
+#error Unsupported host architecture.
+#endif
+}
+
 } // namespace icpp

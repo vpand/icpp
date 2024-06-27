@@ -46,19 +46,15 @@ enum InsnType {
   INSN_X64_JUMP,
   INSN_X64_JUMPREG,
   INSN_X64_JUMPMEM,
-  INSN_X64_MOV8RR,
   INSN_X64_MOV8RM,
   INSN_X64_MOV8MR,
   INSN_X64_MOV8MI,
-  INSN_X64_MOV16RR,
   INSN_X64_MOV16RM,
   INSN_X64_MOV16MR,
   INSN_X64_MOV16MI,
-  INSN_X64_MOV32RR,
   INSN_X64_MOV32RM,
   INSN_X64_MOV32MR,
   INSN_X64_MOV32MI,
-  INSN_X64_MOV64RR,
   INSN_X64_MOV64RM,
   INSN_X64_MOV64MR,
   INSN_X64_MOV64MI32,
@@ -72,8 +68,6 @@ enum InsnType {
   INSN_X64_MOVAPDMR,
   INSN_X64_MOVUPDRM,
   INSN_X64_MOVUPDMR,
-  INSN_X64_MOVI,
-  INSN_X64_MOVIMEM,
   INSN_X64_CMP8MI,
   INSN_X64_CMP8MI8,
   INSN_X64_CMP16MI,
@@ -167,5 +161,10 @@ void host_call(void *ctx, const void *func);
 // you can use it with specified register context to do the real work,
 // e.g.: host_call(context, host_naked_syscall)
 void host_naked_syscall();
+
+// execute a host cmp/test instruction,
+// return the updated rflags
+uint64_t host_naked_compare(uint64_t left, uint64_t right);
+uint64_t host_naked_test(uint64_t left, uint64_t right);
 
 } // namespace icpp

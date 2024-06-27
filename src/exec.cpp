@@ -22,6 +22,7 @@ struct ExecEngine {
              const std::vector<const char *> &iargs)
       : loader_(object.get(), deps), runcfg_(procfg), iargs_(iargs),
         object_(object.get()) {
+    // initialize unicorn instruction emulation instance
     auto err = uc_open(object->ucArch(), object->ucMode(), &uc_);
     if (err != UC_ERR_OK) {
       std::cout << "Failed to create unicorn engine instance: "
@@ -29,8 +30,10 @@ struct ExecEngine {
       return;
     }
     if (runcfg_.hasDebugger()) {
+      // initialize debugger instance
       debugger_ = std::make_unique<Debugger>();
     }
+    // interpreter vm stack buffer
     stack_.resize(runcfg_.stackSize());
   }
   ~ExecEngine() {
@@ -42,24 +45,58 @@ struct ExecEngine {
   void run();
 
 private:
+  /*
+  object constructor, main and destructor executor
+  */
   void execCtor();
   void execMain();
   void execDtor();
   void execLoop(uint64_t pc);
 
+  // icpp interpret entry
   bool interpret(const InsnInfo *&inst, uint64_t &pc, int &step);
+
+  /*
+  helper routines for aarch64
+  */
   bool interpretCallAArch64(const InsnInfo *&inst, uint64_t &pc,
                             uint64_t target);
   bool interpretJumpAArch64(const InsnInfo *&inst, uint64_t &pc,
                             uint64_t target);
   void interpretPCLdrAArch64(const InsnInfo *&inst, uint64_t &pc);
 
+  /*
+  helper routines for x86_64
+  */
+  bool interpretCallX64(const InsnInfo *&inst, uint64_t &pc, uint64_t target);
+  bool interpretJumpX64(const InsnInfo *&inst, uint64_t &pc, uint64_t target);
+  uint64_t interpretCalcMemX64(const InsnInfo *&inst, uint64_t &pc, int memop,
+                               const uint16_t **opsptr = nullptr);
+  template <typename T>
+  void interpretMovX64(const InsnInfo *&inst, uint64_t &pc, int regop,
+                       int memop, bool movrm);
+  void interpretMovMRX64(const InsnInfo *&inst, uint64_t &pc, int bytes);
+  template <typename T>
+  void interpretMovMIX64(const InsnInfo *&inst, uint64_t &pc);
+  template <typename TSRC, typename TDES>
+  void interpretFlagsMemImm(const InsnInfo *&inst, uint64_t &pc, bool cmp);
+  template <typename T>
+  void interpretFlagsRegMem(const InsnInfo *&inst, uint64_t &pc, bool cmp);
+  template <typename TSRC, typename TDES>
+  void interpretSignExtendRegMem(const InsnInfo *&inst, uint64_t &pc);
+
+  /*
+  register startup initializer
+  */
   void initMainRegister();
   void initMainRegisterAArch64();
   void initMainRegisterSysVX64();
   void initMainRegisterWinX64();
   void initMainRegisterCommonX64();
 
+  /*
+  helper routines for unicorn and host register context switch
+  */
   ContextA64 loadRegisterAArch64();
   void saveRegisterAArch64(const ContextA64 &ctx);
   ContextX64 loadRegisterX64();
@@ -72,14 +109,22 @@ private:
   constexpr void *topReturn() { return static_cast<void *>(this); }
 
 private:
+  // object dependency module loader
   Loader loader_;
+  // running config for advanced user from a json configuration file
   RunConfig runcfg_;
+  // argc and argv for object main entry
   const std::vector<const char *> &iargs_;
 
+  // current running object instance
   Object *object_ = nullptr;
+  /*
+  virtual processor and debugger
+  */
   uc_engine *uc_ = nullptr;
   std::unique_ptr<Debugger> debugger_;
 
+  // vm stack
   std::string stack_;
 };
 
@@ -240,7 +285,167 @@ void ExecEngine::interpretPCLdrAArch64(const InsnInfo *&inst, uint64_t &pc) {
   else
     target = pc;
   target += (*reinterpret_cast<const uint64_t *>(&metaptr[1]) << 2);
-  uc_reg_write(uc_, metaptr[0], &target);
+  uc_reg_write(uc_, metaptr[0], reinterpret_cast<const void *>(target));
+}
+
+bool ExecEngine::interpretCallX64(const InsnInfo *&inst, uint64_t &pc,
+                                  uint64_t target) {
+  if (object_->cover(target)) {
+    auto retaddr = pc + inst->len;
+    uint64_t rsp;
+    uc_reg_read(uc_, UC_X86_REG_RSP, &rsp);
+    // push return address
+    rsp -= 8;
+    *reinterpret_cast<uint64_t *>(rsp) = retaddr;
+    // call internal function
+    pc = target;
+    inst = object_->insnInfo(pc); // update current inst
+    return true;
+  } else {
+    // call external function
+    auto context = loadRegisterX64();
+    host_call(&context, reinterpret_cast<const void *>(target));
+    saveRegisterX64(context);
+    return false;
+  }
+}
+
+bool ExecEngine::interpretJumpX64(const InsnInfo *&inst, uint64_t &pc,
+                                  uint64_t target) {
+  if (object_->cover(target)) {
+    // jump to internal destination
+    pc = target;
+    inst = object_->insnInfo(pc); // update current inst
+    return true;
+  } else {
+    // jump to external function
+    uint64_t rsp, retaddr;
+    uc_reg_read(uc_, UC_X86_REG_RSP, &rsp);
+    retaddr = *reinterpret_cast<uint64_t *>(rsp);
+    auto context = loadRegisterAArch64();
+    if (object_->cover(retaddr)) {
+      // return to our control
+      pc = retaddr;
+      host_call(&context, reinterpret_cast<const void *>(target));
+      saveRegisterAArch64(context);
+      return true;
+    }
+    UNIMPL_ABORT();
+    return false;
+  }
+}
+
+uint64_t ExecEngine::interpretCalcMemX64(const InsnInfo *&inst, uint64_t &pc,
+                                         int memop, const uint16_t **opsptr) {
+  // reg is uint16_t, imm is uint64_t in meta array stream
+  auto ops = object_->metaInfo<uint16_t>(inst, pc);
+  if (opsptr)
+    *opsptr = ops;
+  // memop indicates the memory operands startup index in uint16_t meta array
+  // memory representation in x86_64 instruction: basereg + expimm*expreg +
+  // offimm
+  int basereg_op_idx = memop;
+  int expimm_op_idx = basereg_op_idx + 1;
+  int expreg_op_idx = expimm_op_idx + 4;
+  int offimm_op_idx = expreg_op_idx + 1;
+  uint64_t basereg = 0, expreg = 0;
+  // read base and exponent register value
+  uc_reg_read(uc_, ops[basereg_op_idx], &basereg);
+  uc_reg_read(uc_, ops[expreg_op_idx], &expreg);
+  // pickup exponent and offset value
+  auto expimm = *reinterpret_cast<const int64_t *>(&ops[expimm_op_idx]);
+  auto offimm = *reinterpret_cast<const int64_t *>(&ops[offimm_op_idx]);
+  // calculate the final memory address from raw instruction
+  uint64_t memaddr = (uint64_t)(basereg + expimm * expreg + offimm);
+  if (ops[basereg_op_idx] == UC_X86_REG_RIP) {
+    // rip related memory reference
+    if (inst->rflag) {
+      // relocate to other runtime address
+      memaddr = reinterpret_cast<uint64_t>(object_->relocTarget(inst->reloc)) +
+                offimm;
+    } else {
+      // adjust location with instruction length
+      memaddr += inst->len;
+    }
+  }
+  return memaddr;
+}
+
+template <typename T>
+void ExecEngine::interpretMovX64(const InsnInfo *&inst, uint64_t &pc, int regop,
+                                 int memop, bool movrm) {
+  const uint16_t *ops;
+  auto target = interpretCalcMemX64(inst, pc, memop, &ops);
+  if (movrm) {
+    // mov reg, mem
+    uc_reg_write(uc_, ops[regop], reinterpret_cast<const void *>(target));
+  } else {
+    // mov mem, reg
+    uint64_t value;
+    uc_reg_read(uc_, ops[regop], &value);
+    *reinterpret_cast<T *>(target) = static_cast<T>(value);
+  }
+}
+
+void ExecEngine::interpretMovMRX64(const InsnInfo *&inst, uint64_t &pc,
+                                   int bytes) {
+  const uint16_t *ops;
+  auto target = interpretCalcMemX64(inst, pc, 0, &ops);
+
+  uint64_t value[2];
+  uc_reg_read(uc_, ops[11], &value);
+  // mov mem, gpr/mmx/xmm
+  std::memcpy(reinterpret_cast<void *>(target), value, bytes);
+}
+
+template <typename T>
+void ExecEngine::interpretMovMIX64(const InsnInfo *&inst, uint64_t &pc) {
+  const uint16_t *ops;
+  auto target = interpretCalcMemX64(inst, pc, 0, &ops);
+  // mov mem, imm
+  *reinterpret_cast<T *>(target) =
+      static_cast<T>(*reinterpret_cast<const uint64_t *>(&ops[11]));
+}
+
+template <typename TSRC, typename TDES>
+void ExecEngine::interpretFlagsMemImm(const InsnInfo *&inst, uint64_t &pc,
+                                      bool cmp) {
+  const uint16_t *ops;
+  auto target = interpretCalcMemX64(inst, pc, 0, &ops);
+  // cmp/test instruction
+  auto updator = cmp ? host_naked_compare : host_naked_test;
+  // calculate the new rflags
+  auto rflags =
+      updator(*reinterpret_cast<const TSRC *>(target),
+              static_cast<TSRC>(*reinterpret_cast<const TDES *>(&ops[11])));
+  // update rflags
+  uc_reg_write(uc_, UC_X86_REG_RFLAGS, &rflags);
+}
+
+template <typename T>
+void ExecEngine::interpretFlagsRegMem(const InsnInfo *&inst, uint64_t &pc,
+                                      bool cmp) {
+  const uint16_t *ops;
+  auto target = interpretCalcMemX64(inst, pc, 1, &ops);
+  // cmp/test instruction
+  auto updator = cmp ? host_naked_compare : host_naked_test;
+  uint64_t value;
+  uc_reg_read(uc_, ops[0], &value);
+  // calculate the new rflags
+  auto rflags =
+      updator(static_cast<T>(value), *reinterpret_cast<const T *>(target));
+  // update rflags
+  uc_reg_write(uc_, UC_X86_REG_RFLAGS, &rflags);
+}
+
+template <typename TSRC, typename TDES>
+void ExecEngine::interpretSignExtendRegMem(const InsnInfo *&inst,
+                                           uint64_t &pc) {
+  const uint16_t *ops;
+  auto target = interpretCalcMemX64(inst, pc, 1, &ops);
+  // movsx reg, mem
+  auto result = static_cast<TSRC>(*reinterpret_cast<const TDES *>(target));
+  uc_reg_write(uc_, ops[0], &result);
 }
 
 bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
@@ -294,6 +499,8 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       } else if (reinterpret_cast<const void *>(retaddr) == topReturn()) {
         pc = retaddr; // finished interpreting
         return true;
+      } else {
+        UNIMPL_ABORT();
       }
       break;
     }
@@ -310,7 +517,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
         auto metaptr = object_->metaInfo<uint64_t>(inst, pc);
         target = pc + (metaptr[0] << 2);
       }
-      jump = interpretCallAArch64(inst, pc, reinterpret_cast<uint64_t>(target));
+      jump = interpretCallAArch64(inst, pc, target);
       break;
     }
     // encoded meta data layout:[uint16_t]
@@ -367,200 +574,239 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       interpretPCLdrAArch64(inst, pc);
       break;
     // x86_64 instruction
-    case INSN_X64_RETURN:
-      UNIMPL_ABORT();
+    // encoded meta data layout:[uint64_t]
+    case INSN_X64_RETURN: {
+      uint64_t retaddr, rsp;
+      uc_reg_read(uc_, UC_X86_REG_RSP, &rsp);
+      retaddr = *reinterpret_cast<uint64_t *>(rsp);
+      if (object_->cover(retaddr)) {
+        // instruction: retn bytes
+        rsp += *object_->metaInfo<uint32_t>(inst, pc);
+        uc_reg_write(uc_, UC_X86_REG_RSP, &rsp);
+        pc = retaddr;
+        inst = object_->insnInfo(pc);
+        jump = true;
+      } else if (reinterpret_cast<const void *>(retaddr) == topReturn()) {
+        rsp += *object_->metaInfo<uint32_t>(inst, pc);
+        uc_reg_write(uc_, UC_X86_REG_RSP, &rsp);
+        pc = retaddr; // finished interpreting
+        return true;
+      } else {
+        UNIMPL_ABORT();
+      }
       break;
+    }
     case INSN_X64_SYSCALL:
-      UNIMPL_ABORT();
+      interpretCallX64(inst, pc,
+                       reinterpret_cast<uint64_t>(host_naked_syscall));
       break;
-    case INSN_X64_CALL:
-      UNIMPL_ABORT();
+    // encoded meta data layout:[uint64_t]
+    case INSN_X64_CALL: {
+      uint64_t target;
+      if (inst->rflag) {
+        target = reinterpret_cast<uint64_t>(object_->relocTarget(inst->reloc));
+      } else {
+        auto metaptr = object_->metaInfo<uint64_t>(inst, pc);
+        target = pc + metaptr[0] + inst->len;
+      }
+      jump = interpretCallX64(inst, pc, target);
       break;
-    case INSN_X64_CALLREG:
-      UNIMPL_ABORT();
+    }
+    // encoded meta data layout:[uint16_t]
+    case INSN_X64_CALLREG: {
+      auto metaptr = object_->metaInfo<uint16_t>(inst, pc);
+      uint64_t target;
+      uc_reg_read(uc_, metaptr[0], &target);
+      jump = interpretCallX64(inst, pc, target);
       break;
-    case INSN_X64_CALLMEM:
-      UNIMPL_ABORT();
+    }
+    // encoded meta data layout:[[uint16_t-memory_items]]
+    case INSN_X64_CALLMEM: {
+      auto target = interpretCalcMemX64(inst, pc, 0);
+      jump = interpretCallX64(inst, pc, target);
       break;
-    case INSN_X64_JUMP:
-      UNIMPL_ABORT();
+    }
+    // encoded meta data layout:[uint64_t]
+    case INSN_X64_JUMP: {
+      uint64_t target;
+      if (inst->rflag) {
+        target = reinterpret_cast<uint64_t>(object_->relocTarget(inst->reloc));
+      } else {
+        auto metaptr = object_->metaInfo<uint64_t>(inst, pc);
+        target = pc + metaptr[0] + inst->len;
+      }
+      jump = interpretJumpX64(inst, pc, target);
       break;
-    case INSN_X64_JUMPREG:
-      UNIMPL_ABORT();
+    }
+    // encoded meta data layout:[uint16_t]
+    case INSN_X64_JUMPREG: {
+      auto metaptr = object_->metaInfo<uint16_t>(inst, pc);
+      uint64_t target;
+      uc_reg_read(uc_, metaptr[0], &target);
+      jump = interpretJumpX64(inst, pc, target);
       break;
-    case INSN_X64_JUMPMEM:
-      UNIMPL_ABORT();
+    }
+    // encoded meta data layout:[[uint16_t-memory_items]]
+    case INSN_X64_JUMPMEM: {
+      auto target = interpretCalcMemX64(inst, pc, 0);
+      jump = interpretJumpX64(inst, pc, target);
       break;
-    case INSN_X64_MOV8RR:
-      UNIMPL_ABORT();
-      break;
+    }
+    // encoded meta data layout:[uint16_t, [uint16_t-memory_items]]
     case INSN_X64_MOV8RM:
-      UNIMPL_ABORT();
+      interpretMovX64<uint8_t>(inst, pc, 0, 1, true);
       break;
+    // encoded meta data layout:[[uint16_t-memory_items], uint16_t]
     case INSN_X64_MOV8MR:
-      UNIMPL_ABORT();
+      interpretMovX64<uint8_t>(inst, pc, 11, 0, false);
       break;
+    // encoded meta data layout:[[uint16_t-memory_items], uint64_t]
     case INSN_X64_MOV8MI:
-      UNIMPL_ABORT();
-      break;
-    case INSN_X64_MOV16RR:
-      UNIMPL_ABORT();
+      interpretMovMIX64<uint8_t>(inst, pc);
       break;
     case INSN_X64_MOV16RM:
-      UNIMPL_ABORT();
+      interpretMovX64<uint16_t>(inst, pc, 0, 1, true);
       break;
     case INSN_X64_MOV16MR:
-      UNIMPL_ABORT();
+      interpretMovX64<uint16_t>(inst, pc, 11, 0, false);
       break;
     case INSN_X64_MOV16MI:
-      UNIMPL_ABORT();
-      break;
-    case INSN_X64_MOV32RR:
-      UNIMPL_ABORT();
+      interpretMovMIX64<uint16_t>(inst, pc);
       break;
     case INSN_X64_MOV32RM:
-      UNIMPL_ABORT();
+      interpretMovX64<uint32_t>(inst, pc, 0, 1, true);
       break;
     case INSN_X64_MOV32MR:
-      UNIMPL_ABORT();
+      interpretMovX64<uint32_t>(inst, pc, 11, 0, false);
       break;
     case INSN_X64_MOV32MI:
-      UNIMPL_ABORT();
-      break;
-    case INSN_X64_MOV64RR:
-      UNIMPL_ABORT();
+      interpretMovMIX64<uint32_t>(inst, pc);
       break;
     case INSN_X64_MOV64RM:
-      UNIMPL_ABORT();
+      interpretMovX64<uint64_t>(inst, pc, 0, 1, true);
       break;
     case INSN_X64_MOV64MR:
-      UNIMPL_ABORT();
+      interpretMovX64<uint32_t>(inst, pc, 11, 0, false);
       break;
     case INSN_X64_MOV64MI32:
-      UNIMPL_ABORT();
+      interpretMovMIX64<uint64_t>(inst, pc);
       break;
+    // encoded meta data layout:[uint16_t, [uint16_t-memory_items]]
     case INSN_X64_LEA32:
-      UNIMPL_ABORT();
+    case INSN_X64_LEA64: {
+      const uint16_t *ops;
+      auto target = interpretCalcMemX64(inst, pc, 1, &ops);
+      uc_reg_write(uc_, ops[0], reinterpret_cast<const void *>(&target));
       break;
-    case INSN_X64_LEA64:
-      UNIMPL_ABORT();
-      break;
+    }
     case INSN_X64_MOVAPSRM:
-      UNIMPL_ABORT();
+      interpretMovX64<uint64_t>(inst, pc, 0, 1, true);
       break;
     case INSN_X64_MOVAPSMR:
-      UNIMPL_ABORT();
+      interpretMovMRX64(inst, pc, 16);
       break;
     case INSN_X64_MOVUPSRM:
-      UNIMPL_ABORT();
+      interpretMovX64<uint64_t>(inst, pc, 0, 1, true);
       break;
     case INSN_X64_MOVUPSMR:
-      UNIMPL_ABORT();
+      interpretMovMRX64(inst, pc, 16);
       break;
     case INSN_X64_MOVAPDRM:
-      UNIMPL_ABORT();
+      interpretMovX64<uint64_t>(inst, pc, 0, 1, true);
       break;
     case INSN_X64_MOVAPDMR:
-      UNIMPL_ABORT();
+      interpretMovMRX64(inst, pc, 16);
       break;
     case INSN_X64_MOVUPDRM:
-      UNIMPL_ABORT();
+      interpretMovX64<uint64_t>(inst, pc, 0, 1, true);
       break;
     case INSN_X64_MOVUPDMR:
-      UNIMPL_ABORT();
-      break;
-    case INSN_X64_MOVI:
-      UNIMPL_ABORT();
-      break;
-    case INSN_X64_MOVIMEM:
-      UNIMPL_ABORT();
+      interpretMovMRX64(inst, pc, 16);
       break;
     case INSN_X64_CMP8MI:
-      UNIMPL_ABORT();
-      break;
     case INSN_X64_CMP8MI8:
-      UNIMPL_ABORT();
+      interpretFlagsMemImm<uint8_t, uint8_t>(inst, pc, true);
       break;
     case INSN_X64_CMP16MI:
-      UNIMPL_ABORT();
+      interpretFlagsMemImm<uint16_t, uint16_t>(inst, pc, true);
       break;
     case INSN_X64_CMP16MI8:
-      UNIMPL_ABORT();
+      interpretFlagsMemImm<uint16_t, uint8_t>(inst, pc, true);
       break;
     case INSN_X64_CMP32MI:
-      UNIMPL_ABORT();
+      interpretFlagsMemImm<uint32_t, uint32_t>(inst, pc, true);
       break;
     case INSN_X64_CMP32MI8:
-      UNIMPL_ABORT();
+      interpretFlagsMemImm<uint32_t, uint8_t>(inst, pc, true);
       break;
     case INSN_X64_CMP64MI32:
-      UNIMPL_ABORT();
+      interpretFlagsMemImm<uint64_t, uint32_t>(inst, pc, true);
       break;
     case INSN_X64_CMP64MI8:
-      UNIMPL_ABORT();
+      interpretFlagsMemImm<uint64_t, uint8_t>(inst, pc, true);
       break;
     case INSN_X64_CMP8RM:
-      UNIMPL_ABORT();
+      interpretFlagsRegMem<uint8_t>(inst, pc, true);
       break;
     case INSN_X64_CMP16RM:
-      UNIMPL_ABORT();
+      interpretFlagsRegMem<uint16_t>(inst, pc, true);
       break;
     case INSN_X64_CMP32RM:
-      UNIMPL_ABORT();
+      interpretFlagsRegMem<uint32_t>(inst, pc, true);
       break;
     case INSN_X64_CMP64RM:
-      UNIMPL_ABORT();
+      interpretFlagsRegMem<uint64_t>(inst, pc, true);
       break;
     case INSN_X64_MOVSX16RM8:
-      UNIMPL_ABORT();
+      interpretSignExtendRegMem<int16_t, int8_t>(inst, pc);
       break;
     case INSN_X64_MOVSX16RM16:
-      UNIMPL_ABORT();
+      interpretSignExtendRegMem<int16_t, int16_t>(inst, pc);
       break;
     case INSN_X64_MOVSX16RM32:
-      UNIMPL_ABORT();
+      interpretSignExtendRegMem<int16_t, int32_t>(inst, pc);
       break;
     case INSN_X64_MOVSX32RM8:
-      UNIMPL_ABORT();
+      interpretSignExtendRegMem<int32_t, int8_t>(inst, pc);
       break;
     case INSN_X64_MOVSX32RM16:
-      UNIMPL_ABORT();
+      interpretSignExtendRegMem<int32_t, int16_t>(inst, pc);
       break;
     case INSN_X64_MOVSX32RM32:
-      UNIMPL_ABORT();
+      interpretSignExtendRegMem<int32_t, int32_t>(inst, pc);
       break;
     case INSN_X64_MOVSX64RM8:
-      UNIMPL_ABORT();
+      interpretSignExtendRegMem<int64_t, int8_t>(inst, pc);
       break;
     case INSN_X64_MOVSX64RM16:
-      UNIMPL_ABORT();
+      interpretSignExtendRegMem<int64_t, int16_t>(inst, pc);
       break;
     case INSN_X64_MOVSX64RM32:
-      UNIMPL_ABORT();
+      interpretSignExtendRegMem<int64_t, int32_t>(inst, pc);
       break;
     case INSN_X64_TEST8MI:
-      UNIMPL_ABORT();
+      interpretFlagsMemImm<uint8_t, uint8_t>(inst, pc, false);
       break;
     case INSN_X64_TEST8MR:
-      UNIMPL_ABORT();
+      interpretFlagsRegMem<uint8_t>(inst, pc, false);
       break;
     case INSN_X64_TEST16MI:
-      UNIMPL_ABORT();
+      interpretFlagsMemImm<uint16_t, uint8_t>(inst, pc, false);
       break;
     case INSN_X64_TEST16MR:
-      UNIMPL_ABORT();
+      interpretFlagsRegMem<uint16_t>(inst, pc, false);
       break;
     case INSN_X64_TEST32MI:
-      UNIMPL_ABORT();
+      interpretFlagsMemImm<uint32_t, uint8_t>(inst, pc, false);
       break;
     case INSN_X64_TEST32MR:
-      UNIMPL_ABORT();
+      interpretFlagsRegMem<uint32_t>(inst, pc, false);
       break;
     case INSN_X64_TEST64MI32:
-      UNIMPL_ABORT();
+      interpretFlagsMemImm<uint64_t, uint32_t>(inst, pc, false);
       break;
     case INSN_X64_TEST64MR:
-      UNIMPL_ABORT();
+      interpretFlagsRegMem<uint64_t>(inst, pc, false);
       break;
     default:
       log_print(Runtime, "Unknown instruction type {} at rva {:x}.", inst->type,
