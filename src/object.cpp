@@ -258,6 +258,7 @@ std::string Object::generateCache() {
   for (auto &i : iinfs_) {
     iins->Add(*reinterpret_cast<uint64_t *>(&i));
   }
+
   auto imetas = iobject.mutable_instmetas();
   for (auto &m : idecinfs_) {
     // as we use string as protobuf's map key, so we have to encode it as a real
@@ -269,28 +270,42 @@ std::string Object::generateCache() {
         m.first.data(), m.first.length());
     imetas->insert({std::string(tmpkey.data(), keysz), m.second});
   }
+
+  auto imods = iobject.mutable_modules();
   auto irefs = iobject.mutable_irefsyms();
+  std::set<std::string> refmods;
   Loader::locateModule("", true); // update loader's module list
   for (auto &r : irelocs_) {
-    auto mod = belong(reinterpret_cast<uint64_t>(r.target))
-                   ? ""
-                   : Loader::locateModule(r.target);
-    if (mod.size()) {
-      auto found = irefs->find(mod);
-      if (found == irefs->end()) {
-        found = irefs->insert({mod.data(), iobj::SymbolList()}).first;
-      }
-      found->second.mutable_names()->Add(r.name.data());
-    } else {
-      mod = "self";
-      auto found = irefs->find(mod);
-      if (found == irefs->end()) {
-        found = irefs->insert({mod.data(), iobj::SymbolList()}).first;
-      }
-      found->second.mutable_rvas()->Add(reinterpret_cast<uint64_t>(r.target) -
-                                        textvm_);
+    // collect referenced modules
+    if (!belong(reinterpret_cast<uint64_t>(r.target))) {
+      refmods.insert(Loader::locateModule(r.target).data());
     }
   }
+  imods->Add("self");
+  for (auto &m : refmods) {
+    imods->Add(m.data());
+  }
+  for (auto &r : irelocs_) {
+    auto target = reinterpret_cast<uint64_t>(r.target);
+    bool self = belong(target);
+
+    iobj::RelocInfo ri;
+    ri.set_symbol(r.name);
+    ri.set_rva(self ? vm2rva(target) : 0);
+    if (self) {
+      ri.set_module(0);
+    } else {
+      for (size_t i = 0; i < imods->size(); i++) {
+        if (imods->at(i) == Loader::locateModule(r.target)) {
+          ri.set_module(i);
+          break;
+        }
+      }
+    }
+    irefs->Add(std::move(ri));
+  }
+
+  // set the original object buffer
   iobject.set_objbuf(
       std::string(fbuf_.get()->getBufferStart(), fbuf_.get()->getBufferSize()));
 
@@ -412,6 +427,7 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
 
   // get the original object buffer
   auto origbuf = iobject_->objbuf();
+  iofbuf_ = std::move(errBuff.get());
   fbuf_ = llvm::MemoryBuffer::getMemBuffer(
       llvm::StringRef(origbuf.data(), origbuf.size()), path, false);
 
@@ -435,6 +451,7 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
     // load instruction informations
     iinfs_.push_back(*reinterpret_cast<InsnInfo *>(&i));
   }
+
   auto imetas = iobject_->instmetas();
   for (auto &m : imetas) {
     // decode base64 key
@@ -444,27 +461,26 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
     // load instruction meta datas
     idecinfs_.insert({std::string(tmpkey.data(), decret.first), m.second});
   }
+
+  auto imods = iobject_->modules();
   auto irefs = iobject_->irefsyms();
   for (auto &r : irefs) {
-    if (r.second.rvas().size()) {
-      for (auto rva : r.second.rvas()) {
-        irelocs_.push_back(
-            RelocInfo{"self", reinterpret_cast<void *>(rva + textvm_)});
-      }
+    if (r.rva()) {
+      irelocs_.push_back(
+          RelocInfo{r.symbol(), reinterpret_cast<void *>(r.rva() + textvm_)});
       continue;
     }
     // dependent module
-    Loader loader(r.first);
+    auto module = imods[r.module()];
+    Loader loader(module);
     if (loader.valid()) {
-      for (auto &s : r.second.names()) {
-        auto target = loader.locate(s);
-        // if fail then abort, never return
-        if (!target)
-          target = Loader::locateSymbol(s, false);
-        irelocs_.push_back(RelocInfo{s, target});
-      }
+      auto target = loader.locate(r.symbol());
+      // if fail then abort, never return
+      if (!target)
+        target = Loader::locateSymbol(r.symbol(), false);
+      irelocs_.push_back(RelocInfo{r.symbol(), target});
     } else {
-      log_print(Runtime, "Can't load dependent module {}.", r.first);
+      log_print(Runtime, "Can't load dependent module {}.", module);
       std::exit(-1);
     }
   }

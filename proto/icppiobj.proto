@@ -23,9 +23,10 @@ enum ObjectType {
   COFF_Exe = 5;
 }
 
-message SymbolList {
-  repeated string names = 1; // for dependent module
-  repeated uint32 rvas = 2;  // for object itself
+message RelocInfo {
+  uint32 module = 1; // module index
+  uint32 rva = 2;    // symbol rva
+  string symbol = 3; // symbol name
 }
 
 /*
@@ -44,7 +45,7 @@ expensive at runtime will make icpp run much faster next time with
 the same C++ source script.
 */
 message InterpObject {
-  // io file header
+  // .io proto instance header
   uint32 magic = 1;
   uint32 version = 2;
   // architecture and orignal object file type
@@ -56,9 +57,11 @@ message InterpObject {
   // decoded instruction operand meta datas
   map<string, bytes> instmetas = 6;
 
-  // map <module, symbols> of the instruction relocation symbols
-  map<string, SymbolList> irefsyms = 7;
+  // module list referenced by relocation symbol
+  repeated string modules = 7;
+  // details of the instruction relocation symbol
+  repeated RelocInfo irefsyms = 8;
 
   // the original object buffer
-  bytes objbuf = 8;
+  bytes objbuf = 9;
 }

@@ -202,7 +202,8 @@ public:
   virtual ~InterpObject();
 
 private:
-  std::unique_ptr<CInterpObject> iobject_; // protobuf instance
+  std::unique_ptr<llvm::MemoryBuffer> iofbuf_; // .io file buffer
+  std::unique_ptr<CInterpObject> iobject_;     // protobuf instance
 };
 
 } // namespace icpp
