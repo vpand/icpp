@@ -37,3 +37,6 @@
 # intermediate
 build/
 .vscode/
+
+# icpp interpretable object
+*.io

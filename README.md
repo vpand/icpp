@@ -6,6 +6,8 @@ Interpreting C++, executing the source and executable like a script.
  * Supported C++23;
  * Make, install and reuse the existing C++ library as icpp script extension is extremely simple.
 
+Copyright (c) vpand.com 2024.
+
 ## Scenarios
 Using ICPP to write C++ code just as a script, write and then run directly, no creating project, no configuring build, no compiling, no linking...
 

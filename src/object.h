@@ -1,6 +1,6 @@
 /* Interpreting C++, executing the source and executable like a script */
 /* By Jesse Liu < neoliu2011@gmail.com >, 2024 */
-/* This file is released under LGPL2.
+/* Copyright (c) vpand.com 2024. This file is released under LGPL2.
    See LICENSE in root directory for more details
 */
 
@@ -24,6 +24,9 @@ class ObjectFile;
 using CObjectFile = llvm::object::ObjectFile;
 
 namespace icpp {
+
+static const uint32_t iobj_magic = 'ppci';
+static const char *iobj_ext = ".io";
 
 enum ObjectType {
   MachO_Reloc,
@@ -61,7 +64,7 @@ struct DynSection {
 
 class Object {
 public:
-  Object(std::string_view path);
+  Object(std::string_view srcpath, std::string_view path);
   virtual ~Object();
 
   constexpr bool valid() { return ofile_ != nullptr && arch_ != Unsupported; }
@@ -93,6 +96,7 @@ public:
   const void *mainEntry();
   const InsnInfo *insnInfo(uint64_t vm);
   std::string sourceInfo(uint64_t vm);
+  std::string generateCache();
 
 protected:
   void createObject(ObjectType type);
@@ -104,6 +108,7 @@ protected:
 private:
   ObjectType type_;
   ArchType arch_;
+  std::string_view srcpath_;
   std::string_view path_;
   std::unique_ptr<llvm::MemoryBuffer> fbuf_;
   std::unique_ptr<CObjectFile> ofile_;
@@ -129,55 +134,55 @@ private:
 
 class MachOObject : public Object {
 public:
-  MachOObject(std::string_view path);
+  MachOObject(std::string_view srcpath, std::string_view path);
   virtual ~MachOObject();
 };
 
 class MachORelocObject : public MachOObject {
 public:
-  MachORelocObject(std::string_view path);
+  MachORelocObject(std::string_view srcpath, std::string_view path);
   virtual ~MachORelocObject();
 };
 
 class MachOExeObject : public MachOObject {
 public:
-  MachOExeObject(std::string_view path);
+  MachOExeObject(std::string_view srcpath, std::string_view path);
   virtual ~MachOExeObject();
 };
 
 class ELFObject : public Object {
 public:
-  ELFObject(std::string_view path);
+  ELFObject(std::string_view srcpath, std::string_view path);
   virtual ~ELFObject();
 };
 
 class ELFRelocObject : public ELFObject {
 public:
-  ELFRelocObject(std::string_view path);
+  ELFRelocObject(std::string_view srcpath, std::string_view path);
   virtual ~ELFRelocObject();
 };
 
 class ELFExeObject : public ELFObject {
 public:
-  ELFExeObject(std::string_view path);
+  ELFExeObject(std::string_view srcpath, std::string_view path);
   virtual ~ELFExeObject();
 };
 
 class COFFObject : public Object {
 public:
-  COFFObject(std::string_view path);
+  COFFObject(std::string_view srcpath, std::string_view path);
   virtual ~COFFObject();
 };
 
 class COFFRelocObject : public COFFObject {
 public:
-  COFFRelocObject(std::string_view path);
+  COFFRelocObject(std::string_view srcpath, std::string_view path);
   virtual ~COFFRelocObject();
 };
 
 class COFFExeObject : public COFFObject {
 public:
-  COFFExeObject(std::string_view path);
+  COFFExeObject(std::string_view srcpath, std::string_view path);
   virtual ~COFFExeObject();
 };
 

@@ -1,6 +1,6 @@
 /* Interpreting C++, executing the source and executable like a script */
 /* By Jesse Liu < neoliu2011@gmail.com >, 2024 */
-/* This file is released under LGPL2.
+/* Copyright (c) vpand.com 2024. This file is released under LGPL2.
    See LICENSE in root directory for more details
 */
 
@@ -943,7 +943,8 @@ void ExecEngine::run() {
 }
 
 void exec_main(std::string_view path, const std::vector<std::string> &deps,
-               const char *procfg, int iargc, char **iargv) {
+               const char *procfg, std::string_view srcpath, int iargc,
+               char **iargv) {
   llvm::file_magic magic;
   auto err = llvm::identify_magic(llvm::Twine(path), magic);
   if (err) {
@@ -956,22 +957,22 @@ void exec_main(std::string_view path, const std::vector<std::string> &deps,
   using fm = llvm::file_magic;
   switch (magic) {
   case fm::macho_object:
-    object = std::make_unique<MachORelocObject>(path);
+    object = std::make_unique<MachORelocObject>(srcpath, path);
     break;
   case fm::macho_executable:
-    object = std::make_unique<MachOExeObject>(path);
+    object = std::make_unique<MachOExeObject>(srcpath, path);
     break;
   case fm::elf_relocatable:
-    object = std::make_unique<ELFRelocObject>(path);
+    object = std::make_unique<ELFRelocObject>(srcpath, path);
     break;
   case fm::elf_executable:
-    object = std::make_unique<ELFExeObject>(path);
+    object = std::make_unique<ELFExeObject>(srcpath, path);
     break;
   case fm::coff_object:
-    object = std::make_unique<COFFRelocObject>(path);
+    object = std::make_unique<COFFRelocObject>(srcpath, path);
     break;
   case fm::pecoff_executable:
-    object = std::make_unique<COFFExeObject>(path);
+    object = std::make_unique<COFFExeObject>(srcpath, path);
     break;
   default:
     std::cout << "Unsupported input file type " << magic
@@ -989,7 +990,7 @@ void exec_main(std::string_view path, const std::vector<std::string> &deps,
 
   // construct arguments passed to the main entry of the input file
   std::vector<const char *> iargs;
-  iargs.push_back(path.data());
+  iargs.push_back(srcpath.data());
   for (int i = 0; i < iargc; i++)
     iargs.push_back(iargv[i]);
   ExecEngine(std::move(object), deps, procfg, iargs).run();

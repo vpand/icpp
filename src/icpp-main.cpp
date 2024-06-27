@@ -1,6 +1,6 @@
 /* Interpreting C++, executing the source and executable like a script */
 /* By Jesse Liu < neoliu2011@gmail.com >, 2024 */
-/* This file is released under LGPL2.
+/* Copyright (c) vpand.com 2024. This file is released under LGPL2.
    See LICENSE in root directory for more details
 */
 
@@ -198,7 +198,7 @@ int icli_main(int argc, char **argv) {
       auto opath = icpp::compile_source(argv[0], sp, icpp_option_opt,
                                         icpp_option_incdirs);
       if (fs::exists(opath)) {
-        icpp::exec_main(opath.c_str(), deps, icpp_option_procfg,
+        icpp::exec_main(opath.c_str(), deps, icpp_option_procfg, sp,
                         idoubledash - argc, &argv[idoubledash + 1]);
         fs::remove(opath);
       } else {
@@ -207,7 +207,7 @@ int icli_main(int argc, char **argv) {
       }
     } else {
       // pass sp as an executable file
-      icpp::exec_main(sp, deps, icpp_option_procfg, idoubledash - argc,
+      icpp::exec_main(sp, deps, icpp_option_procfg, sp, idoubledash - argc,
                       &argv[idoubledash + 1]);
     }
   }
