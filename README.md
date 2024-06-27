@@ -82,12 +82,15 @@ Under developing...
 ## How it works
 ```mermaid
 graph LR
-    A(C++ Source) -- Clang --> B(Object Binary)
-    B -- ICPP Loader --> C(ICPP)
-    E(Executable Binary) -- ICPP Loader --> C(ICPP)
-    C -- Unicorn Engine --> D(Result of execution)
-    C -- Trace Engine --> F(Result of trace)
-    C -- Profile Engine --> G(Result of profile)
+    A(C++ Source) -- Clang --> B(Object)
+    B -- Loader --> C(ICPP Interpreter)
+    A(C++ Source) -- Source.io --> H(IObject)
+    H(IObject) -- Parser --> C
+    E(Executable) -- Loader --> C
+    C -- Unicorn --> D(Output)
+    C -- Cache --> I(Source.io)
+    C -- Tracer --> F(Traces)
+    C -- Profiler --> G(Profiles)
 ```
 
 ## Build
