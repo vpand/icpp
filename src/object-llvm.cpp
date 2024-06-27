@@ -303,6 +303,21 @@ static const char *archName(const ObjectFile *Obj) {
 }
 
 static const Target *getTarget(const ObjectFile *Obj, std::string &TripleName) {
+  static bool init_llvm = false;
+  if (!init_llvm) {
+    init_llvm = true;
+    // Initialize All target infos
+#define init_target(name)                                                      \
+  LLVMInitialize##name##Target();                                              \
+  LLVMInitialize##name##TargetMC();                                            \
+  LLVMInitialize##name##TargetInfo();                                          \
+  LLVMInitialize##name##AsmPrinter();                                          \
+  LLVMInitialize##name##AsmParser();                                           \
+  LLVMInitialize##name##Disassembler();
+    init_target(AArch64);
+    init_target(X86);
+  }
+
   // Figure out the target triple.
   Triple TheTriple("unknown-unknown-unknown");
   if (TripleName.empty()) {
@@ -545,21 +560,6 @@ DisassemblerTarget::DisassemblerTarget(const Target *TheTarget, ObjectFile &Obj,
                                        SubtargetFeatures &Features)
     : TheTarget(TheTarget), Printer(&selectPrettyPrinter(Triple(TripleName))),
       RegisterInfo(TheTarget->createMCRegInfo(TripleName)) {
-  static bool init_llvm = false;
-  if (!init_llvm) {
-    init_llvm = true;
-    // Initialize All target infos
-#define init_target(name)                                                      \
-  LLVMInitialize##name##Target();                                              \
-  LLVMInitialize##name##TargetMC();                                            \
-  LLVMInitialize##name##TargetInfo();                                          \
-  LLVMInitialize##name##AsmPrinter();                                          \
-  LLVMInitialize##name##AsmParser();                                           \
-  LLVMInitialize##name##Disassembler();
-    init_target(AArch64);
-    init_target(X86);
-  }
-
   if (!RegisterInfo)
     reportError(Obj.getFileName(), "no register info for target " + TripleName);
 
@@ -1766,8 +1766,10 @@ void Object::decodeInsns() {
         llvm2uc_register = llvm2ucRegisterX64;
         parseInstX64(inst, opc, idecinfs_, iinfo);
       }
-      // encode none-hardware instruction
-      if (iinfo.type != INSN_HARDWARE) {
+      // encode none-hardware instruction if there's no one
+      if (iinfo.type != INSN_HARDWARE &&
+          idecinfs_.find(std::string(reinterpret_cast<char *>(opc),
+                                     iinfo.len)) == idecinfs_.end()) {
         auto newi =
             idecinfs_
                 .insert({std::string(reinterpret_cast<char *>(opc), iinfo.len),

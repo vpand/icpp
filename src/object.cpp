@@ -238,12 +238,17 @@ const InsnInfo *Object::insnInfo(uint64_t vm) {
   return &*found;
 }
 
+bool Object::belong(uint64_t vm) {
+  auto ptr = reinterpret_cast<const char *>(vm);
+  return fbuf_->getBufferStart() <= ptr && ptr < fbuf_->getBufferEnd();
+}
+
 std::string Object::generateCache() {
   namespace iobj = com::vpand::icppiobj;
   namespace base64 = boost::beast::detail::base64;
 
   // construct the iobj file
-  iobj::InterpObject iobject;
+  CInterpObject iobject;
   iobject.set_magic(iobj_magic);
   iobject.set_version(version_value().value);
   iobject.set_arch(static_cast<iobj::ArchType>(arch_));
@@ -267,7 +272,7 @@ std::string Object::generateCache() {
   auto irefs = iobject.mutable_irefsyms();
   Loader::locateModule("", true); // update loader's module list
   for (auto &r : irelocs_) {
-    auto mod = cover(reinterpret_cast<uint64_t>(r.target))
+    auto mod = belong(reinterpret_cast<uint64_t>(r.target))
                    ? ""
                    : Loader::locateModule(r.target);
     if (mod.size()) {
@@ -296,7 +301,7 @@ std::string Object::generateCache() {
   std::ofstream fout(cachepath, std::ios::binary);
   if (fout.is_open()) {
     iobject.SerializeToOstream(&fout);
-    log_print(Develop, "Cached the interpretable object {}: ", cachepath);
+    log_print(Develop, "Cached the interpretable object {}.", cachepath);
   } else {
     log_print(Runtime, "Failed to create interpretable object {}: {}.",
               cachepath, std::strerror(errno));
@@ -305,13 +310,10 @@ std::string Object::generateCache() {
 }
 
 Object::~Object() {
-  auto filebuff = fbuf_->getBuffer();
-  if (*reinterpret_cast<const uint32_t *>(filebuff.data()) == iobj_magic) {
-    // it's already an iobj file
-    return;
+  if (!path_.ends_with(".io")) {
+    // generate the interpretable object file
+    generateCache();
   }
-  // generate iobj file
-  generateCache();
 }
 
 MachOObject::MachOObject(std::string_view srcpath, std::string_view path)
@@ -386,13 +388,21 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
               << "': " << errBuff.getError().message() << std::endl;
     return;
   }
-  if (*reinterpret_cast<const uint32_t *>(errBuff.get()->getBufferStart()) !=
-      iobj_magic) {
-    // it isn't a icpp interpretable object file
+  // construct the iobject instance
+  iobject_ = std::make_unique<CInterpObject>(CInterpObject());
+  if (!iobject_->ParseFromArray(errBuff.get()->getBufferStart(),
+                                errBuff.get()->getBufferSize())) {
+    log_print(Runtime, "Can't load the file {}, it's corrupted.", path_);
     return;
   }
-  if (*reinterpret_cast<const uint32_t *>(errBuff.get()->getBufferStart() +
-                                          4) != version_value().value) {
+  if (iobject_->magic() != iobj_magic) {
+    log_print(
+        Runtime,
+        "Can't load the file {}, it isn't a icpp interpretable object file.",
+        path_);
+    return;
+  }
+  if (iobject_->version() != version_value().value) {
     log_print(Runtime,
               "The file {} does be an icpp interpretable object, but its "
               "version doesn't match this icpp (expected {}).",
@@ -400,17 +410,12 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
     return;
   }
 
-  // construct the object instance
-  iobj::InterpObject iobject;
-  if (!iobject.ParseFromArray(errBuff.get()->getBufferStart(),
-                              errBuff.get()->getBufferSize())) {
-    log_print(Runtime, "Can't load the file {}, it's corrupted.", path_);
-    return;
-  }
-  fbuf_ = std::move(errBuff.get());
-  auto obuf = iobject.objbuf();
-  auto buffRef =
-      llvm::MemoryBufferRef(llvm::StringRef(obuf), llvm::StringRef(path));
+  // get the original object buffer
+  auto origbuf = iobject_->objbuf();
+  fbuf_ = llvm::MemoryBuffer::getMemBuffer(
+      llvm::StringRef(origbuf.data(), origbuf.size()), path, false);
+
+  auto buffRef = llvm::MemoryBufferRef(*fbuf_);
   auto expObj = CObjectFile::createObjectFile(buffRef);
   if (!expObj) {
     std::cout << "Failed to create llvm object: "
@@ -418,30 +423,33 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
     return;
   }
   ofile_ = std::move(expObj.get());
-  arch_ = static_cast<ArchType>(iobject.arch());
-  type_ = static_cast<ObjectType>(iobject.otype());
+  arch_ = static_cast<ArchType>(iobject_->arch());
+  type_ = static_cast<ObjectType>(iobject_->otype());
 
   // parse from original object
   parseSections();
   parseSymbols();
 
-  auto iins = iobject.instinfos();
-  for (auto &i : iins) {
+  auto iins = iobject_->instinfos();
+  for (auto i : iins) {
+    // load instruction informations
     iinfs_.push_back(*reinterpret_cast<InsnInfo *>(&i));
   }
-  auto imetas = iobject.instmetas();
+  auto imetas = iobject_->instmetas();
   for (auto &m : imetas) {
+    // decode base64 key
     std::string tmpkey(base64::decoded_size(m.first.length()), '\0');
     auto decret =
         base64::decode(tmpkey.data(), m.first.data(), m.first.length());
+    // load instruction meta datas
     idecinfs_.insert({std::string(tmpkey.data(), decret.first), m.second});
   }
-  auto irefs = iobject.irefsyms();
+  auto irefs = iobject_->irefsyms();
   for (auto &r : irefs) {
     if (r.second.rvas().size()) {
       for (auto rva : r.second.rvas()) {
         irelocs_.push_back(
-            RelocInfo{"self", reinterpret_cast<void *>(rva + textrva_)});
+            RelocInfo{"self", reinterpret_cast<void *>(rva + textvm_)});
       }
       continue;
     }
@@ -450,12 +458,9 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
     if (loader.valid()) {
       for (auto &s : r.second.names()) {
         auto target = loader.locate(s);
+        // if fail then abort, never return
         if (!target)
           target = Loader::locateSymbol(s, false);
-        if (!target) {
-          log_print(Runtime, "Can't resolve dependent symbol {}.", s);
-          std::exit(-1);
-        }
         irelocs_.push_back(RelocInfo{s, target});
       }
     } else {

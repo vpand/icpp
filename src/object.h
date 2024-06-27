@@ -21,7 +21,16 @@ class ObjectFile;
 }
 } // namespace llvm
 
+namespace com {
+namespace vpand {
+namespace icppiobj {
+class InterpObject;
+}
+} // namespace vpand
+} // namespace com
+
 using CObjectFile = llvm::object::ObjectFile;
+using CInterpObject = com::vpand::icppiobj::InterpObject;
 
 namespace icpp {
 
@@ -77,6 +86,7 @@ public:
     return textvm_ <= vm && vm < textvm_ + textsz_;
   }
 
+  bool belong(uint64_t vm);
   const char *triple();
 
   constexpr const void *relocTarget(size_t i) { return irelocs_[i].target; }
@@ -190,6 +200,9 @@ class InterpObject : public Object {
 public:
   InterpObject(std::string_view srcpath, std::string_view path);
   virtual ~InterpObject();
+
+private:
+  std::unique_ptr<CInterpObject> iobject_; // protobuf instance
 };
 
 } // namespace icpp

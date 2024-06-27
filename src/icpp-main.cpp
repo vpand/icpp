@@ -200,7 +200,8 @@ int icli_main(int argc, char **argv) {
       if (fs::exists(opath)) {
         icpp::exec_main(opath.c_str(), deps, icpp_option_procfg, sp,
                         idoubledash - argc, &argv[idoubledash + 1]);
-        fs::remove(opath);
+        if (opath.extension() != ".io")
+          fs::remove(opath);
       } else {
         // if failed to compile the input source, clang has already printed the
         // errors

@@ -99,7 +99,12 @@ const void *SymbolCache::resolve(const void *handle, std::string_view name) {
   auto addr = ::GetProcAddress(
       reinterpret_cast<HMODULE>(const_cast<void *>(handle)), name.data());
 #else
-  auto addr = dlsym(const_cast<void *>(handle), name.data());
+#if __APPLE__
+  auto sym = name.data() + 1;
+#else
+  auto sym = name.data();
+#endif
+  auto addr = dlsym(const_cast<void *>(handle), sym);
 #endif
   if (!addr)
     return nullptr;
