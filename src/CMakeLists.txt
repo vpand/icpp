@@ -101,6 +101,10 @@ clang_target_link_libraries(icpp
   boost_asio
   boost_beast
   libprotobuf
+  breakpad
+  brotlicommon
+  brotlienc
+  brotlidec
 )
   
 target_include_directories(icpp PRIVATE
@@ -113,6 +117,8 @@ target_include_directories(icpp PRIVATE
   ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/tools/clang/include
   ${CMAKE_BINARY_DIR}/vmpstudio
   ${CMAKE_CURRENT_BINARY_DIR}
+  ${THIRD_ROOT}/breakpad/src
+  ${THIRD_ROOT}/brotli/c/include
 
   boost_asio
   boost_beast

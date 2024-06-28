@@ -10,3 +10,9 @@
 [submodule "third/protobuf"]
 	path = third/protobuf
 	url = https://github.com/protocolbuffers/protobuf.git
+[submodule "third/brotli"]
+	path = third/brotli
+	url = https://github.com/google/brotli.git
+[submodule "third/breakpad"]
+	path = third/breakpad
+	url = https://github.com/google/breakpad.git

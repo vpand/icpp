@@ -26,15 +26,10 @@ No matter if you're a beginner or an expert with C++, ICPP is suitable for you. 
 
 ### ICPP vs Python
 
-|Script Interpreter|Command Line|
-|-|-|
-|Python| % **python** helloworld.py |
-|ICPP  | % **icpp** helloworld.cc |
-
-|Module Installer|Command Line|
-|-|-|
-|PIP | % **pip** install helloworld.zip |
-|IMOD| % **imod** helloworld.zip |
+|CLI|Script Interpreter|Module Manager|
+|-|-|-|
+|Python| % **python** helloworld.py | % **pip** install helloworld.zip |
+|ICPP  | % **icpp** helloworld.cc | % **imod** --install=helloworld.zip |
 
 ### CLI
 

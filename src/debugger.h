@@ -56,6 +56,8 @@ public:
   void leave();
   bool stopped();
 
+  void dump(ArchType arch, uc_engine *uc);
+
 private:
   void runEntry(Thread *thread, uint64_t pc);
   void stepEntry(Thread *thread, uint64_t pc, bool hitbp);

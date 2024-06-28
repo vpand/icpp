@@ -14,6 +14,14 @@
 #include <llvm/ADT/Twine.h>
 #include <llvm/BinaryFormat/Magic.h>
 
+#if __APPLE__
+#include "client/mac/handler/exception_handler.h"
+#elif __linux__
+#include "client/linux/handler/exception_handler.h"
+#else
+#include "client/windows/handler/exception_handler.h"
+#endif
+
 namespace icpp {
 
 struct ExecEngine {
@@ -43,6 +51,7 @@ struct ExecEngine {
   }
 
   void run();
+  void dump();
 
 private:
   /*
@@ -933,10 +942,75 @@ void ExecEngine::initMainRegisterWinX64() {
 
 void ExecEngine::execDtor() {}
 
+void ExecEngine::dump() {
+  log_print(Runtime,
+            "ICPP crashed when running {}, here's some details:", iargs_[0]);
+
+  Debugger debugger;
+  debugger.dump(object_->arch(), uc_);
+
+  // load registers
+  uint64_t regs[32], vmsz;
+  switch (object_->arch()) {
+  case AArch64: {
+    auto ctx = loadRegisterAArch64();
+    std::memcpy(regs, &ctx, sizeof(ctx));
+    vmsz = sizeof(ctx) / regs[0];
+    break;
+  }
+  case X86_64: {
+    auto ctx = loadRegisterX64();
+    std::memcpy(regs, &ctx, sizeof(ctx));
+    vmsz = sizeof(ctx) / regs[0];
+    break;
+  }
+  default:
+    vmsz = 0;
+    break;
+  }
+
+  log_print(Runtime, "Address Details:");
+  for (uint64_t i = 0; i < vmsz; i++) {
+    if (object_->cover(regs[i])) {
+      auto info = object_->sourceInfo(regs[i]);
+      log_print(Runtime, "{:08x}: {}",
+                static_cast<uint32_t>(object_->vm2rva(regs[i])), info);
+    }
+  }
+}
+
+bool breakpad_filter_callback(void *context) {
+  auto exec = reinterpret_cast<ExecEngine *>(context);
+  exec->dump();
+  // never return to breakpad
+  abort();
+  return false;
+}
+
 void ExecEngine::run() {
   if (!uc_ || !loader_.valid()) {
     return;
   }
+
+  google_breakpad::ExceptionHandler ehandler(
+      "",                       /* minidump output directory */
+      breakpad_filter_callback, /* filter */
+      0,                        /* minidump callback */
+      this                      /* calback_context */
+#ifdef _WIN32
+      ,
+      google_breakpad::ExceptionHandler::HANDLER_ALL /* handler_types */
+#else
+      ,
+      true /* install_handler */
+#if __APPLE__
+      ,
+      nullptr /* port name, set to null so in-process dump generation is used.
+               */
+#endif
+#endif
+  );
+
   execCtor();
   execMain();
   execDtor();

@@ -7,6 +7,9 @@ if(APPLE)
   set(CMAKE_C_COMPILER "/usr/bin/clang" CACHE FILEPATH "" FORCE)
 endif()
 
+# build all dependent libraries as static
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
 # third-party project
 # unicorn
 message(STATUS "Configuring unicorn...")
@@ -44,6 +47,14 @@ add_subdirectory(third/protobuf)
 # boost
 message(STATUS "Configuring boost...")
 add_subdirectory(third/boost)
+
+# brotli
+message(STATUS "Configuring brotli...")
+add_subdirectory(third/brotli)
+
+# breakpad
+message(STATUS "Configuring breadpad...")
+add_subdirectory(cmake/breakpad)
 
 # icpp project
 add_subdirectory(vmpstudio)
