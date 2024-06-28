@@ -81,6 +81,7 @@ void Object::createObject(ObjectType type) {
       arch_ = Unsupported;
       break;
     }
+    odiser_.init(ofile_.get(), triple());
     parseSections();
     parseSymbols();
     decodeInsns();
@@ -324,12 +325,7 @@ std::string Object::generateCache() {
   return cachepath;
 }
 
-Object::~Object() {
-  if (!path_.ends_with(".io")) {
-    // generate the interpretable object file
-    generateCache();
-  }
-}
+Object::~Object() {}
 
 MachOObject::MachOObject(std::string_view srcpath, std::string_view path)
     : Object(srcpath, path) {}

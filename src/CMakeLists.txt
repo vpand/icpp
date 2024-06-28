@@ -101,7 +101,7 @@ clang_target_link_libraries(icpp
   boost_asio
   boost_beast
   libprotobuf
-  breakpad
+  breakpad-static
   brotlicommon
   brotlienc
   brotlidec

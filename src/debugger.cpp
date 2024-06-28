@@ -111,7 +111,12 @@ Debugger::Debugger() {
   listen_ = std::make_unique<std::thread>(&Debugger::listen, this);
 }
 
+Debugger::Debugger(DebugStatus status) { status_ = status; }
+
 Debugger::~Debugger() {
+  if (!listen_)
+    return;
+
   try {
     // close client sockets
     for (auto &s : clients_) {
@@ -149,7 +154,7 @@ Debugger::Thread *Debugger::enter(ArchType arch, uc_engine *uc) {
 
 void Debugger::dump(ArchType arch, uc_engine *uc) {
   Thread curth{std::this_thread::get_id(), uc, arch, 0};
-  log_print(Runtime, "Register Context:\n{}", curth.registers());
+  log_print(Raw, "Register Context:\n{}", curth.registers());
 }
 
 void Debugger::entry(Thread *thread, uint64_t pc) {

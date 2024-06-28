@@ -19,6 +19,9 @@ class MemoryBuffer;
 namespace object {
 class ObjectFile;
 }
+namespace objdump {
+class SourcePrinter;
+}
 } // namespace llvm
 
 namespace com {
@@ -71,6 +74,20 @@ struct DynSection {
   std::string buffer;
 };
 
+class DisassemblerTarget;
+
+struct ObjectDisassembler {
+  ObjectDisassembler() {}
+  ~ObjectDisassembler();
+
+  void init(CObjectFile *Obj, std::string_view Triple);
+
+  // these classes' definition are unavailable for std::unique_ptr,
+  // so raw pointer used, we manage them manually
+  DisassemblerTarget *DT = nullptr;
+  ::llvm::objdump::SourcePrinter *SP = nullptr;
+};
+
 class Object {
 public:
   Object(std::string_view srcpath, std::string_view path);
@@ -85,6 +102,8 @@ public:
   constexpr bool cover(uint64_t vm) {
     return textvm_ <= vm && vm < textvm_ + textsz_;
   }
+
+  constexpr bool isCache() { return path_.ends_with(".io"); }
 
   bool belong(uint64_t vm);
   const char *triple();
@@ -116,11 +135,12 @@ protected:
   std::string_view textSectName();
 
 protected:
+  ObjectDisassembler odiser_;
   ObjectType type_;
   ArchType arch_;
   std::string_view srcpath_;
   std::string_view path_;
-  std::unique_ptr<llvm::MemoryBuffer> fbuf_;
+  std::unique_ptr<::llvm::MemoryBuffer> fbuf_;
   std::unique_ptr<CObjectFile> ofile_;
   // <entry name, opcodes pointer>
   std::unordered_map<std::string, const void *> funcs_;

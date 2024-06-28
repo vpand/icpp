@@ -57,10 +57,10 @@ private:
   /*
   object constructor, main and destructor executor
   */
-  void execCtor();
-  void execMain();
-  void execDtor();
-  void execLoop(uint64_t pc);
+  bool execCtor();
+  bool execMain();
+  bool execDtor();
+  bool execLoop(uint64_t pc);
 
   // icpp interpret entry
   bool interpret(const InsnInfo *&inst, uint64_t &pc, int &step);
@@ -137,7 +137,7 @@ private:
   std::string stack_;
 };
 
-void ExecEngine::execCtor() {}
+bool ExecEngine::execCtor() { return true; }
 
 void ExecEngine::initMainRegister() {
   switch (object_->arch()) {
@@ -160,9 +160,9 @@ void ExecEngine::initMainRegister() {
   }
 }
 
-void ExecEngine::execMain() {
+bool ExecEngine::execMain() {
   initMainRegister();
-  execLoop(reinterpret_cast<uint64_t>(object_->mainEntry()));
+  return execLoop(reinterpret_cast<uint64_t>(object_->mainEntry()));
 }
 
 ContextA64 ExecEngine::loadRegisterAArch64() {
@@ -495,7 +495,8 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       log_print(Runtime,
                 "Breakpoint or trap instruction hit at rva {:x}.\nAborting...",
                 object_->vm2rva(pc));
-      abort();
+      dump();
+      std::exit(-1);
       break;
     // arm64 instruction
     case INSN_ARM64_RETURN: {
@@ -833,9 +834,9 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
   return true;
 }
 
-void ExecEngine::execLoop(uint64_t pc) {
+bool ExecEngine::execLoop(uint64_t pc) {
   if (!pc) {
-    return;
+    return false;
   }
   // debugger internal thread
   Debugger::Thread *dbgthread = nullptr;
@@ -853,7 +854,7 @@ void ExecEngine::execLoop(uint64_t pc) {
     break;
   default:
     UNIMPL_ABORT();
-    return;
+    return false;
   }
   // instruction information related to pc
   auto inst = object_->insnInfo(pc);
@@ -883,7 +884,8 @@ void ExecEngine::execLoop(uint64_t pc) {
     if (err != UC_ERR_OK) {
       std::cout << "Fatal error occurred: " << uc_strerror(err)
                 << ", current pc=0x" << std::hex << pc << "." << std::endl;
-      break;
+      dump();
+      return false;
     }
 
     // update current pc
@@ -897,6 +899,7 @@ void ExecEngine::execLoop(uint64_t pc) {
   }
   if (debugger_)
     debugger_->leave();
+  return true;
 }
 
 #define reg_write(reg, val)                                                    \
@@ -940,37 +943,37 @@ void ExecEngine::initMainRegisterWinX64() {
   initMainRegisterCommonX64();
 }
 
-void ExecEngine::execDtor() {}
+bool ExecEngine::execDtor() { return true; }
 
 void ExecEngine::dump() {
-  log_print(Runtime,
-            "ICPP crashed when running {}, here's some details:", iargs_[0]);
+  log_print(Raw, "ICPP crashed when running {}, here's some details:\n",
+            iargs_[0]);
 
-  Debugger debugger;
+  Debugger debugger(Stopped);
   debugger.dump(object_->arch(), uc_);
 
   // load registers
-  uint64_t regs[32], vmsz;
+  uint64_t regs[32], regsz;
   switch (object_->arch()) {
   case AArch64: {
     auto ctx = loadRegisterAArch64();
-    std::memcpy(regs, &ctx, sizeof(ctx));
-    vmsz = sizeof(ctx) / regs[0];
+    regsz = 32;
+    std::memcpy(regs, &ctx, sizeof(regs[0]) * regsz);
     break;
   }
   case X86_64: {
     auto ctx = loadRegisterX64();
-    std::memcpy(regs, &ctx, sizeof(ctx));
-    vmsz = sizeof(ctx) / regs[0];
+    regsz = 16;
+    std::memcpy(regs, &ctx, sizeof(regs[0]) * regsz);
     break;
   }
   default:
-    vmsz = 0;
+    regsz = 0;
     break;
   }
 
-  log_print(Runtime, "Address Details:");
-  for (uint64_t i = 0; i < vmsz; i++) {
+  log_print(Raw, "Address Details:");
+  for (uint64_t i = 0; i < regsz; i++) {
     if (object_->cover(regs[i])) {
       auto info = object_->sourceInfo(regs[i]);
       log_print(Runtime, "{:08x}: {}",
@@ -1011,9 +1014,16 @@ void ExecEngine::run() {
 #endif
   );
 
-  execCtor();
-  execMain();
-  execDtor();
+  if (execCtor()) {
+    if (execMain()) {
+      if (execDtor()) {
+        if (!object_->isCache()) {
+          // generate the interpretable object file if everthing went well
+          object_->generateCache();
+        }
+      }
+    }
+  }
 }
 
 void exec_main(std::string_view path, const std::vector<std::string> &deps,

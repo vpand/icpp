@@ -29,6 +29,12 @@ struct ProtocolHdr {
       len : 24;          // protobuf length
 };
 
+enum DebugStatus {
+  Running,
+  Stepping,
+  Stopped,
+};
+
 class Debugger {
 public:
   struct Thread {
@@ -49,6 +55,7 @@ public:
 
 public:
   Debugger();
+  Debugger(DebugStatus status);
   ~Debugger();
 
   Thread *enter(ArchType arch, uc_engine *uc);
@@ -82,18 +89,12 @@ private:
     bool operator<(const Breakpoint &right) const { return addr < right.addr; }
   };
 
-  enum Status {
-    Running,
-    Stepping,
-    Stopped,
-  };
-
   // mutex for debugger data fields modifying
   std::mutex mutex_;
 
   std::set<Thread> threads_;
   std::set<Breakpoint> breakpoint_;
-  Status status_ = Stepping;
+  DebugStatus status_ = Stepping;
   Thread *curthread_ = nullptr;
 
   // debugger server
