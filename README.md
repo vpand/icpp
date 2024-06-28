@@ -1,22 +1,22 @@
 # ICPP - Running C++ in anywhere like a script
-Interpreting C++, executing the source and executable like a script.
+**Interpreting C++, executing the source and executable like a script.**
  * Writing powerful script using C++ just as easy as Python;
  * Writing hot-loading C++ script code in running process;
- * Based on [Unicorn Engine](https://github.com/unicorn-engine/unicorn.git) and [Clang/LLVM](https://github.com/llvm/llvm-project.git);
- * Integrated [Boost](https://github.com/boostorg/boost.git) internally with C++23 supported;
+ * Based on [Unicorn Engine](https://github.com/unicorn-engine/unicorn.git) virtual qemu cpu and [Clang/LLVM](https://github.com/llvm/llvm-project.git) C++ compiler;
+ * Integrated [Boost](https://github.com/boostorg/boost.git) internally with [Standard C++23](https://en.cppreference.com/w/cpp/23) supported;
  * To reuse the existing C++ library as icpp script module extension is extremely simple.
 
 Copyright (c) vpand.com 2024.
 
 ## Scenarios
-Using ICPP to write C++ code just as a script, write and then run directly, no creating project, no configuring build, no compiling, no linking...
+**Using ICPP to write C++ code just as a script.** Write and then run directly, no creating project, no configuring build, no compiling, no linking...
 
 No matter if you're a beginner or an expert with C++, ICPP is suitable for you. With ICPP, you can focus on:
- * Writing snippet code to study any of the newest C++ features;
- * Writing glue script to do some tasks;
- * Writing test code before applying to the formal project;
- * Writing sample code to study some new third C/C++ libraries;
- * Making native plugin development scriptable, i.e., writing plugin using C++ dynamically.
+ * Writing **snippet code** to study any of the newest C++ features;
+ * Writing **glue script** to do some tasks;
+ * Writing **test code** before applying to the formal project;
+ * Writing **sample code** to study some new third C/C++ libraries;
+ * Making native plugin development scriptable, i.e., **writing plugin using C++ dynamically**.
  * Tracing, profiling, performance optimizing;
  * And so on...
 
@@ -32,7 +32,6 @@ graph LR
     H(IObject) -- Parser --> C
     E(Executable) -- Loader --> C
     C -- Unicorn --> D(Output)
-    C -- Cache --> I(Source.io)
     C -- Tracer --> F(Traces)
     C -- Profiler --> G(Profiles)
 ```
@@ -53,7 +52,7 @@ graph LR
 |CLI|Script Interpreter|Module Manager|In-Process Gadget|
 |-|-|-|-|
 |Python| % **python** helloworld.py | % **pip** install helloworld.zip | N/A | 
-|ICPP  | % **icpp** helloworld.cc | % **imod** --install=helloworld.zip | resident icpp-gadget in process |
+|ICPP  | % **icpp** helloworld.cc | % **imod** --install=helloworld.zip | resident **icpp-gadget** in process |
 
 ### CLI
 
@@ -108,7 +107,7 @@ cmake --build . -- icpp -j8
 ```
 
 ## Contact
-You can visit [vpand.com](https://vpand.com/) for more information on VM, VMProtect, Clang/LLVM and Reverse Engineering products. Or if you have any questions, just feel free to email to me:
+You can visit [vpand.com](https://vpand.com/) for more information on **VM, VMProtect, Clang/LLVM and Reverse Engineering** products. Or if you have any questions, just feel free to email to me:
 ```
 neoliu2011@gmail.com
 ```
