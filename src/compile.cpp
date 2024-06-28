@@ -8,8 +8,8 @@
 #include "utils.h"
 #include <vector>
 
-// icpp/clang driver entry, it acts as a clang compiler when argv contains -c/-o
-extern "C" int icpp_main(int argc, const char **argv);
+// clang compiler main entry
+int iclang_main(int argc, const char **argv);
 
 // implement in llvm-project/clang/tools/driver/driver.cpp
 extern std::string GetExecutablePath(const char *argv0, bool CanonicalPrefixes);
@@ -28,6 +28,7 @@ static fs::path check_cache(std::string_view path) {
     // source has been updated, so the cache file becomes invalid
     return "";
   }
+  log_print(Runtime, "Using iobject cache file: {}.", cachepath.string());
   return cachepath;
 }
 
@@ -86,9 +87,9 @@ fs::path compile_source(const char *argv0, std::string_view path,
 #error Unknown compiling platform.
 #endif
 
-  // main will invoke clang_main to generate the object file with the default
-  // host triple
-  icpp_main(static_cast<int>(args.size()), &args[0]);
+  // iclang_main will invoke clang_main to generate the object file with the
+  // default host triple
+  iclang_main(static_cast<int>(args.size()), &args[0]);
   return opath;
 }
 

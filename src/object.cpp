@@ -249,7 +249,7 @@ std::string Object::generateCache() {
   namespace base64 = boost::beast::detail::base64;
 
   // construct the iobj file
-  CInterpObject iobject;
+  iobj::InterpObject iobject;
   iobject.set_magic(iobj_magic);
   iobject.set_version(version_value().value);
   iobject.set_arch(static_cast<iobj::ArchType>(arch_));
@@ -400,20 +400,20 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
     return;
   }
   // construct the iobject instance
-  iobject_ = std::make_unique<CInterpObject>(CInterpObject());
-  if (!iobject_->ParseFromArray(errBuff.get()->getBufferStart(),
-                                errBuff.get()->getBufferSize())) {
+  iobj::InterpObject iobject;
+  if (!iobject.ParseFromArray(errBuff.get()->getBufferStart(),
+                              errBuff.get()->getBufferSize())) {
     log_print(Runtime, "Can't load the file {}, it's corrupted.", path_);
     return;
   }
-  if (iobject_->magic() != iobj_magic) {
+  if (iobject.magic() != iobj_magic) {
     log_print(
         Runtime,
         "Can't load the file {}, it isn't a icpp interpretable object file.",
         path_);
     return;
   }
-  if (iobject_->version() != version_value().value) {
+  if (iobject.version() != version_value().value) {
     log_print(Runtime,
               "The file {} does be an icpp interpretable object, but its "
               "version doesn't match this icpp (expected {}).",
@@ -422,12 +422,11 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
   }
 
   // get the original object buffer
-  auto origbuf = iobject_->objbuf();
-  iofbuf_ = std::move(errBuff.get());
-  fbuf_ = llvm::MemoryBuffer::getMemBuffer(
-      llvm::StringRef(origbuf.data(), origbuf.size()), path, false);
+  ofbuf_ = iobject.objbuf();
+  auto obuffer = llvm::MemoryBuffer::getMemBuffer(
+      llvm::StringRef(ofbuf_.data(), ofbuf_.size()), path, false);
 
-  auto buffRef = llvm::MemoryBufferRef(*fbuf_);
+  auto buffRef = llvm::MemoryBufferRef(*obuffer);
   auto expObj = CObjectFile::createObjectFile(buffRef);
   if (!expObj) {
     std::cout << "Failed to create llvm object: "
@@ -435,20 +434,20 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
     return;
   }
   ofile_ = std::move(expObj.get());
-  arch_ = static_cast<ArchType>(iobject_->arch());
-  type_ = static_cast<ObjectType>(iobject_->otype());
+  arch_ = static_cast<ArchType>(iobject.arch());
+  type_ = static_cast<ObjectType>(iobject.otype());
 
   // parse from original object
   parseSections();
   parseSymbols();
 
-  auto iins = iobject_->instinfos();
+  auto iins = iobject.instinfos();
   for (auto i : iins) {
     // load instruction informations
     iinfs_.push_back(*reinterpret_cast<InsnInfo *>(&i));
   }
 
-  auto imetas = iobject_->instmetas();
+  auto imetas = iobject.instmetas();
   for (auto &m : imetas) {
     // decode base64 key
     std::string tmpkey(base64::decoded_size(m.first.length()), '\0');
@@ -458,16 +457,16 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
     idecinfs_.insert({std::string(tmpkey.data(), decret.first), m.second});
   }
 
-  auto imods = iobject_->modules();
-  auto irefs = iobject_->irefsyms();
+  auto imods = iobject.modules();
+  auto irefs = iobject.irefsyms();
   for (auto &r : irefs) {
-    if (r.rva()) {
+    // dependent module
+    auto module = imods[r.module()];
+    if (module == "self") {
       irelocs_.push_back(
           RelocInfo{r.symbol(), reinterpret_cast<void *>(r.rva() + textvm_)});
       continue;
     }
-    // dependent module
-    auto module = imods[r.module()];
     Loader loader(module);
     if (loader.valid()) {
       auto target = loader.locate(r.symbol());

@@ -9,6 +9,12 @@
 #include <cstdint>
 #include <string>
 
+#if defined(_WIN32) || defined(_WIN64)
+#define __ICPP_EXPORT__ __declspec(dllexport)
+#else
+#define __ICPP_EXPORT__ __attribute__((visibility("default")))
+#endif // end of _WIN
+
 namespace icpp {
 
 // icpp version.

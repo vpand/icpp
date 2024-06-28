@@ -63,7 +63,7 @@ public:
   void leave();
   bool stopped();
 
-  void dump(ArchType arch, uc_engine *uc);
+  void dump(ArchType arch, uc_engine *uc, uint64_t pc);
 
 private:
   void runEntry(Thread *thread, uint64_t pc);

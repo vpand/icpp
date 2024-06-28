@@ -152,8 +152,8 @@ Debugger::Thread *Debugger::enter(ArchType arch, uc_engine *uc) {
   return const_cast<Thread *>(&*found);
 }
 
-void Debugger::dump(ArchType arch, uc_engine *uc) {
-  Thread curth{std::this_thread::get_id(), uc, arch, 0};
+void Debugger::dump(ArchType arch, uc_engine *uc, uint64_t pc) {
+  Thread curth{std::this_thread::get_id(), uc, arch, pc};
   log_print(Raw, "Register Context:\n{}", curth.registers());
 }
 

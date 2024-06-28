@@ -24,16 +24,7 @@ class SourcePrinter;
 }
 } // namespace llvm
 
-namespace com {
-namespace vpand {
-namespace icppiobj {
-class InterpObject;
-}
-} // namespace vpand
-} // namespace com
-
 using CObjectFile = llvm::object::ObjectFile;
-using CInterpObject = com::vpand::icppiobj::InterpObject;
 
 namespace icpp {
 
@@ -222,8 +213,7 @@ public:
   virtual ~InterpObject();
 
 private:
-  std::unique_ptr<llvm::MemoryBuffer> iofbuf_; // .io file buffer
-  std::unique_ptr<CInterpObject> iobject_;     // protobuf instance
+  std::string ofbuf_; // .o file buffer copied from .io file
 };
 
 } // namespace icpp

@@ -13,6 +13,7 @@
 
 #include <llvm/ADT/Twine.h>
 #include <llvm/BinaryFormat/Magic.h>
+#include <mutex>
 
 #if ICPP_GADGET
 #if __APPLE__
@@ -26,38 +27,92 @@
 #include "llvm/Support/Signals.h"
 #endif
 
+#ifdef _WIN32
+#include <Windows.h>
+#else
+#include <pthread.h>
+#endif
+
 namespace icpp {
 
+// uc instance cache
+struct UnicornEngine {
+  uc_engine *acquire(Object *object) {
+    std::lock_guard lock(mutex);
+    uc_engine *uc;
+    if (free.size()) {
+      // get a free cache uc
+      uc = *free.begin();
+      free.erase(free.begin());
+    } else {
+      // there's no available cache uc, create a new one
+      auto err = uc_open(object->ucArch(), object->ucMode(), &uc);
+      if (err != UC_ERR_OK) {
+        std::cout << "Failed to create unicorn engine instance: "
+                  << uc_strerror(err) << std::endl;
+        std::exit(-1);
+      }
+    }
+    busy.insert(uc);
+    return uc;
+  }
+
+  void release(uc_engine *uc) {
+    std::lock_guard lock(mutex);
+    // save to free list
+    free.insert(uc);
+    // remove from busy list
+    busy.erase(busy.find(uc));
+  }
+
+  ~UnicornEngine() {
+    // release all cached uc instance
+    for (auto uc : free)
+      uc_close(uc);
+    for (auto uc : busy)
+      log_print(
+          Runtime,
+          "Virtual CPU instance {} is still running while exiting program.",
+          reinterpret_cast<void *>(uc));
+  }
+
+private:
+  // available uc instance
+  std::set<uc_engine *> free;
+  // uc instance used by some thread
+  std::set<uc_engine *> busy;
+
+  std::mutex mutex;
+} ue;
+
 struct ExecEngine {
-  ExecEngine(std::unique_ptr<Object> object,
+  // clone a new execute engine for thread function
+  ExecEngine(ExecEngine &exec)
+      : loader_(exec.loader_), runcfg_(exec.runcfg_), iargs_(exec.iargs_),
+        object_(exec.object_) {
+    init();
+  }
+
+  ExecEngine(std::shared_ptr<Object> object,
              const std::vector<std::string> &deps, const char *procfg,
              const std::vector<const char *> &iargs)
       : loader_(object.get(), deps), runcfg_(procfg), iargs_(iargs),
         object_(object.get()) {
-    // initialize unicorn instruction emulation instance
-    auto err = uc_open(object->ucArch(), object->ucMode(), &uc_);
-    if (err != UC_ERR_OK) {
-      std::cout << "Failed to create unicorn engine instance: "
-                << uc_strerror(err) << std::endl;
-      return;
-    }
-    if (runcfg_.hasDebugger()) {
-      // initialize debugger instance
-      debugger_ = std::make_unique<Debugger>();
-    }
-    // interpreter vm stack buffer
-    stack_.resize(runcfg_.stackSize());
+    init();
   }
   ~ExecEngine() {
-    if (uc_) {
-      uc_close(uc_);
-    }
+    // give back borrowed uc instance
+    ue.release(uc_);
   }
 
   void run();
+  bool run(uint64_t vm, uint64_t arg0, uint64_t arg1);
+  uint64_t returnValue(); // get x0/rax register value
   void dump();
 
 private:
+  void init();
+
   /*
   object constructor, main and destructor executor
   */
@@ -68,6 +123,10 @@ private:
 
   // icpp interpret entry
   bool interpret(const InsnInfo *&inst, uint64_t &pc, int &step);
+
+  // some special functions should be invoked with stub helper
+  // e.g.: thread create, system api callback, etc.
+  bool specialCallProcess(uint64_t target);
 
   /*
   helper routines for aarch64
@@ -101,10 +160,10 @@ private:
   /*
   register startup initializer
   */
-  void initMainRegister();
-  void initMainRegisterAArch64();
-  void initMainRegisterSysVX64();
-  void initMainRegisterWinX64();
+  void initMainRegister(const void *argc, const void *argv);
+  void initMainRegisterAArch64(const void *argc, const void *argv);
+  void initMainRegisterSysVX64(const void *argc, const void *argv);
+  void initMainRegisterWinX64(const void *argc, const void *argv);
   void initMainRegisterCommonX64();
 
   /*
@@ -141,21 +200,33 @@ private:
   std::string stack_;
 };
 
+void ExecEngine::init() {
+  // get a unicorn instruction emulation instance
+  uc_ = ue.acquire(object_);
+
+  if (runcfg_.hasDebugger()) {
+    // initialize debugger instance
+    debugger_ = std::make_unique<Debugger>();
+  }
+  // interpreter vm stack buffer
+  stack_.resize(runcfg_.stackSize());
+}
+
 bool ExecEngine::execCtor() { return true; }
 
-void ExecEngine::initMainRegister() {
+void ExecEngine::initMainRegister(const void *argc, const void *argv) {
   switch (object_->arch()) {
   case AArch64:
-    initMainRegisterAArch64();
+    initMainRegisterAArch64(argc, argv);
     break;
   case X86_64:
     switch (object_->type()) {
     case COFF_Exe:
     case COFF_Reloc:
-      initMainRegisterWinX64();
+      initMainRegisterWinX64(argc, argv);
       break;
     default:
-      initMainRegisterSysVX64();
+      initMainRegisterSysVX64(argc, argv);
       break;
     }
     break;
@@ -164,9 +235,45 @@ void ExecEngine::initMainRegister() {
   }
 }
 
+uint64_t ExecEngine::returnValue() {
+  int regid;
+  switch (object_->arch()) {
+  case AArch64:
+    regid = UC_ARM64_REG_X0;
+    break;
+  case X86_64:
+    regid = UC_X86_REG_RAX;
+    break;
+  default:
+    return 0;
+  }
+  uint64_t value;
+  uc_reg_read(uc_, regid, &value);
+  return value;
+}
+
 bool ExecEngine::execMain() {
-  initMainRegister();
-  return execLoop(reinterpret_cast<uint64_t>(object_->mainEntry()));
+  return run(reinterpret_cast<uint64_t>(object_->mainEntry()), iargs_.size(),
+             reinterpret_cast<uint64_t>(&iargs_[0]));
+}
+
+bool ExecEngine::run(uint64_t vm, uint64_t arg0, uint64_t arg1) {
+  try {
+    initMainRegister(reinterpret_cast<const void *>(arg0),
+                     reinterpret_cast<const void *>(arg1));
+    return execLoop(vm);
+  } catch (std::system_error &e) {
+    log_print(Runtime, "Exception ocurred, system error: %s.", e.what());
+  } catch (std::logic_error &e) {
+    log_print(Runtime, "Exception ocurred, logical error: %s.", e.what());
+  } catch (std::invalid_argument &e) {
+    log_print(Runtime, "Exception ocurred, invalid argument error: %s.",
+              e.what());
+  } catch (...) {
+    log_print(Runtime, "Exception ocurred, unknown type.");
+  }
+  dump();
+  return false;
 }
 
 ContextA64 ExecEngine::loadRegisterAArch64() {
@@ -247,6 +354,105 @@ void ExecEngine::saveRegisterX64(const ContextX64 &ctx) {
   }
 }
 
+// thread function stub
+#ifdef _WIN32
+static HANDLE (*thread_create_func)(
+    [ in, optional ] LPSECURITY_ATTRIBUTES lpThreadAttributes,
+    [in] SIZE_T dwStackSize, [in] LPTHREAD_START_ROUTINE lpStartAddress,
+    [ in, optional ] __drv_aliasesMem LPVOID lpParameter,
+    [in] DWORD dwCreationFlags,
+    [ out, optional ] LPDWORD lpThreadId) = CreateThread;
+typedef DWORD thread_return_t;
+#else
+static int (*thread_create_func)(pthread_t *thread, const pthread_attr_t *attr,
+                                 void *(*start_routine)(void *),
+                                 void *arg) = pthread_create;
+typedef void *thread_return_t;
+#endif
+
+struct exec_thread_context_t {
+  ExecEngine *parent_exe;
+  // the original thread entry and argument
+  uint64_t tentry;
+  uint64_t targ;
+};
+
+static thread_return_t exec_thread_stub(void *pcontext) {
+  auto context = reinterpret_cast<exec_thread_context_t *>(pcontext);
+  // clone a new execute engine instance
+  auto exec = std::make_unique<ExecEngine>(*context->parent_exe);
+  // execute the real thread entry
+  exec->run(context->tentry, context->targ, 0);
+  // get the thread entry return value
+  auto retval = exec->returnValue();
+  // free the dynamically allocated context
+  delete context;
+  return thread_return_t(retval);
+}
+
+bool ExecEngine::specialCallProcess(uint64_t target) {
+  uint64_t args[4], backups[4];
+  int rids[4]; // register id
+  switch (object_->arch()) {
+  case AArch64:
+    rids[0] = UC_ARM64_REG_X0;
+    rids[1] = UC_ARM64_REG_X1;
+    rids[2] = UC_ARM64_REG_X2;
+    rids[3] = UC_ARM64_REG_X3;
+    break;
+  case X86_64:
+    switch (object_->type()) {
+    case COFF_Exe:
+    case COFF_Reloc:
+      // windows abi: rcx, rdx, r8, r9
+      rids[0] = UC_X86_REG_RCX;
+      rids[1] = UC_X86_REG_RDX;
+      rids[2] = UC_X86_REG_R8;
+      rids[3] = UC_X86_REG_R9;
+      break;
+    default:
+      // system v abi: rdi, rsi, rdx, rcx, r8, r9
+      rids[0] = UC_X86_REG_RDI;
+      rids[1] = UC_X86_REG_RSI;
+      rids[2] = UC_X86_REG_RDX;
+      rids[3] = UC_X86_REG_RCX;
+      break;
+    }
+    break;
+  default:
+    UNIMPL_ABORT();
+    break;
+  }
+  // read current arugments
+  for (size_t i = 0; i < std::size(args); i++)
+    uc_reg_read(uc_, rids[i], &args[i]);
+  std::memcpy(backups, args, sizeof(args));
+
+  if (reinterpret_cast<uint64_t>(thread_create_func) == target) {
+    // index of thread and argument in thread_create_func arguments list
+#ifdef _WIN32
+    int ientry = 1, iarg = 2;
+#else
+    int ientry = 2, iarg = 3;
+#endif
+
+    auto context = new exec_thread_context_t{this, args[ientry], args[iarg]};
+    // replace to our stub instance
+    args[ientry] = reinterpret_cast<uint64_t>(exec_thread_stub);
+    args[iarg] = reinterpret_cast<uint64_t>(context);
+  }
+
+  // update changed arugments
+  bool update = false;
+  for (size_t i = 0; i < std::size(args); i++) {
+    if (backups[i] != args[i]) {
+      update = true;
+      uc_reg_write(uc_, rids[i], &args[i]);
+    }
+  }
+  return update;
+}
+
 bool ExecEngine::interpretCallAArch64(const InsnInfo *&inst, uint64_t &pc,
                                       uint64_t target) {
   auto retaddr = pc + inst->len;
@@ -258,6 +464,9 @@ bool ExecEngine::interpretCallAArch64(const InsnInfo *&inst, uint64_t &pc,
     inst = object_->insnInfo(pc); // update current inst
     return true;
   } else {
+    // check and process some api which has callback argument
+    specialCallProcess(target);
+
     // call external function
     auto context = loadRegisterAArch64();
     context.r[A64_LR] = retaddr; // set return address
@@ -278,6 +487,9 @@ bool ExecEngine::interpretJumpAArch64(const InsnInfo *&inst, uint64_t &pc,
     // jump to external function
     auto context = loadRegisterAArch64();
     if (object_->cover(context.r[A64_LR])) {
+      // check and process some api which has callback argument
+      specialCallProcess(target);
+
       // return to our control
       pc = context.r[A64_LR];
       host_call(&context, reinterpret_cast<const void *>(target));
@@ -315,6 +527,9 @@ bool ExecEngine::interpretCallX64(const InsnInfo *&inst, uint64_t &pc,
     inst = object_->insnInfo(pc); // update current inst
     return true;
   } else {
+    // check and process some api which has callback argument
+    specialCallProcess(target);
+
     // call external function
     auto context = loadRegisterX64();
     host_call(&context, reinterpret_cast<const void *>(target));
@@ -337,6 +552,9 @@ bool ExecEngine::interpretJumpX64(const InsnInfo *&inst, uint64_t &pc,
     retaddr = *reinterpret_cast<uint64_t *>(rsp);
     auto context = loadRegisterAArch64();
     if (object_->cover(retaddr)) {
+      // check and process some api which has callback argument
+      specialCallProcess(target);
+
       // return to our control
       pc = retaddr;
       host_call(&context, reinterpret_cast<const void *>(target));
@@ -886,8 +1104,7 @@ bool ExecEngine::execLoop(uint64_t pc) {
     // running instructions by unicorn engine
     auto err = uc_emu_start(uc_, pc, -1, 0, step);
     if (err != UC_ERR_OK) {
-      std::cout << "Fatal error occurred: " << uc_strerror(err)
-                << ", current pc=0x" << std::hex << pc << "." << std::endl;
+      log_print(Runtime, "Fatal error occurred: {}.", uc_strerror(err));
       dump();
       return false;
     }
@@ -912,11 +1129,11 @@ bool ExecEngine::execLoop(uint64_t pc) {
     uc_reg_write(uc_, reg, &u64);                                              \
   }
 
-void ExecEngine::initMainRegisterAArch64() {
+void ExecEngine::initMainRegisterAArch64(const void *argc, const void *argv) {
   // x0: argc
   // x1: argv
-  reg_write(UC_ARM64_REG_X0, reinterpret_cast<const void *>(iargs_.size()));
-  reg_write(UC_ARM64_REG_X1, reinterpret_cast<const void *>(&iargs_[0]));
+  reg_write(UC_ARM64_REG_X0, argc);
+  reg_write(UC_ARM64_REG_X1, argv);
   reg_write(UC_ARM64_REG_SP, topStack());
   reg_write(UC_ARM64_REG_LR, topReturn());
 }
@@ -929,45 +1146,42 @@ void ExecEngine::initMainRegisterCommonX64() {
   reg_write(UC_X86_REG_RSP, reinterpret_cast<const void *>(rsp));
 }
 
-void ExecEngine::initMainRegisterSysVX64() {
+void ExecEngine::initMainRegisterSysVX64(const void *argc, const void *argv) {
   // System V AMD64 ABI
   // rdi: argc
   // rsi: argv
-  reg_write(UC_X86_REG_RDI, reinterpret_cast<const void *>(iargs_.size()));
-  reg_write(UC_X86_REG_RSI, reinterpret_cast<const void *>(&iargs_[0]));
+  reg_write(UC_X86_REG_RDI, argc);
+  reg_write(UC_X86_REG_RSI, argv);
   initMainRegisterCommonX64();
 }
 
-void ExecEngine::initMainRegisterWinX64() {
+void ExecEngine::initMainRegisterWinX64(const void *argc, const void *argv) {
   // Microsoft Windows X64 ABI
   // rcx: argc
   // rdx: argv
-  reg_write(UC_X86_REG_RCX, reinterpret_cast<const void *>(iargs_.size()));
-  reg_write(UC_X86_REG_RDX, reinterpret_cast<const void *>(&iargs_[0]));
+  reg_write(UC_X86_REG_RCX, argc);
+  reg_write(UC_X86_REG_RDX, argv);
   initMainRegisterCommonX64();
 }
 
 bool ExecEngine::execDtor() { return true; }
 
 void ExecEngine::dump() {
-  log_print(Raw, "\nICPP crashed when running {}, here's some details:\n",
-            iargs_[0]);
-
-  Debugger debugger(Stopped);
-  debugger.dump(object_->arch(), uc_);
-
   // load registers
-  uint64_t regs[32], regsz;
+  uint64_t regs[32], regsz, pc;
+  int pcrid;
   switch (object_->arch()) {
   case AArch64: {
     auto ctx = loadRegisterAArch64();
     regsz = 32;
+    uc_reg_read(uc_, UC_ARM64_REG_PC, &pc);
     std::memcpy(regs, &ctx, sizeof(regs[0]) * regsz);
     break;
   }
   case X86_64: {
     auto ctx = loadRegisterX64();
     regsz = 16;
+    uc_reg_read(uc_, UC_X86_REG_RIP, &pc);
     std::memcpy(regs, &ctx, sizeof(regs[0]) * regsz);
     break;
   }
@@ -976,11 +1190,21 @@ void ExecEngine::dump() {
     break;
   }
 
+  log_print(Raw,
+            "\nICPP crashed when running {}, here's some details:\n"
+            "Current pc=0x{:x}, rva=0x{:x}, "
+            "opc={:016x}.\n",
+            iargs_[0], pc, object_->vm2rva(pc),
+            *reinterpret_cast<uint64_t *>(pc));
+
+  Debugger debugger(Stopped);
+  debugger.dump(object_->arch(), uc_, object_->vm2rva(pc));
+
   log_print(Raw, "Address Details:");
   for (uint64_t i = 0; i < regsz; i++) {
     if (object_->cover(regs[i])) {
       auto info = object_->sourceInfo(regs[i]);
-      log_print(Runtime, "{:08x}: {}",
+      log_print(Raw, "{:08x}: {}",
                 static_cast<uint32_t>(object_->vm2rva(regs[i])), info);
     }
   }
@@ -1069,7 +1293,7 @@ void exec_main(std::string_view path, const std::vector<std::string> &deps,
     return;
   }
 
-  std::unique_ptr<Object> object;
+  std::shared_ptr<Object> object;
   using fm = llvm::file_magic;
   switch (magic) {
   case fm::macho_object:
@@ -1115,9 +1339,9 @@ void exec_main(std::string_view path, const std::vector<std::string> &deps,
   // construct arguments passed to the main entry of the input file
   std::vector<const char *> iargs;
   iargs.push_back(srcpath.data());
-  for (int i = 0; i < iargc; i++)
+  for (int i = 0; i < iargc - 1; i++)
     iargs.push_back(iargv[i]);
-  ExecEngine(std::move(object), deps, procfg, iargs).run();
+  ExecEngine(object, deps, procfg, iargs).run();
 }
 
 } // namespace icpp

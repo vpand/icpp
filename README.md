@@ -2,9 +2,9 @@
 **Interpreting C++, executing the source and executable like a script.**
  * Writing powerful script using C++ just as easy as Python;
  * Writing hot-loading C++ script code in running process;
- * Based on [Unicorn Engine](https://github.com/unicorn-engine/unicorn.git) virtual qemu cpu and [Clang/LLVM](https://github.com/llvm/llvm-project.git) C++ compiler;
+ * Based on [Unicorn Engine](https://github.com/unicorn-engine/unicorn.git) qemu virtual cpu and [Clang/LLVM](https://github.com/llvm/llvm-project.git) C++ compiler;
  * Integrated [Boost](https://github.com/boostorg/boost.git) internally with [Standard C++23](https://en.cppreference.com/w/cpp/23) supported;
- * To reuse the existing C++ library as icpp script module extension is extremely simple.
+ * To reuse the existing C/C++ library as icpp module extension is extremely simple.
 
 Copyright (c) vpand.com 2024.
 

@@ -7,6 +7,7 @@
 #include "compile.h"
 #include "exec.h"
 #include "icpp.h"
+#include "llvm/Support/InitLLVM.h"
 #include <format>
 #include <span>
 
@@ -105,8 +106,9 @@ get_dependencies(const std::vector<const char *> &libdirs,
   return deps;
 }
 
-int icli_main(int argc, char **argv) {
+extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
   using namespace std::literals;
+  llvm::InitLLVM X(argc, argv);
 
   // optimization level passed to clang
   const char *icpp_option_opt = "-O2";
@@ -199,7 +201,7 @@ int icli_main(int argc, char **argv) {
                                         icpp_option_incdirs);
       if (fs::exists(opath)) {
         icpp::exec_main(opath.c_str(), deps, icpp_option_procfg, sp,
-                        idoubledash - argc, &argv[idoubledash + 1]);
+                        argc - idoubledash, &argv[idoubledash + 1]);
         if (opath.extension() != ".io")
           fs::remove(opath);
       } else {
