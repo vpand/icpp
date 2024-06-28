@@ -14,12 +14,16 @@
 #include <llvm/ADT/Twine.h>
 #include <llvm/BinaryFormat/Magic.h>
 
+#if ICPP_GADGET
 #if __APPLE__
 #include "client/mac/handler/exception_handler.h"
 #elif __linux__
 #include "client/linux/handler/exception_handler.h"
 #else
 #include "client/windows/handler/exception_handler.h"
+#endif
+#else
+#include "llvm/Support/Signals.h"
 #endif
 
 namespace icpp {
@@ -946,7 +950,7 @@ void ExecEngine::initMainRegisterWinX64() {
 bool ExecEngine::execDtor() { return true; }
 
 void ExecEngine::dump() {
-  log_print(Raw, "ICPP crashed when running {}, here's some details:\n",
+  log_print(Raw, "\nICPP crashed when running {}, here's some details:\n",
             iargs_[0]);
 
   Debugger debugger(Stopped);
@@ -980,9 +984,16 @@ void ExecEngine::dump() {
                 static_cast<uint32_t>(object_->vm2rva(regs[i])), info);
     }
   }
+
+  log_print(Raw, "\n");
 }
 
-bool breakpad_filter_callback(void *context) {
+/*
+signal hanlder to dump runtime information when crashes
+*/
+#if ICPP_GADGET
+
+static bool breakpad_filter_callback(void *context) {
   auto exec = reinterpret_cast<ExecEngine *>(context);
   exec->dump();
   // never return to breakpad
@@ -990,11 +1001,24 @@ bool breakpad_filter_callback(void *context) {
   return false;
 }
 
+#else
+
+static ExecEngine *exec_engine = nullptr;
+static bool llvm_signal_installed = false;
+static void llvm_signal_handler(void *) {
+  exec_engine->dump();
+  // never return to llvm
+  std::exit(-1);
+}
+
+#endif // ICPP_GADGET
+
 void ExecEngine::run() {
   if (!uc_ || !loader_.valid()) {
     return;
   }
 
+#if ICPP_GADGET
   google_breakpad::ExceptionHandler ehandler(
       "",                       /* minidump output directory */
       breakpad_filter_callback, /* filter */
@@ -1013,6 +1037,14 @@ void ExecEngine::run() {
 #endif
 #endif
   );
+#else
+  if (!llvm_signal_installed) {
+    llvm_signal_installed = true;
+    llvm::sys::AddSignalHandler(llvm_signal_handler, nullptr);
+  }
+  // update current execute engine instance
+  exec_engine = this;
+#endif
 
   if (execCtor()) {
     if (execMain()) {

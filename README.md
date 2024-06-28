@@ -1,10 +1,10 @@
-# ICPP - Running C++ like a script
+# ICPP - Running C++ in anywhere like a script
 Interpreting C++, executing the source and executable like a script.
  * Writing powerful script using C++ just as easy as Python;
+ * Writing hot-loading C++ script code in running process;
  * Based on [Unicorn Engine](https://github.com/unicorn-engine/unicorn.git) and [Clang/LLVM](https://github.com/llvm/llvm-project.git);
- * Integrated [Boost](https://github.com/boostorg/boost.git) internally;
- * Supported C++23;
- * Make, install and reuse the existing C++ library as icpp script extension is extremely simple.
+ * Integrated [Boost](https://github.com/boostorg/boost.git) internally with C++23 supported;
+ * To reuse the existing C++ library as icpp script module extension is extremely simple.
 
 Copyright (c) vpand.com 2024.
 
@@ -22,14 +22,38 @@ No matter if you're a beginner or an expert with C++, ICPP is suitable for you. 
 
 **ICPP, make programming all in one.**
 
+## How it works
+### Interpreter
+```mermaid
+graph LR
+    A(C++ Source) -- Clang --> B(Object)
+    B -- Loader --> C(ICPP Interpreter)
+    A(C++ Source) -- Source.io --> H(IObject)
+    H(IObject) -- Parser --> C
+    E(Executable) -- Loader --> C
+    C -- Unicorn --> D(Output)
+    C -- Cache --> I(Source.io)
+    C -- Tracer --> F(Traces)
+    C -- Profiler --> G(Profiles)
+```
+### Hot-loading
+```mermaid
+graph LR
+    A(C++ Source) -- ICPP --> B(IObject)
+    B -- Network --> C(ICPP Gadget)
+    C -- Interpreter --> D(Run in Process)
+    C -- Extension --> E(Hooking/Tracing)
+    C -- Extension --> F(Testing)
+```
+
 ## Usage
 
 ### ICPP vs Python
 
-|CLI|Script Interpreter|Module Manager|
-|-|-|-|
-|Python| % **python** helloworld.py | % **pip** install helloworld.zip |
-|ICPP  | % **icpp** helloworld.cc | % **imod** --install=helloworld.zip |
+|CLI|Script Interpreter|Module Manager|In-Process Gadget|
+|-|-|-|-|
+|Python| % **python** helloworld.py | % **pip** install helloworld.zip | N/A | 
+|ICPP  | % **icpp** helloworld.cc | % **imod** --install=helloworld.zip | resident icpp-gadget in process |
 
 ### CLI
 
@@ -73,20 +97,6 @@ Under developing...
 | **Windows**  | &#10008;   | &#10008;      | &#10008;       | &#10008;          | &#10008;          |
 | **macOS**    | &#10008;   | &#10008;      | &#10008;       | &#10008;          | &#10008;          |
 | **Linux**    | &#10008;   | &#10008;      | &#10008;       | &#10008;          | &#10008;          |
-
-## How it works
-```mermaid
-graph LR
-    A(C++ Source) -- Clang --> B(Object)
-    B -- Loader --> C(ICPP Interpreter)
-    A(C++ Source) -- Source.io --> H(IObject)
-    H(IObject) -- Parser --> C
-    E(Executable) -- Loader --> C
-    C -- Unicorn --> D(Output)
-    C -- Cache --> I(Source.io)
-    C -- Tracer --> F(Traces)
-    C -- Profiler --> G(Profiles)
-```
 
 ## Build
 Make sure the python3 command is in your system PATH environment.

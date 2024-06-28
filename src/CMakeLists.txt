@@ -101,8 +101,6 @@ clang_target_link_libraries(icpp
   boost_asio
   boost_beast
   libprotobuf
-  breakpad-static
-  brotlicommon
   brotlienc
   brotlidec
 )
@@ -117,7 +115,6 @@ target_include_directories(icpp PRIVATE
   ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/tools/clang/include
   ${CMAKE_BINARY_DIR}/vmpstudio
   ${CMAKE_CURRENT_BINARY_DIR}
-  ${THIRD_ROOT}/breakpad/src
   ${THIRD_ROOT}/brotli/c/include
 
   boost_asio
@@ -157,5 +154,47 @@ target_include_directories(icppcli PRIVATE
   boost_dll
 )
 target_link_libraries(icppcli PRIVATE boost_dll)
+
+# icpp module manager command line
+message(STATUS "Configuring icpp module manager imod...")
+set(LLVM_LINK_COMPONENTS
+  Option
+  Support
+)
+add_llvm_tool(imod 
+  icpp-mod.cpp
+
+  PARTIAL_SOURCES_INTENDED
+)
+set_target_properties(imod PROPERTIES OUTPUT_NAME "imod")
+target_include_directories(imod PRIVATE
+  ${THIRD_ROOT}/brotli/c/include
+  boost_asio
+  boost_beast
+)
+target_link_libraries(imod PRIVATE
+  boost_asio
+  boost_beast
+  brotlienc
+  brotlidec
+)
+
+# icpp gadget, running as a daemon in somewhere to receive the
+# interpretable object to execute
+message(STATUS "Configuring icpp-gadget...")
+add_library(icpp-gadget SHARED gadget.cpp)
+set_target_properties(icpp-gadget PROPERTIES PREFIX "")
+target_compile_definitions(icpp-gadget PRIVATE ICPP_GADGET)
+target_include_directories(icpp-gadget PRIVATE 
+  ${THIRD_ROOT}/breakpad/src
+  ${THIRD_ROOT}/brotli/c/include
+  boost_asio
+)
+target_link_libraries(icpp-gadget PRIVATE 
+  breakpad-static
+  boost_asio
+  brotlienc
+  brotlidec
+)
 
 message(STATUS "Configuring icpp done")
