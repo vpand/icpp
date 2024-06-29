@@ -1,0 +1,9 @@
+{
+  "name": "module-demo",
+  "headers": ["module.h"],
+  "header-dirs": [],
+  "sources": ["module.cc"],
+  "binary-objs": [],
+  "binary-libs": [],
+  "include-dirs": []
+}

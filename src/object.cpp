@@ -239,11 +239,22 @@ const InsnInfo *Object::insnInfo(uint64_t vm) {
   return &*found;
 }
 
+bool Object::executable(uint64_t vm, Object **iobject) {
+  if (textvm_ <= vm && vm < textvm_ + textsz_)
+    return true;
+  if (!iobject)
+    return false;
+  return Loader::executable(vm, iobject);
+}
+
+std::string Object::cachePath() {
+  auto srcpath = fs::path(srcpath_);
+  return (srcpath.parent_path() / (srcpath.stem().string() + ".io")).string();
+}
+
 bool Object::belong(uint64_t vm) {
   auto ptr = reinterpret_cast<const char *>(vm);
-  if (fbuf_->getBufferStart() <= ptr && ptr < fbuf_->getBufferEnd())
-    return true;
-  return Loader::belong(vm);
+  return fbuf_->getBufferStart() <= ptr && ptr < fbuf_->getBufferEnd();
 }
 
 std::string Object::generateCache() {
@@ -286,7 +297,7 @@ std::string Object::generateCache() {
   }
   imods->Add("self");
   for (auto &m : refmods) {
-    imods->Add(m.data());
+    imods->Add(fs::absolute(m));
   }
   for (auto &r : irelocs_) {
     auto target = reinterpret_cast<uint64_t>(r.target);
@@ -314,18 +325,17 @@ std::string Object::generateCache() {
       std::string(fbuf_.get()->getBufferStart(), fbuf_.get()->getBufferSize()));
 
   // save to io file
-  auto srcpath = fs::path(srcpath_);
-  auto cachepath =
-      (srcpath.parent_path() / (srcpath.stem().string() + ".io")).string();
+  auto cachepath = cachePath();
   std::ofstream fout(cachepath, std::ios::binary);
   if (fout.is_open()) {
     iobject.SerializeToOstream(&fout);
     log_print(Develop, "Cached the interpretable object {}.", cachepath);
+    return path_;
   } else {
     log_print(Runtime, "Failed to create interpretable object {}: {}.",
               cachepath, std::strerror(errno));
+    return "";
   }
-  return cachepath;
 }
 
 const void *Object::locateSymbol(std::string_view name, bool data) {
@@ -343,6 +353,7 @@ const void *Object::locateSymbol(std::string_view name, bool data) {
   if (target)
     return target;
   // find in data list
+  data = true;
   return finder(datas_, sym);
 }
 
@@ -457,6 +468,7 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
   ofile_ = std::move(expObj.get());
   arch_ = static_cast<ArchType>(iobject.arch());
   type_ = static_cast<ObjectType>(iobject.otype());
+  odiser_.init(ofile_.get(), triple());
 
   // parse from original object
   parseSections();
@@ -504,5 +516,10 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
 }
 
 InterpObject::~InterpObject() {}
+
+bool InterpObject::belong(uint64_t vm) {
+  auto start = reinterpret_cast<uint64_t>(ofbuf_.data());
+  return start <= vm && vm < start + ofbuf_.length();
+}
 
 } // namespace icpp

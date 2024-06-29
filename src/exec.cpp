@@ -89,7 +89,7 @@ struct ExecEngine {
   // clone a new execute engine for thread function
   ExecEngine(ExecEngine &exec)
       : loader_(exec.loader_), runcfg_(exec.runcfg_), iargs_(exec.iargs_),
-        object_(exec.object_) {
+        iobject_(exec.iobject_) {
     init();
   }
 
@@ -97,7 +97,7 @@ struct ExecEngine {
              const std::vector<std::string> &deps, const char *procfg,
              const std::vector<const char *> &iargs)
       : loader_(object.get(), deps), runcfg_(procfg), iargs_(iargs),
-        object_(object) {
+        iobject_(object) {
     init();
   }
   ~ExecEngine() {
@@ -191,7 +191,9 @@ private:
   const std::vector<const char *> &iargs_;
 
   // current running object instance
-  std::shared_ptr<Object> object_;
+  Object *robject_ = nullptr;
+  // the initial object instance
+  std::shared_ptr<Object> iobject_;
   /*
   virtual processor and debugger
   */
@@ -203,8 +205,9 @@ private:
 };
 
 void ExecEngine::init() {
+  robject_ = iobject_.get();
   // get a unicorn instruction emulation instance
-  uc_ = ue.acquire(object_.get());
+  uc_ = ue.acquire(robject_);
 
   if (runcfg_.hasDebugger()) {
     // initialize debugger instance
@@ -217,12 +220,12 @@ void ExecEngine::init() {
 bool ExecEngine::execCtor() { return true; }
 
 void ExecEngine::initMainRegister(const void *argc, const void *argv) {
-  switch (object_->arch()) {
+  switch (robject_->arch()) {
   case AArch64:
     initMainRegisterAArch64(argc, argv);
     break;
   case X86_64:
-    switch (object_->type()) {
+    switch (robject_->type()) {
     case COFF_Exe:
     case COFF_Reloc:
       initMainRegisterWinX64(argc, argv);
@@ -239,7 +242,7 @@ void ExecEngine::initMainRegister(const void *argc, const void *argv) {
 
 uint64_t ExecEngine::returnValue() {
   int regid;
-  switch (object_->arch()) {
+  switch (robject_->arch()) {
   case AArch64:
     regid = UC_ARM64_REG_X0;
     break;
@@ -255,10 +258,10 @@ uint64_t ExecEngine::returnValue() {
 }
 
 bool ExecEngine::execMain() {
-  auto mainfn = object_->mainEntry();
+  auto mainfn = iobject_->mainEntry();
   if (!mainfn) {
     // save iobject module to loader cache
-    Loader::cacheObject(object_);
+    Loader::cacheObject(iobject_);
 
     // module has no main but it's a valid iobject,
     // return true to have a chance to generate its cache
@@ -405,7 +408,7 @@ static thread_return_t exec_thread_stub(void *pcontext) {
 bool ExecEngine::specialCallProcess(uint64_t target) {
   uint64_t args[4], backups[4];
   int rids[4]; // register id
-  switch (object_->arch()) {
+  switch (robject_->arch()) {
   case AArch64:
     rids[0] = UC_ARM64_REG_X0;
     rids[1] = UC_ARM64_REG_X1;
@@ -413,7 +416,7 @@ bool ExecEngine::specialCallProcess(uint64_t target) {
     rids[3] = UC_ARM64_REG_X3;
     break;
   case X86_64:
-    switch (object_->type()) {
+    switch (robject_->type()) {
     case COFF_Exe:
     case COFF_Reloc:
       // windows abi: rcx, rdx, r8, r9
@@ -468,12 +471,12 @@ bool ExecEngine::specialCallProcess(uint64_t target) {
 bool ExecEngine::interpretCallAArch64(const InsnInfo *&inst, uint64_t &pc,
                                       uint64_t target) {
   auto retaddr = pc + inst->len;
-  if (object_->cover(target)) {
+  if (robject_->executable(target, &robject_)) {
     // call internal function
     // set return address
     uc_reg_write(uc_, UC_ARM64_REG_LR, &retaddr);
     pc = target;
-    inst = object_->insnInfo(pc); // update current inst
+    inst = robject_->insnInfo(pc); // update current inst
     return true;
   } else {
     // check and process some api which has callback argument
@@ -490,15 +493,15 @@ bool ExecEngine::interpretCallAArch64(const InsnInfo *&inst, uint64_t &pc,
 
 bool ExecEngine::interpretJumpAArch64(const InsnInfo *&inst, uint64_t &pc,
                                       uint64_t target) {
-  if (object_->cover(target)) {
+  if (robject_->executable(target, &robject_)) {
     // jump to internal destination
     pc = target;
-    inst = object_->insnInfo(pc); // update current inst
+    inst = robject_->insnInfo(pc); // update current inst
     return true;
   } else {
     // jump to external function
     auto context = loadRegisterAArch64();
-    if (object_->cover(context.r[A64_LR])) {
+    if (robject_->executable(context.r[A64_LR], &robject_)) {
       // check and process some api which has callback argument
       specialCallProcess(target);
 
@@ -515,10 +518,10 @@ bool ExecEngine::interpretJumpAArch64(const InsnInfo *&inst, uint64_t &pc,
 
 void ExecEngine::interpretPCLdrAArch64(const InsnInfo *&inst, uint64_t &pc) {
   // encoded meta data layout of all LDRxL:[uint16_t, uint64_t]
-  auto metaptr = object_->metaInfo<uint16_t>(inst, pc);
+  auto metaptr = robject_->metaInfo<uint16_t>(inst, pc);
   uint64_t target = 0;
   if (inst->rflag)
-    target = reinterpret_cast<uint64_t>(object_->relocTarget(inst->reloc));
+    target = reinterpret_cast<uint64_t>(robject_->relocTarget(inst->reloc));
   else
     target = pc;
   target += (*reinterpret_cast<const uint64_t *>(&metaptr[1]) << 2);
@@ -527,7 +530,7 @@ void ExecEngine::interpretPCLdrAArch64(const InsnInfo *&inst, uint64_t &pc) {
 
 bool ExecEngine::interpretCallX64(const InsnInfo *&inst, uint64_t &pc,
                                   uint64_t target) {
-  if (object_->cover(target)) {
+  if (robject_->executable(target, &robject_)) {
     auto retaddr = pc + inst->len;
     uint64_t rsp;
     uc_reg_read(uc_, UC_X86_REG_RSP, &rsp);
@@ -536,7 +539,7 @@ bool ExecEngine::interpretCallX64(const InsnInfo *&inst, uint64_t &pc,
     *reinterpret_cast<uint64_t *>(rsp) = retaddr;
     // call internal function
     pc = target;
-    inst = object_->insnInfo(pc); // update current inst
+    inst = robject_->insnInfo(pc); // update current inst
     return true;
   } else {
     // check and process some api which has callback argument
@@ -552,10 +555,10 @@ bool ExecEngine::interpretCallX64(const InsnInfo *&inst, uint64_t &pc,
 
 bool ExecEngine::interpretJumpX64(const InsnInfo *&inst, uint64_t &pc,
                                   uint64_t target) {
-  if (object_->cover(target)) {
+  if (robject_->executable(target, &robject_)) {
     // jump to internal destination
     pc = target;
-    inst = object_->insnInfo(pc); // update current inst
+    inst = robject_->insnInfo(pc); // update current inst
     return true;
   } else {
     // jump to external function
@@ -563,7 +566,7 @@ bool ExecEngine::interpretJumpX64(const InsnInfo *&inst, uint64_t &pc,
     uc_reg_read(uc_, UC_X86_REG_RSP, &rsp);
     retaddr = *reinterpret_cast<uint64_t *>(rsp);
     auto context = loadRegisterAArch64();
-    if (object_->cover(retaddr)) {
+    if (robject_->executable(retaddr, &robject_)) {
       // check and process some api which has callback argument
       specialCallProcess(target);
 
@@ -581,7 +584,7 @@ bool ExecEngine::interpretJumpX64(const InsnInfo *&inst, uint64_t &pc,
 uint64_t ExecEngine::interpretCalcMemX64(const InsnInfo *&inst, uint64_t &pc,
                                          int memop, const uint16_t **opsptr) {
   // reg is uint16_t, imm is uint64_t in meta array stream
-  auto ops = object_->metaInfo<uint16_t>(inst, pc);
+  auto ops = robject_->metaInfo<uint16_t>(inst, pc);
   if (opsptr)
     *opsptr = ops;
   // memop indicates the memory operands startup index in uint16_t meta array
@@ -604,7 +607,7 @@ uint64_t ExecEngine::interpretCalcMemX64(const InsnInfo *&inst, uint64_t &pc,
     // rip related memory reference
     if (inst->rflag) {
       // relocate to other runtime address
-      memaddr = reinterpret_cast<uint64_t>(object_->relocTarget(inst->reloc)) +
+      memaddr = reinterpret_cast<uint64_t>(robject_->relocTarget(inst->reloc)) +
                 offimm;
     } else {
       // adjust location with instruction length
@@ -718,7 +721,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
   // interpret the pre-decoded instructions
   for (unsigned i = 0; i < origstep && inst->type != INSN_HARDWARE; i++) {
 #if 0
-    log_print(Develop, "Interpret {:x} I{}", object_->vm2rva(pc), inst->type);
+    log_print(Develop, "Interpret {:x} I{}", robject_->vm2rva(pc), inst->type);
 #endif
 
     // call and return within object should update this to true
@@ -728,7 +731,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     case INSN_ABORT:
       log_print(Runtime,
                 "Breakpoint or trap instruction hit at rva {:x}.\nAborting...",
-                object_->vm2rva(pc));
+                robject_->vm2rva(pc));
       dump();
       std::exit(-1);
       break;
@@ -741,9 +744,9 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     case INSN_ARM64_RETURN: {
       uint64_t retaddr;
       uc_reg_read(uc_, UC_ARM64_REG_LR, &retaddr);
-      if (object_->cover(retaddr)) {
+      if (robject_->executable(retaddr, &robject_)) {
         pc = retaddr;
-        inst = object_->insnInfo(pc);
+        inst = robject_->insnInfo(pc);
         jump = true;
       } else if (reinterpret_cast<const void *>(retaddr) == topReturn()) {
         pc = retaddr; // finished interpreting
@@ -761,9 +764,9 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     case INSN_ARM64_CALL: {
       uint64_t target;
       if (inst->rflag) {
-        target = reinterpret_cast<uint64_t>(object_->relocTarget(inst->reloc));
+        target = reinterpret_cast<uint64_t>(robject_->relocTarget(inst->reloc));
       } else {
-        auto metaptr = object_->metaInfo<uint64_t>(inst, pc);
+        auto metaptr = robject_->metaInfo<uint64_t>(inst, pc);
         target = pc + (metaptr[0] << 2);
       }
       jump = interpretCallAArch64(inst, pc, target);
@@ -771,7 +774,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     }
     // encoded meta data layout:[uint16_t]
     case INSN_ARM64_CALLREG: {
-      auto metaptr = object_->metaInfo<uint16_t>(inst, pc);
+      auto metaptr = robject_->metaInfo<uint16_t>(inst, pc);
       uint64_t target;
       uc_reg_read(uc_, metaptr[0], &target);
       jump = interpretCallAArch64(inst, pc, target);
@@ -781,9 +784,9 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     case INSN_ARM64_JUMP: {
       uint64_t target;
       if (inst->rflag) {
-        target = reinterpret_cast<uint64_t>(object_->relocTarget(inst->reloc));
+        target = reinterpret_cast<uint64_t>(robject_->relocTarget(inst->reloc));
       } else {
-        auto metaptr = object_->metaInfo<uint64_t>(inst, pc);
+        auto metaptr = robject_->metaInfo<uint64_t>(inst, pc);
         target = pc + (metaptr[0] << 2);
       }
       jump = interpretJumpAArch64(inst, pc, target);
@@ -791,7 +794,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     }
     // encoded meta data layout:[uint16_t]
     case INSN_ARM64_JUMPREG: {
-      auto metaptr = object_->metaInfo<uint16_t>(inst, pc);
+      auto metaptr = robject_->metaInfo<uint16_t>(inst, pc);
       uint64_t target;
       uc_reg_read(uc_, metaptr[0], &target);
       jump = interpretJumpAArch64(inst, pc, target);
@@ -800,10 +803,10 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     // encoded meta data layout:[uint16_t, uint64_t]
     case INSN_ARM64_ADR:
     case INSN_ARM64_ADRP: {
-      auto metaptr = object_->metaInfo<uint16_t>(inst, pc);
+      auto metaptr = robject_->metaInfo<uint16_t>(inst, pc);
       uint64_t target = 0;
       if (inst->rflag) {
-        target = reinterpret_cast<uint64_t>(object_->relocTarget(inst->reloc));
+        target = reinterpret_cast<uint64_t>(robject_->relocTarget(inst->reloc));
       } else {
         auto imm = *reinterpret_cast<const uint64_t *>(&metaptr[1]);
         if (inst->type == INSN_ARM64_ADRP)
@@ -828,15 +831,15 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       uint64_t retaddr, rsp;
       uc_reg_read(uc_, UC_X86_REG_RSP, &rsp);
       retaddr = *reinterpret_cast<uint64_t *>(rsp);
-      if (object_->cover(retaddr)) {
+      if (robject_->executable(retaddr, &robject_)) {
         // instruction: retn bytes
-        rsp += *object_->metaInfo<uint32_t>(inst, pc);
+        rsp += *robject_->metaInfo<uint32_t>(inst, pc);
         uc_reg_write(uc_, UC_X86_REG_RSP, &rsp);
         pc = retaddr;
-        inst = object_->insnInfo(pc);
+        inst = robject_->insnInfo(pc);
         jump = true;
       } else if (reinterpret_cast<const void *>(retaddr) == topReturn()) {
-        rsp += *object_->metaInfo<uint32_t>(inst, pc);
+        rsp += *robject_->metaInfo<uint32_t>(inst, pc);
         uc_reg_write(uc_, UC_X86_REG_RSP, &rsp);
         pc = retaddr; // finished interpreting
         return true;
@@ -853,9 +856,9 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     case INSN_X64_CALL: {
       uint64_t target;
       if (inst->rflag) {
-        target = reinterpret_cast<uint64_t>(object_->relocTarget(inst->reloc));
+        target = reinterpret_cast<uint64_t>(robject_->relocTarget(inst->reloc));
       } else {
-        auto metaptr = object_->metaInfo<uint64_t>(inst, pc);
+        auto metaptr = robject_->metaInfo<uint64_t>(inst, pc);
         target = pc + metaptr[0] + inst->len;
       }
       jump = interpretCallX64(inst, pc, target);
@@ -863,7 +866,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     }
     // encoded meta data layout:[uint16_t]
     case INSN_X64_CALLREG: {
-      auto metaptr = object_->metaInfo<uint16_t>(inst, pc);
+      auto metaptr = robject_->metaInfo<uint16_t>(inst, pc);
       uint64_t target;
       uc_reg_read(uc_, metaptr[0], &target);
       jump = interpretCallX64(inst, pc, target);
@@ -879,9 +882,9 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     case INSN_X64_JUMP: {
       uint64_t target;
       if (inst->rflag) {
-        target = reinterpret_cast<uint64_t>(object_->relocTarget(inst->reloc));
+        target = reinterpret_cast<uint64_t>(robject_->relocTarget(inst->reloc));
       } else {
-        auto metaptr = object_->metaInfo<uint64_t>(inst, pc);
+        auto metaptr = robject_->metaInfo<uint64_t>(inst, pc);
         target = pc + metaptr[0] + inst->len;
       }
       jump = interpretJumpX64(inst, pc, target);
@@ -889,7 +892,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     }
     // encoded meta data layout:[uint16_t]
     case INSN_X64_JUMPREG: {
-      auto metaptr = object_->metaInfo<uint16_t>(inst, pc);
+      auto metaptr = robject_->metaInfo<uint16_t>(inst, pc);
       uint64_t target;
       uc_reg_read(uc_, metaptr[0], &target);
       jump = interpretJumpX64(inst, pc, target);
@@ -1059,7 +1062,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       break;
     default:
       log_print(Runtime, "Unknown instruction type {} at rva {:x}.", inst->type,
-                object_->vm2rva(pc));
+                robject_->vm2rva(pc));
       abort();
       break;
     }
@@ -1077,11 +1080,11 @@ bool ExecEngine::execLoop(uint64_t pc) {
   // debugger internal thread
   Debugger::Thread *dbgthread = nullptr;
   if (debugger_)
-    dbgthread = debugger_->enter(object_->arch(), uc_);
+    dbgthread = debugger_->enter(robject_->arch(), uc_);
 
   // pc register id for different architecture
   int pcreg;
-  switch (object_->arch()) {
+  switch (robject_->arch()) {
   case AArch64:
     pcreg = UC_ARM64_REG_PC;
     break;
@@ -1093,12 +1096,12 @@ bool ExecEngine::execLoop(uint64_t pc) {
     return false;
   }
   // instruction information related to pc
-  auto inst = object_->insnInfo(pc);
+  auto inst = robject_->insnInfo(pc);
   // executing loop, break when hitting the initialized return address
   while (pc != reinterpret_cast<uint64_t>(topReturn())) {
     // debugging
     if (debugger_) {
-      debugger_->entry(dbgthread, object_->vm2rva(pc));
+      debugger_->entry(dbgthread, robject_->vm2rva(pc));
       if (debugger_->stopped()) {
         // stop executing by user request
         break;
@@ -1112,7 +1115,7 @@ bool ExecEngine::execLoop(uint64_t pc) {
     }
 
 #if 0
-    log_print(Develop, "Emulation {:x}", object_->vm2rva(pc));
+    log_print(Develop, "Emulation {:x}", robject_->vm2rva(pc));
 #endif
 
     // running instructions by unicorn engine
@@ -1127,9 +1130,9 @@ bool ExecEngine::execLoop(uint64_t pc) {
     uc_reg_read(uc_, pcreg, &pc);
     // update inst with step
     inst += step;
-    if (inst->rva != object_->vm2rva(pc)) {
+    if (inst->rva != robject_->vm2rva(pc)) {
       // last instruction is jump type
-      inst = object_->insnInfo(pc);
+      inst = robject_->insnInfo(pc);
     }
   }
   if (debugger_)
@@ -1184,7 +1187,7 @@ void ExecEngine::dump() {
   // load registers
   uint64_t regs[32], regsz, pc;
   int pcrid;
-  switch (object_->arch()) {
+  switch (robject_->arch()) {
   case AArch64: {
     auto ctx = loadRegisterAArch64();
     regsz = 32;
@@ -1208,18 +1211,18 @@ void ExecEngine::dump() {
             "\nICPP crashed when running {}, here's some details:\n"
             "Current pc=0x{:x}, rva=0x{:x}, "
             "opc={:016x}.\n",
-            iargs_[0], pc, object_->vm2rva(pc),
+            iargs_[0], pc, robject_->vm2rva(pc),
             *reinterpret_cast<uint64_t *>(pc));
 
   Debugger debugger(Stopped);
-  debugger.dump(object_->arch(), uc_, object_->vm2rva(pc));
+  debugger.dump(robject_->arch(), uc_, robject_->vm2rva(pc));
 
   log_print(Raw, "Address Details:");
   for (uint64_t i = 0; i < regsz; i++) {
-    if (object_->cover(regs[i])) {
-      auto info = object_->sourceInfo(regs[i]);
+    if (robject_->executable(regs[i], nullptr)) {
+      auto info = robject_->sourceInfo(regs[i]);
       log_print(Raw, "{:08x}: {}",
-                static_cast<uint32_t>(object_->vm2rva(regs[i])), info);
+                static_cast<uint32_t>(robject_->vm2rva(regs[i])), info);
     }
   }
 
@@ -1286,9 +1289,9 @@ void ExecEngine::run() {
 
   if (execCtor()) {
     if (execMain()) {
-      if (!object_->isCache()) {
+      if (!robject_->isCache()) {
         // generate the interpretable object file if everthing went well
-        object_->generateCache();
+        robject_->generateCache();
       }
     }
   }

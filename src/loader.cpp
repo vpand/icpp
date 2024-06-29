@@ -25,6 +25,8 @@
 #endif
 #endif
 
+extern void *__stack_chk_guard;
+
 namespace icpp {
 
 // these global variables will have function type in object file
@@ -38,6 +40,7 @@ static const void *global_vars[] = {
     reinterpret_cast<const void *>(&stdin),
     reinterpret_cast<const void *>(&stdout),
     reinterpret_cast<const void *>(&stderr),
+    reinterpret_cast<const void *>(&__stack_chk_guard),
 };
 
 static bool is_global_var(const void *p) {
@@ -72,10 +75,20 @@ struct SymbolCache {
   const void *loadLibrary(std::string_view path);
   const void *resolve(const void *handle, std::string_view name, bool data);
   const void *resolve(std::string_view name, bool data);
-  std::string_view find(const void *addr, bool update);
+  std::string find(const void *addr, bool update);
 
   // it'll be invoked by execute engine when loaded a iobject module
   void cacheObject(std::shared_ptr<Object> imod) { imods_.push_back(imod); }
+
+  bool executable(uint64_t vm, Object **iobject) {
+    for (auto m : imods_) {
+      if (m->executable(vm, nullptr)) {
+        iobject[0] = m.get();
+        return true;
+      }
+    }
+    return false;
+  }
 
   bool belong(uint64_t vm) {
     for (auto m : imods_) {
@@ -235,7 +248,7 @@ int iter_so_callback(dl_phdr_info *info, size_t size, void *data) {
 }
 #endif
 
-std::string_view SymbolCache::find(const void *addr, bool update) {
+std::string SymbolCache::find(const void *addr, bool update) {
   if (mods_.size() == 0 || update) {
     LockGuard lock(this, mutex_);
 #if __APPLE__
@@ -270,7 +283,7 @@ std::string_view SymbolCache::find(const void *addr, bool update) {
   // check it in iobject module
   for (auto m : imods_) {
     if (m->belong(reinterpret_cast<uint64_t>(addr))) {
-      return m->path();
+      return m->cachePath();
     }
   }
   // binary search for the module
@@ -321,12 +334,16 @@ const void *Loader::locateSymbol(std::string_view name, bool data) {
   return symcache.resolve(name, data);
 }
 
-std::string_view Loader::locateModule(const void *addr, bool update) {
+std::string Loader::locateModule(const void *addr, bool update) {
   return symcache.find(addr, update);
 }
 
 void Loader::cacheObject(std::shared_ptr<Object> imod) {
   symcache.cacheObject(imod);
+}
+
+bool Loader::executable(uint64_t vm, Object **iobject) {
+  return symcache.executable(vm, iobject);
 }
 
 bool Loader::belong(uint64_t vm) { return symcache.belong(vm); }

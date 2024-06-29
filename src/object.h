@@ -93,17 +93,17 @@ public:
   constexpr ObjectType type() { return type_; }
   constexpr ArchType arch() { return arch_; }
 
-  constexpr bool cover(uint64_t vm) {
-    return textvm_ <= vm && vm < textvm_ + textsz_;
-  }
-
   constexpr std::string_view path() { return path_; }
   constexpr bool isCache() { return path_.ends_with(".io"); }
 
+  // check whether vm belongs to text section
+  bool executable(uint64_t vm, Object **iobject);
+  // check whether vm belongs to the whole memory buffer of this object
   virtual bool belong(uint64_t vm);
+  virtual std::string cachePath();
+
   const char *triple();
   const void *locateSymbol(std::string_view name, bool data);
-
   constexpr const void *relocTarget(size_t i) { return irelocs_[i].target; }
 
   template <typename T> const T *metaInfo(const InsnInfo *inst, uint64_t vm) {
@@ -217,10 +217,8 @@ public:
   InterpObject(std::string_view srcpath, std::string_view path);
   virtual ~InterpObject();
 
-  bool belong(uint64_t vm) override {
-    auto start = reinterpret_cast<uint64_t>(ofbuf_.data());
-    return start <= vm && vm < start + ofbuf_.length();
-  }
+  bool belong(uint64_t vm) override;
+  std::string cachePath() override { return path_; }
 
 private:
   std::string ofbuf_; // .o file buffer copied from .io file
