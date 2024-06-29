@@ -19,7 +19,11 @@ enum ArchType {
 enum InsnType {
   // common instruction
   INSN_ABORT = 0, // invalid opcode
-  INSN_HARDWARE,
+  INSN_HARDWARE,  // will be emulated by unicorn engine
+  // conditional jump instruction, e.g.:
+  // b.ne, tbz, cbz in arm64
+  // jnz, jgl, je in x86_64
+  INSN_CONDJUMP,
 
   // arm64 instruction
   INSN_ARM64_RETURN,

@@ -732,6 +732,11 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       dump();
       std::exit(-1);
       break;
+    // conditional jump instruction
+    case INSN_CONDJUMP:
+      // only let unicorn engine consumed 1 instruction in this situation
+      step = 1;
+      return false;
     // arm64 instruction
     case INSN_ARM64_RETURN: {
       uint64_t retaddr;

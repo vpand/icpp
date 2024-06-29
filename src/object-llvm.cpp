@@ -422,6 +422,17 @@ static void parseInstAArch64(const MCInst &inst, uint64_t opcptr,
   case INSN::BRK:
     iinfo.type = INSN_ABORT;
     break;
+  case INSN::TBZW:
+  case INSN::TBZX:
+  case INSN::TBNZW:
+  case INSN::TBNZX:
+  case INSN::CBZW:
+  case INSN::CBZX:
+  case INSN::CBNZW:
+  case INSN::CBNZX:
+  case INSN::Bcc:
+    iinfo.type = INSN_CONDJUMP;
+    break;
   case INSN::RET:
     iinfo.type = INSN_ARM64_RETURN;
     break;
@@ -650,6 +661,11 @@ static void parseInstX64(const MCInst &inst, uint64_t opcptr,
   case INSN::INTO:
   case INSN::TRAP:
     iinfo.type = INSN_ABORT;
+    break;
+  case INSN::JCC_1:
+  case INSN::JCC_2:
+  case INSN::JCC_4:
+    iinfo.type = INSN_CONDJUMP;
     break;
   case INSN::RET:
   case INSN::RET16:
