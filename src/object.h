@@ -60,9 +60,9 @@ struct RelocInfo {
   // symbol name
   std::string name;
   const void *target; // symbol runtime vm address
-  uint16_t type;      // ST_DATA, ST_FUNCTION, etc.
-  uint16_t sindex;    // section index
-  uint32_t rva;       // offset from its parent section
+  // converted from relocation type
+  // e.g.: arm64 GOT reloc ==> ST_DATA, otherwise ST_FUNCTION, etc.
+  uint32_t type;      
 };
 
 struct DynSection {

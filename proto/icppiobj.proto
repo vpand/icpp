@@ -27,7 +27,7 @@ message RelocInfo {
   uint32 module = 1; // module index
   uint32 rva = 2;    // symbol rva from section
   uint32 type = 3;   // symbol type
-  uint32 dindex = 4;  // dynamical section index
+  uint32 dindex = 4; // dynamical section index
   string symbol = 5; // symbol name
 }
 
