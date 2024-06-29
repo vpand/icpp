@@ -122,6 +122,7 @@ public:
   const InsnInfo *insnInfo(uint64_t vm);
   std::string sourceInfo(uint64_t vm);
   std::string generateCache();
+  void dump();
 
 protected:
   void createObject(ObjectType type);

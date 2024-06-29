@@ -33,6 +33,9 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/BinaryFormat/COFF.h"
+#include "llvm/BinaryFormat/ELF.h"
+#include "llvm/BinaryFormat/MachO.h"
 #include "llvm/BinaryFormat/Wasm.h"
 #include "llvm/DebugInfo/BTF/BTFParser.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
@@ -865,8 +868,60 @@ static void parseInstX64(const MCInst &inst, uint64_t opcptr,
   }
 }
 
+using SymbolRef = object::SymbolRef;
+
+static SymbolRef::Type convert_reloc_type(ArchType arch, ObjectType otype,
+                                          uint64_t rtype) {
+#define MACHO_MAGIC_BIT 0x10000
+#define ELF_MAGIC_BIT 0x20000
+#define COFF_MAGIC_BIT 0x40000
+
+  switch (otype) {
+  case MachO_Reloc:
+    rtype |= MACHO_MAGIC_BIT;
+    break;
+  case ELF_Reloc:
+    rtype |= ELF_MAGIC_BIT;
+    break;
+  default:
+    rtype |= COFF_MAGIC_BIT;
+    break;
+  }
+
+  switch (arch) {
+  case AArch64: {
+    switch (rtype) {
+    case MachO::ARM64_RELOC_GOT_LOAD_PAGE21 | MACHO_MAGIC_BIT:
+    case ELF::R_AARCH64_GOTREL64 | ELF_MAGIC_BIT:
+    case ELF::R_AARCH64_GOT_LD_PREL19 | ELF_MAGIC_BIT:
+    case ELF::R_AARCH64_ADR_GOT_PAGE | ELF_MAGIC_BIT:
+    case COFF::RelocationTypesARM64::IMAGE_REL_ARM64_PAGEBASE_REL21 |
+        COFF_MAGIC_BIT:
+      return SymbolRef::ST_Data;
+    default:
+      break;
+    }
+    break;
+  }
+  case X86_64: {
+    switch (rtype) {
+    case MachO::X86_64_RELOC_GOT | MACHO_MAGIC_BIT:
+    case MachO::X86_64_RELOC_GOT_LOAD | MACHO_MAGIC_BIT:
+    case ELF::R_X86_64_GOTPCREL | ELF_MAGIC_BIT:
+    case COFF::RelocationTypeAMD64::IMAGE_REL_AMD64_ADDR64 | COFF_MAGIC_BIT:
+      return SymbolRef::ST_Data;
+    default:
+      break;
+    }
+    break;
+  }
+  default:
+    break;
+  }
+  return SymbolRef::ST_Function;
+}
+
 void Object::decodeInsns() {
-  using SymbolRef = object::SymbolRef;
   // load text relocations
   std::map<uint64_t, object::RelocationRef> relocs;
   auto textname = textSectName();
@@ -923,9 +978,8 @@ void Object::decodeInsns() {
         auto cureloc = found->second;
         auto sym = cureloc.getSymbol();
         auto expName = sym->getName();
-        auto expType = sym->getType();
         auto expFlags = sym->getFlags();
-        if (!expName || !expType || !expFlags) {
+        if (!expName || !expFlags) {
           // never be here
           log_print(Runtime,
                     "Fatal error, the symbol name/type/flags of '{:x}' is "
@@ -944,13 +998,14 @@ void Object::decodeInsns() {
             break;
           }
         }
+        auto symtype = convert_reloc_type(arch(), type(), cureloc.getType());
         if (rit == irelocs_.end()) {
           if (expFlags.get() & SymbolRef::SF_Undefined) {
             // locate and insert a new extern relocation
             auto rtaddr =
-                Loader::locateSymbol(name, expType.get() == SymbolRef::ST_Data);
-            rit = irelocs_.insert(
-                irelocs_.end(), RelocInfo{name.data(), rtaddr, expType.get()});
+                Loader::locateSymbol(name, symtype == SymbolRef::ST_Data);
+            rit = irelocs_.insert(irelocs_.end(),
+                                  RelocInfo{name.data(), rtaddr, symtype});
           } else {
             // insert a new local relocation
             auto expSect = sym->getSection();
@@ -982,9 +1037,8 @@ void Object::decodeInsns() {
 
                 auto rtaddr =
                     reinterpret_cast<const void *>(ds.buffer.data() + symoff);
-                rit = irelocs_.insert(
-                    irelocs_.end(),
-                    RelocInfo{name.data(), rtaddr, expType.get()});
+                rit = irelocs_.insert(irelocs_.end(),
+                                      RelocInfo{name.data(), rtaddr, symtype});
                 break;
               }
             }
@@ -1002,14 +1056,13 @@ void Object::decodeInsns() {
               }
               auto rtaddr =
                   reinterpret_cast<const void *>(expContent->data() + symoff);
-              rit =
-                  irelocs_.insert(irelocs_.end(), RelocInfo{name.data(), rtaddr,
-                                                            expType.get()});
+              rit = irelocs_.insert(irelocs_.end(),
+                                    RelocInfo{name.data(), rtaddr, symtype});
             }
           }
           if (0) {
             log_print(Develop, "Relocated {} symbol {} at {}.",
-                      expType.get() == SymbolRef::ST_Data ? "data" : "func",
+                      symtype == SymbolRef::ST_Data ? "data" : "func",
                       rit->name, rit->target);
           }
         }

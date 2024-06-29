@@ -357,6 +357,18 @@ const void *Object::locateSymbol(std::string_view name, bool data) {
   return finder(datas_, sym);
 }
 
+void Object::dump() {
+  log_print(Raw, "IObject({}) Details:\nRelocations:", path_);
+  for (auto &r : irelocs_) {
+    auto target = reinterpret_cast<uint64_t>(r.target);
+    if (belong(target))
+      log_print(Raw, "SELF - {}.{:x} type.{}", r.name, vm2rva(target), r.type);
+    else
+      log_print(Raw, "EXTN - {}.{:x} type.{}", r.name, target, r.type);
+  }
+  log_print(Raw, "");
+}
+
 Object::~Object() {}
 
 MachOObject::MachOObject(std::string_view srcpath, std::string_view path)

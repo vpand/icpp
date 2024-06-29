@@ -123,6 +123,10 @@ private:
   bool execDtor();
   bool execLoop(uint64_t pc);
 
+  // executable check and get the iobject instance which this pc belongs to,
+  // it may update the current running iobject if necessary
+  bool executable(uint64_t target);
+
   // icpp interpret entry
   bool interpret(const InsnInfo *&inst, uint64_t &pc, int &step);
 
@@ -194,11 +198,12 @@ private:
   Object *robject_ = nullptr;
   // the initial object instance
   std::shared_ptr<Object> iobject_;
-  /*
-  virtual processor and debugger
-  */
+
+  // virtual qemu processor from unicorn engine
   uc_engine *uc_ = nullptr;
-  std::unique_ptr<Debugger> debugger_;
+  // virtual processor debugger working with vmpstudio plugin
+  // see ICPP_SRC/vmpstudio for more information
+  Debugger *debugger_ = nullptr;
 
   // vm stack
   std::string stack_;
@@ -211,7 +216,7 @@ void ExecEngine::init() {
 
   if (runcfg_.hasDebugger()) {
     // initialize debugger instance
-    debugger_ = std::make_unique<Debugger>();
+    debugger_ = Debugger::inst();
   }
   // interpreter vm stack buffer
   stack_.resize(runcfg_.stackSize());
@@ -468,10 +473,23 @@ bool ExecEngine::specialCallProcess(uint64_t target) {
   return update;
 }
 
+bool ExecEngine::executable(uint64_t target) {
+  if (robject_->executable(target, &robject_))
+    return true;
+
+  // as Loader's internal cache doesn't cache main-exe kind of iobject,
+  // so we have to check it herein manually
+  if (iobject_->executable(target, nullptr)) {
+    robject_ = iobject_.get();
+    return true;
+  }
+  return false;
+}
+
 bool ExecEngine::interpretCallAArch64(const InsnInfo *&inst, uint64_t &pc,
                                       uint64_t target) {
   auto retaddr = pc + inst->len;
-  if (robject_->executable(target, &robject_)) {
+  if (executable(target)) {
     // call internal function
     // set return address
     uc_reg_write(uc_, UC_ARM64_REG_LR, &retaddr);
@@ -493,7 +511,7 @@ bool ExecEngine::interpretCallAArch64(const InsnInfo *&inst, uint64_t &pc,
 
 bool ExecEngine::interpretJumpAArch64(const InsnInfo *&inst, uint64_t &pc,
                                       uint64_t target) {
-  if (robject_->executable(target, &robject_)) {
+  if (executable(target)) {
     // jump to internal destination
     pc = target;
     inst = robject_->insnInfo(pc); // update current inst
@@ -501,7 +519,7 @@ bool ExecEngine::interpretJumpAArch64(const InsnInfo *&inst, uint64_t &pc,
   } else {
     // jump to external function
     auto context = loadRegisterAArch64();
-    if (robject_->executable(context.r[A64_LR], &robject_)) {
+    if (executable(context.r[A64_LR])) {
       // check and process some api which has callback argument
       specialCallProcess(target);
 
@@ -530,7 +548,7 @@ void ExecEngine::interpretPCLdrAArch64(const InsnInfo *&inst, uint64_t &pc) {
 
 bool ExecEngine::interpretCallX64(const InsnInfo *&inst, uint64_t &pc,
                                   uint64_t target) {
-  if (robject_->executable(target, &robject_)) {
+  if (executable(target)) {
     auto retaddr = pc + inst->len;
     uint64_t rsp;
     uc_reg_read(uc_, UC_X86_REG_RSP, &rsp);
@@ -555,7 +573,7 @@ bool ExecEngine::interpretCallX64(const InsnInfo *&inst, uint64_t &pc,
 
 bool ExecEngine::interpretJumpX64(const InsnInfo *&inst, uint64_t &pc,
                                   uint64_t target) {
-  if (robject_->executable(target, &robject_)) {
+  if (executable(target)) {
     // jump to internal destination
     pc = target;
     inst = robject_->insnInfo(pc); // update current inst
@@ -566,7 +584,7 @@ bool ExecEngine::interpretJumpX64(const InsnInfo *&inst, uint64_t &pc,
     uc_reg_read(uc_, UC_X86_REG_RSP, &rsp);
     retaddr = *reinterpret_cast<uint64_t *>(rsp);
     auto context = loadRegisterAArch64();
-    if (robject_->executable(retaddr, &robject_)) {
+    if (executable(retaddr)) {
       // check and process some api which has callback argument
       specialCallProcess(target);
 
@@ -720,7 +738,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
   }
   // interpret the pre-decoded instructions
   for (unsigned i = 0; i < origstep && inst->type != INSN_HARDWARE; i++) {
-#if 0
+#if 1
     log_print(Develop, "Interpret {:x} I{}", robject_->vm2rva(pc), inst->type);
 #endif
 
@@ -744,7 +762,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     case INSN_ARM64_RETURN: {
       uint64_t retaddr;
       uc_reg_read(uc_, UC_ARM64_REG_LR, &retaddr);
-      if (robject_->executable(retaddr, &robject_)) {
+      if (executable(retaddr)) {
         pc = retaddr;
         inst = robject_->insnInfo(pc);
         jump = true;
@@ -831,7 +849,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       uint64_t retaddr, rsp;
       uc_reg_read(uc_, UC_X86_REG_RSP, &rsp);
       retaddr = *reinterpret_cast<uint64_t *>(rsp);
-      if (robject_->executable(retaddr, &robject_)) {
+      if (executable(retaddr)) {
         // instruction: retn bytes
         rsp += *robject_->metaInfo<uint32_t>(inst, pc);
         uc_reg_write(uc_, UC_X86_REG_RSP, &rsp);
@@ -1213,6 +1231,7 @@ void ExecEngine::dump() {
             "opc={:016x}.\n",
             iargs_[0], pc, robject_->vm2rva(pc),
             *reinterpret_cast<uint64_t *>(pc));
+  robject_->dump();
 
   Debugger debugger(Stopped);
   debugger.dump(robject_->arch(), uc_, robject_->vm2rva(pc));

@@ -35,6 +35,9 @@ enum DebugStatus {
   Stopped,
 };
 
+/*
+virtual processor debugger
+*/
 class Debugger {
 public:
   struct Thread {
@@ -54,9 +57,13 @@ public:
   };
 
 public:
-  Debugger();
   Debugger(DebugStatus status);
   ~Debugger();
+
+  static Debugger *inst() {
+    static Debugger debugger;
+    return &debugger;
+  }
 
   Thread *enter(ArchType arch, uc_engine *uc);
   void entry(Thread *thread, uint64_t pc);
@@ -66,6 +73,8 @@ public:
   void dump(ArchType arch, uc_engine *uc, uint64_t pc);
 
 private:
+  Debugger();
+
   void runEntry(Thread *thread, uint64_t pc);
   void stepEntry(Thread *thread, uint64_t pc, bool hitbp);
   void listen();
