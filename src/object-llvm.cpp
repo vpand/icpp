@@ -854,11 +854,9 @@ void Object::decodeInsns() {
   // load text relocations
   std::map<uint64_t, object::RelocationRef> relocs;
   auto textname = textSectName();
-  textsecti_ = 0;
   for (auto &s : ofile_->sections()) {
     auto expName = s.getName();
     if (!expName || textname != expName->data()) {
-      textsecti_++;
       continue;
     }
     for (auto r : s.relocations()) {
@@ -935,8 +933,8 @@ void Object::decodeInsns() {
             // locate and insert a new extern relocation
             auto rtaddr =
                 Loader::locateSymbol(name, expType.get() == SymbolRef::ST_Data);
-            rit =
-                irelocs_.insert(irelocs_.end(), RelocInfo{name.data(), rtaddr});
+            rit = irelocs_.insert(
+                irelocs_.end(), RelocInfo{name.data(), rtaddr, expType.get()});
           } else {
             // insert a new local relocation
             auto expSect = sym->getSection();
@@ -968,8 +966,9 @@ void Object::decodeInsns() {
 
                 auto rtaddr =
                     reinterpret_cast<const void *>(ds.buffer.data() + symoff);
-                rit = irelocs_.insert(irelocs_.end(),
-                                      RelocInfo{name.data(), rtaddr});
+                rit = irelocs_.insert(
+                    irelocs_.end(),
+                    RelocInfo{name.data(), rtaddr, expType.get()});
                 break;
               }
             }
@@ -987,8 +986,9 @@ void Object::decodeInsns() {
               }
               auto rtaddr =
                   reinterpret_cast<const void *>(expContent->data() + symoff);
-              rit = irelocs_.insert(irelocs_.end(),
-                                    RelocInfo{name.data(), rtaddr});
+              rit =
+                  irelocs_.insert(irelocs_.end(), RelocInfo{name.data(), rtaddr,
+                                                            expType.get()});
             }
           }
           if (0) {

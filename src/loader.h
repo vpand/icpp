@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -23,13 +24,19 @@ public:
   bool valid();
 
   // locate the symbol runtime address in this loader
-  const void *locate(std::string_view name);
+  const void *locate(std::string_view name, bool data);
 
   // locate the symbol runtime address
   static const void *locateSymbol(std::string_view name, bool data);
 
   // locate the module path which the symbol belongs to
   static std::string_view locateModule(const void *addr, bool update = false);
+
+  // cache the iobject module
+  static void cacheObject(std::shared_ptr<Object> imod);
+
+  // check whether the vm address belongs to a iobject module
+  static bool belong(uint64_t vm);
 
 private:
   Object *object_ = nullptr;

@@ -241,7 +241,9 @@ const InsnInfo *Object::insnInfo(uint64_t vm) {
 
 bool Object::belong(uint64_t vm) {
   auto ptr = reinterpret_cast<const char *>(vm);
-  return fbuf_->getBufferStart() <= ptr && ptr < fbuf_->getBufferEnd();
+  if (fbuf_->getBufferStart() <= ptr && ptr < fbuf_->getBufferEnd())
+    return true;
+  return Loader::belong(vm);
 }
 
 std::string Object::generateCache() {
@@ -292,6 +294,7 @@ std::string Object::generateCache() {
 
     iobj::RelocInfo ri;
     ri.set_symbol(r.name);
+    ri.set_type(r.type);
     ri.set_rva(self ? vm2rva(target) : 0);
     if (self) {
       ri.set_module(0);
@@ -323,6 +326,24 @@ std::string Object::generateCache() {
               cachepath, std::strerror(errno));
   }
   return cachepath;
+}
+
+const void *Object::locateSymbol(std::string_view name, bool data) {
+  // symbol finder
+  auto finder = [&data]<typename T>(const T &conts,
+                                    const std::string &sym) -> const void * {
+    auto fit = conts.find(sym);
+    if (fit != conts.end())
+      return data ? &fit->second : fit->second;
+    return nullptr;
+  };
+  std::string sym(name.data());
+  // find in function list
+  auto target = finder(funcs_, sym);
+  if (target)
+    return target;
+  // find in data list
+  return finder(datas_, sym);
 }
 
 Object::~Object() {}
@@ -463,17 +484,18 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
     // dependent module
     auto module = imods[r.module()];
     if (module == "self") {
-      irelocs_.push_back(
-          RelocInfo{r.symbol(), reinterpret_cast<void *>(r.rva() + textvm_)});
+      irelocs_.push_back(RelocInfo{
+          r.symbol(), reinterpret_cast<void *>(r.rva() + textvm_), r.type()});
       continue;
     }
     Loader loader(module);
     if (loader.valid()) {
-      auto target = loader.locate(r.symbol());
+      auto target = loader.locate(r.symbol(),
+                                  r.type() == llvm::object::SymbolRef::ST_Data);
       // if fail then abort, never return
       if (!target)
         target = Loader::locateSymbol(r.symbol(), false);
-      irelocs_.push_back(RelocInfo{r.symbol(), target});
+      irelocs_.push_back(RelocInfo{r.symbol(), target, r.type()});
     } else {
       log_print(Runtime, "Can't load dependent module {}.", module);
       std::exit(-1);

@@ -13,6 +13,7 @@
 #include <map>
 #include <mutex>
 #include <stdio.h>
+#include <thread>
 #include <unordered_map>
 
 #ifdef _WIN32
@@ -49,10 +50,40 @@ static bool is_global_var(const void *p) {
 }
 
 struct SymbolCache {
+  SymbolCache() : mainid_(std::this_thread::get_id()) {}
+
+  bool isMain() { return mainid_ == std::this_thread::get_id(); }
+
+  struct LockGuard {
+    LockGuard(SymbolCache *p, std::recursive_mutex &m) : parent_(p), mutex_(m) {
+      if (!parent_->isMain())
+        mutex_.lock();
+    }
+
+    ~LockGuard() {
+      if (!parent_->isMain())
+        mutex_.unlock();
+    }
+
+    SymbolCache *parent_;
+    std::recursive_mutex &mutex_;
+  };
+
   const void *loadLibrary(std::string_view path);
-  const void *resolve(const void *handle, std::string_view name);
+  const void *resolve(const void *handle, std::string_view name, bool data);
   const void *resolve(std::string_view name, bool data);
   std::string_view find(const void *addr, bool update);
+
+  // it'll be invoked by execute engine when loaded a iobject module
+  void cacheObject(std::shared_ptr<Object> imod) { imods_.push_back(imod); }
+
+  bool belong(uint64_t vm) {
+    for (auto m : imods_) {
+      if (m->belong(vm))
+        return true;
+    }
+    return false;
+  }
 
 private:
   const void *lookup(std::string_view name, bool data);
@@ -60,15 +91,20 @@ private:
   friend int iter_so_callback(dl_phdr_info *info, size_t size, void *data);
 #endif
 
-  std::mutex mutext_;
+  std::thread::id mainid_;
+  std::recursive_mutex mutex_;
+  // cached symbols
   std::unordered_map<std::string, const void *> syms_;
+  // native modules
   std::map<uint64_t, std::string> mods_;
   std::vector<std::map<uint64_t, std::string>::iterator> modits_;
   std::map<std::string, void *> mhandles_;
+  // iobject modules
+  std::vector<std::shared_ptr<Object>> imods_;
 } symcache;
 
 const void *SymbolCache::loadLibrary(std::string_view path) {
-  std::lock_guard lock(mutext_);
+  LockGuard lock(this, mutex_);
   auto found = mhandles_.find(path.data());
   if (found == mhandles_.end()) {
 #if _WIN32
@@ -77,43 +113,74 @@ const void *SymbolCache::loadLibrary(std::string_view path) {
     auto addr = dlopen(path.data(), RTLD_NOW);
 #endif
     if (!addr) {
-      log_print(Runtime, "Failed to load library: {}", path.data());
-      exit(-1);
+      if (path.ends_with(".io")) {
+        auto object = std::make_shared<InterpObject>("", path);
+        if (object->valid()) {
+          // save to iobject module list
+          imods_.push_back(object);
+          addr = object.get();
+        }
+      }
+      if (!addr) {
+        log_print(Runtime, "Failed to load library: {}", path.data());
+        exit(-1);
+      }
     }
+    if (addr)
+      log_print(Runtime, "Loaded module {}.", path.data());
     found =
         mhandles_.insert({path.data(), reinterpret_cast<void *>(addr)}).first;
   }
   return found->second;
 }
 
-const void *SymbolCache::resolve(const void *handle, std::string_view name) {
-  std::lock_guard lock(mutext_);
+const void *SymbolCache::resolve(const void *handle, std::string_view name,
+                                 bool data) {
+  LockGuard lock(this, mutex_);
   auto found = syms_.find(name.data());
   if (found != syms_.end()) {
-    if (is_global_var(found->second))
+    if (data || is_global_var(found->second))
       return &found->second;
     return found->second;
   }
 
+  const void *target = nullptr;
+
+  // check it in iobject modules
+  for (auto io : imods_) {
+    if (handle != io.get())
+      continue;
+    auto t = io->locateSymbol(name, data);
+    if (t) {
+      target = t;
+      break;
+    }
+  }
+
+  // check it in native modules
+  if (!target) {
 #if _WIN32
-  auto addr = ::GetProcAddress(
-      reinterpret_cast<HMODULE>(const_cast<void *>(handle)), name.data());
+    auto addr = ::GetProcAddress(
+        reinterpret_cast<HMODULE>(const_cast<void *>(handle)), name.data());
 #else
 #if __APPLE__
-  auto sym = name.data() + 1;
+    auto sym = name.data() + 1;
 #else
-  auto sym = name.data();
+    auto sym = name.data();
 #endif
-  auto addr = dlsym(const_cast<void *>(handle), sym);
+    target = dlsym(const_cast<void *>(handle), sym);
 #endif
-  if (!addr)
+  }
+
+  if (!target)
     return nullptr;
-  found = syms_.insert({name.data(), addr}).first;
-  return is_global_var(found->second) ? &found->second : found->second;
+  found = syms_.insert({name.data(), target}).first;
+  return (data || is_global_var(found->second)) ? &found->second
+                                                : found->second;
 }
 
 const void *SymbolCache::resolve(std::string_view name, bool data) {
-  std::lock_guard lock(mutext_);
+  LockGuard lock(this, mutex_);
   auto found = syms_.find(name.data());
   if (found != syms_.end()) {
     if (data || is_global_var(found->second))
@@ -124,22 +191,37 @@ const void *SymbolCache::resolve(std::string_view name, bool data) {
 }
 
 const void *SymbolCache::lookup(std::string_view name, bool data) {
+  const void *target = nullptr;
+
+  // check it in iobject modules
+  for (auto io : imods_) {
+    auto t = io->locateSymbol(name, data);
+    if (t) {
+      target = t;
+      break;
+    }
+  }
+
+  // check it in native system modules
+  if (!target) {
 #ifdef _WIN32
 #error Un-implement symbol lookup on Windows.
 #else
 #if __APPLE__
-  auto sym = name.data() + 1;
+    auto sym = name.data() + 1;
 #else
-  auto sym = name.data();
+    auto sym = name.data();
 #endif
-  auto addr = dlsym(RTLD_DEFAULT, sym);
-  if (!addr) {
-    log_print(Runtime, "Fatal error, failed to resolve symbol: {}.", dlerror());
-    abort();
+    target = dlsym(RTLD_DEFAULT, sym);
+#endif
   }
-#endif
+  if (!target) {
+    log_print(Runtime, "Fatal error, failed to resolve symbol: {}.", dlerror());
+    std::exit(-1);
+  }
+
   // cache it
-  auto newit = syms_.insert({sym, addr}).first;
+  auto newit = syms_.insert({name.data(), target}).first;
   if (data || is_global_var(newit->second))
     return &newit->second;
   return newit->second;
@@ -155,7 +237,7 @@ int iter_so_callback(dl_phdr_info *info, size_t size, void *data) {
 
 std::string_view SymbolCache::find(const void *addr, bool update) {
   if (mods_.size() == 0 || update) {
-    std::lock_guard lock(mutext_);
+    LockGuard lock(this, mutex_);
 #if __APPLE__
     for (uint32_t i = 0; i < _dyld_image_count(); i++) {
       symcache.mods_.insert(
@@ -183,6 +265,12 @@ std::string_view SymbolCache::find(const void *addr, bool update) {
     modits_.clear();
     for (auto it = mods_.begin(); it != mods_.end(); it++) {
       modits_.push_back(it);
+    }
+  }
+  // check it in iobject module
+  for (auto m : imods_) {
+    if (m->belong(reinterpret_cast<uint64_t>(addr))) {
+      return m->path();
     }
   }
   // binary search for the module
@@ -225,8 +313,8 @@ Loader::~Loader() {}
 
 bool Loader::valid() { return object_ || handle_; }
 
-const void *Loader::locate(std::string_view name) {
-  return symcache.resolve(handle_, name);
+const void *Loader::locate(std::string_view name, bool data) {
+  return symcache.resolve(handle_, name, data);
 }
 
 const void *Loader::locateSymbol(std::string_view name, bool data) {
@@ -236,5 +324,11 @@ const void *Loader::locateSymbol(std::string_view name, bool data) {
 std::string_view Loader::locateModule(const void *addr, bool update) {
   return symcache.find(addr, update);
 }
+
+void Loader::cacheObject(std::shared_ptr<Object> imod) {
+  symcache.cacheObject(imod);
+}
+
+bool Loader::belong(uint64_t vm) { return symcache.belong(vm); }
 
 } // namespace icpp

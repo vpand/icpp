@@ -26,7 +26,8 @@ enum ObjectType {
 message RelocInfo {
   uint32 module = 1; // module index
   uint32 rva = 2;    // symbol rva
-  string symbol = 3; // symbol name
+  uint32 type = 3;   // symbol type
+  string symbol = 4; // symbol name
 }
 
 /*

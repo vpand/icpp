@@ -53,9 +53,14 @@ struct InsnInfo {
 };
 
 struct RelocInfo {
+  RelocInfo() = delete;
+  RelocInfo(std::string_view n, const void *p, uint32_t t)
+      : name(n), target(p), type(t) {}
+
   // symbol name
   std::string name;
   const void *target; // symbol runtime vm address
+  uint32_t type;      // ST_DATA, ST_FUNCTION, etc.
 };
 
 struct DynSection {
@@ -85,19 +90,19 @@ public:
   virtual ~Object();
 
   constexpr bool valid() { return ofile_ != nullptr && arch_ != Unsupported; }
-
   constexpr ObjectType type() { return type_; }
-
   constexpr ArchType arch() { return arch_; }
 
   constexpr bool cover(uint64_t vm) {
     return textvm_ <= vm && vm < textvm_ + textsz_;
   }
 
+  constexpr std::string_view path() { return path_; }
   constexpr bool isCache() { return path_.ends_with(".io"); }
 
-  bool belong(uint64_t vm);
+  virtual bool belong(uint64_t vm);
   const char *triple();
+  const void *locateSymbol(std::string_view name, bool data);
 
   constexpr const void *relocTarget(size_t i) { return irelocs_[i].target; }
 
@@ -129,8 +134,8 @@ protected:
   ObjectDisassembler odiser_;
   ObjectType type_;
   ArchType arch_;
-  std::string_view srcpath_;
-  std::string_view path_;
+  std::string srcpath_;
+  std::string path_;
   std::unique_ptr<::llvm::MemoryBuffer> fbuf_;
   std::unique_ptr<CObjectFile> ofile_;
   // <entry name, opcodes pointer>
@@ -211,6 +216,11 @@ class InterpObject : public Object {
 public:
   InterpObject(std::string_view srcpath, std::string_view path);
   virtual ~InterpObject();
+
+  bool belong(uint64_t vm) override {
+    auto start = reinterpret_cast<uint64_t>(ofbuf_.data());
+    return start <= vm && vm < start + ofbuf_.length();
+  }
 
 private:
   std::string ofbuf_; // .o file buffer copied from .io file

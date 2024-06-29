@@ -97,11 +97,13 @@ struct ExecEngine {
              const std::vector<std::string> &deps, const char *procfg,
              const std::vector<const char *> &iargs)
       : loader_(object.get(), deps), runcfg_(procfg), iargs_(iargs),
-        object_(object.get()) {
+        object_(object) {
     init();
   }
   ~ExecEngine() {
-    // give back borrowed uc instance
+    // execute destructor in iobject file
+    execDtor();
+    // give back the borrowed uc instance
     ue.release(uc_);
   }
 
@@ -189,7 +191,7 @@ private:
   const std::vector<const char *> &iargs_;
 
   // current running object instance
-  Object *object_ = nullptr;
+  std::shared_ptr<Object> object_;
   /*
   virtual processor and debugger
   */
@@ -202,7 +204,7 @@ private:
 
 void ExecEngine::init() {
   // get a unicorn instruction emulation instance
-  uc_ = ue.acquire(object_);
+  uc_ = ue.acquire(object_.get());
 
   if (runcfg_.hasDebugger()) {
     // initialize debugger instance
@@ -253,7 +255,17 @@ uint64_t ExecEngine::returnValue() {
 }
 
 bool ExecEngine::execMain() {
-  return run(reinterpret_cast<uint64_t>(object_->mainEntry()), iargs_.size(),
+  auto mainfn = object_->mainEntry();
+  if (!mainfn) {
+    // save iobject module to loader cache
+    Loader::cacheObject(object_);
+
+    // module has no main but it's a valid iobject,
+    // return true to have a chance to generate its cache
+    return true;
+  }
+
+  return run(reinterpret_cast<uint64_t>(mainfn), iargs_.size(),
              reinterpret_cast<uint64_t>(&iargs_[0]));
 }
 
@@ -263,11 +275,11 @@ bool ExecEngine::run(uint64_t vm, uint64_t arg0, uint64_t arg1) {
                      reinterpret_cast<const void *>(arg1));
     return execLoop(vm);
   } catch (std::system_error &e) {
-    log_print(Runtime, "Exception ocurred, system error: %s.", e.what());
+    log_print(Runtime, "Exception ocurred, system error: {}.", e.what());
   } catch (std::logic_error &e) {
-    log_print(Runtime, "Exception ocurred, logical error: %s.", e.what());
+    log_print(Runtime, "Exception ocurred, logical error: {}.", e.what());
   } catch (std::invalid_argument &e) {
-    log_print(Runtime, "Exception ocurred, invalid argument error: %s.",
+    log_print(Runtime, "Exception ocurred, invalid argument error: {}.",
               e.what());
   } catch (...) {
     log_print(Runtime, "Exception ocurred, unknown type.");
@@ -1057,9 +1069,6 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
 }
 
 bool ExecEngine::execLoop(uint64_t pc) {
-  if (!pc) {
-    return false;
-  }
   // debugger internal thread
   Debugger::Thread *dbgthread = nullptr;
   if (debugger_)
@@ -1272,11 +1281,9 @@ void ExecEngine::run() {
 
   if (execCtor()) {
     if (execMain()) {
-      if (execDtor()) {
-        if (!object_->isCache()) {
-          // generate the interpretable object file if everthing went well
-          object_->generateCache();
-        }
+      if (!object_->isCache()) {
+        // generate the interpretable object file if everthing went well
+        object_->generateCache();
       }
     }
   }
