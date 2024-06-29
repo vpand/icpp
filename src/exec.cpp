@@ -33,6 +33,8 @@
 #include <pthread.h>
 #endif
 
+extern "C" int __cxa_atexit(void (*f)(void *), void *p, void *d);
+
 namespace icpp {
 
 // uc instance cache
@@ -207,6 +209,14 @@ private:
 
   // vm stack
   std::string stack_;
+
+  // dynamically registered dtors by atexit, __cxa_atexit, etc.
+  struct Atexit {
+    Object *object;
+    uint64_t vm;
+    uint64_t args[2];
+  };
+  std::vector<Atexit> dyndtors_;
 };
 
 void ExecEngine::init() {
@@ -222,7 +232,28 @@ void ExecEngine::init() {
   stack_.resize(runcfg_.stackSize());
 }
 
-bool ExecEngine::execCtor() { return true; }
+bool ExecEngine::execCtor() {
+  for (auto target : iobject_->ctorEntries()) {
+    robject_ = iobject_.get();
+    if (!run(reinterpret_cast<uint64_t>(target), 0, 0))
+      return false;
+  }
+  return true;
+}
+
+bool ExecEngine::execDtor() {
+  for (auto target : iobject_->dtorEntries()) {
+    robject_ = iobject_.get();
+    if (!run(reinterpret_cast<uint64_t>(target), 0, 0))
+      return false;
+  }
+  for (auto &ate : dyndtors_) {
+    robject_ = ate.object;
+    if (!run(reinterpret_cast<uint64_t>(ate.vm), ate.args[0], ate.args[1]))
+      return false;
+  }
+  return true;
+}
 
 void ExecEngine::initMainRegister(const void *argc, const void *argv) {
   switch (robject_->arch()) {
@@ -410,6 +441,8 @@ static thread_return_t exec_thread_stub(void *pcontext) {
   return thread_return_t(retval);
 }
 
+static void nop_function() {}
+
 bool ExecEngine::specialCallProcess(uint64_t target) {
   uint64_t args[4], backups[4];
   int rids[4]; // register id
@@ -460,6 +493,19 @@ bool ExecEngine::specialCallProcess(uint64_t target) {
     // replace to our stub instance
     args[ientry] = reinterpret_cast<uint64_t>(exec_thread_stub);
     args[iarg] = reinterpret_cast<uint64_t>(context);
+  } else if (reinterpret_cast<uint64_t>(atexit) == target ||
+             reinterpret_cast<uint64_t>(__cxa_atexit) == target) {
+    Object *iobj;
+    if (robject_->executable(target, &iobj)) {
+      Atexit aep; // at exit parameters
+      aep.object = iobj;
+      aep.vm = args[0]; // exit routine
+      aep.args[0] = args[1];
+      aep.args[1] = args[2];
+      dyndtors_.push_back(aep);
+      // replace it with a nop stub function
+      args[0] = reinterpret_cast<uint64_t>(nop_function);
+    }
   }
 
   // update changed arugments
@@ -519,12 +565,14 @@ bool ExecEngine::interpretJumpAArch64(const InsnInfo *&inst, uint64_t &pc,
   } else {
     // jump to external function
     auto context = loadRegisterAArch64();
-    if (executable(context.r[A64_LR])) {
+    auto retaddr = context.r[A64_LR];
+    if (executable(retaddr) ||
+        topReturn() == reinterpret_cast<void *>(retaddr)) {
       // check and process some api which has callback argument
       specialCallProcess(target);
 
       // return to our control
-      pc = context.r[A64_LR];
+      pc = retaddr;
       host_call(&context, reinterpret_cast<const void *>(target));
       saveRegisterAArch64(context);
       return true;
@@ -584,7 +632,8 @@ bool ExecEngine::interpretJumpX64(const InsnInfo *&inst, uint64_t &pc,
     uc_reg_read(uc_, UC_X86_REG_RSP, &rsp);
     retaddr = *reinterpret_cast<uint64_t *>(rsp);
     auto context = loadRegisterAArch64();
-    if (executable(retaddr)) {
+    if (executable(retaddr) ||
+        topReturn() == reinterpret_cast<void *>(retaddr)) {
       // check and process some api which has callback argument
       specialCallProcess(target);
 
@@ -738,7 +787,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
   }
   // interpret the pre-decoded instructions
   for (unsigned i = 0; i < origstep && inst->type != INSN_HARDWARE; i++) {
-#if 1
+#if 0
     log_print(Develop, "Interpret {:x} I{}", robject_->vm2rva(pc), inst->type);
 #endif
 
@@ -1084,6 +1133,9 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       abort();
       break;
     }
+    // hit return address
+    if (pc == reinterpret_cast<uint64_t>(topReturn()))
+      return true;
     // advance to the next instruction if didn't jump
     if (!jump) {
       pc += inst->len;
@@ -1141,7 +1193,7 @@ bool ExecEngine::execLoop(uint64_t pc) {
     if (err != UC_ERR_OK) {
       log_print(Runtime, "Fatal error occurred: {}.", uc_strerror(err));
       dump();
-      return false;
+      std::exit(-1);
     }
 
     // update current pc
@@ -1198,8 +1250,6 @@ void ExecEngine::initMainRegisterWinX64(const void *argc, const void *argv) {
   reg_write(UC_X86_REG_RDX, argv);
   initMainRegisterCommonX64();
 }
-
-bool ExecEngine::execDtor() { return true; }
 
 void ExecEngine::dump() {
   // load registers

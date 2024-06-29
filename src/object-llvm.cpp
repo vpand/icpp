@@ -365,10 +365,26 @@ ObjectDisassembler::~ObjectDisassembler() {
 }
 
 std::string Object::sourceInfo(uint64_t vm) {
+  uint64_t sindex = -1;
+  uint64_t saddr = 0;
+  for (auto &s : ofile_->sections()) {
+    auto expContent = s.getContents();
+    if (!expContent)
+      continue;
+    auto start = reinterpret_cast<uint64_t>(expContent->data());
+    if (start <= vm && vm < start + s.getSize()) {
+      sindex = s.getIndex();
+      saddr = s.getAddress() + vm - start;
+      break;
+    }
+  }
+  if (sindex == -1)
+    return "";
+
   std::string Output;
   raw_string_ostream OS(Output);
   formatted_raw_ostream FOS(OS);
-  auto SectAddr = object::SectionedAddress{vm2rva(vm), textsecti_};
+  auto SectAddr = object::SectionedAddress{saddr, sindex};
   LiveVariablePrinter LVP(*odiser_.DT->Context->getRegisterInfo(),
                           *odiser_.DT->SubtargetInfo);
   odiser_.SP->printSourceLine(FOS, SectAddr, ofile_->getFileName(), LVP);
@@ -921,13 +937,11 @@ static SymbolRef::Type convert_reloc_type(ArchType arch, ObjectType otype,
   return SymbolRef::ST_Function;
 }
 
-void Object::decodeInsns() {
+void Object::decodeInsns(TextSection &text) {
   // load text relocations
   std::map<uint64_t, object::RelocationRef> relocs;
-  auto textname = textSectName();
   for (auto &s : ofile_->sections()) {
-    auto expName = s.getName();
-    if (!expName || textname != expName->data()) {
+    if (s.getIndex() != text.index) {
       continue;
     }
     for (auto r : s.relocations()) {
@@ -940,7 +954,7 @@ void Object::decodeInsns() {
       case SymbolRef::ST_Unknown:
       case SymbolRef::ST_Data:
       case SymbolRef::ST_Function:
-        relocs.insert({r.getOffset(), r});
+        relocs.insert({s.getAddress() + r.getOffset(), r});
         break;
       default:
         break;
@@ -952,13 +966,13 @@ void Object::decodeInsns() {
   int skipsz = arch_ == AArch64 ? 4 : 1;
   // decode instructions in text section
   MCInst inst;
-  for (auto opc = textvm_, opcend = textvm_ + textsz_; opc < opcend;) {
+  for (auto opc = text.vm, opcend = text.vm + text.size; opc < opcend;) {
     uint64_t size = 0;
     auto status = odiser_.DT->DisAsm->getInstruction(
         inst, size, BuildIDRef(reinterpret_cast<const uint8_t *>(opc), 16), opc,
         outs());
     InsnInfo iinfo{};
-    iinfo.rva = vm2rva(opc);
+    iinfo.rva = text.rva + opc - text.vm;
     switch (status) {
     case MCDisassembler::Fail: {
       iinfo.type = INSN_ABORT;
@@ -1113,7 +1127,7 @@ void Object::decodeInsns() {
       break;
     }
     } // end of switch
-    iinfs_.push_back(iinfo);
+    text.iinfs.push_back(iinfo);
     opc += iinfo.len;
   }
 }

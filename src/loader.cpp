@@ -27,8 +27,13 @@
 
 namespace icpp {
 
+// some simulated system global variables
+static uint64_t __dso_handle = 0;
+
 struct SymbolCache {
-  SymbolCache() : mainid_(std::this_thread::get_id()) {}
+  SymbolCache() : mainid_(std::this_thread::get_id()) {
+    syms_.insert({"___dso_handle", &__dso_handle});
+  }
 
   bool isMain() { return mainid_ == std::this_thread::get_id(); }
 

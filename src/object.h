@@ -18,7 +18,7 @@ namespace llvm {
 class MemoryBuffer;
 namespace object {
 class ObjectFile;
-}
+} // namespace object
 namespace objdump {
 class SourcePrinter;
 }
@@ -45,7 +45,7 @@ struct InsnInfo {
       len : 5,       // opcode length
       rflag : 1,     // relocation flag, 1 indicates a valid reloc index
       reloc : 18;    // relocation index
-  uint32_t rva;      // instruction rva
+  uint32_t rva;      // instruction file rva
 
   bool operator<(const InsnInfo &right) const { return rva < right.rva; }
   bool operator==(const InsnInfo &right) const { return rva == right.rva; }
@@ -60,14 +60,27 @@ struct RelocInfo {
   // symbol name
   std::string name;
   const void *target; // symbol runtime vm address
-  uint32_t type;      // ST_DATA, ST_FUNCTION, etc.
+  uint16_t type;      // ST_DATA, ST_FUNCTION, etc.
+  uint16_t sindex;    // section index
+  uint32_t rva;       // offset from its parent section
 };
 
 struct DynSection {
   std::string name; // section name
-  uint64_t rva;     // address in file
+  uint32_t rva;     // rva address in object file
   // dynamically allocated buffer for this section, e.g.: bss common
   std::string buffer;
+};
+
+struct TextSection {
+  // text section index, rva, size and vm values,
+  // this kind of section contains instructions
+  uint32_t index;
+  uint32_t size;
+  uint32_t rva; // rva address in object file
+  uint64_t vm;  // runtime address in iobject instance
+  // instruction informations
+  std::vector<InsnInfo> iinfs;
 };
 
 class DisassemblerTarget;
@@ -96,10 +109,12 @@ public:
   constexpr std::string_view path() { return path_; }
   constexpr bool isCache() { return path_.ends_with(".io"); }
 
+  uint64_t vm2rva(uint64_t vm, size_t *ti = nullptr);
+
   // check whether vm belongs to text section
   bool executable(uint64_t vm, Object **iobject);
   // check whether vm belongs to the whole memory buffer of this object
-  virtual bool belong(uint64_t vm);
+  virtual bool belong(uint64_t vm, size_t *di = nullptr);
   virtual std::string cachePath();
 
   const char *triple();
@@ -113,12 +128,12 @@ public:
     return reinterpret_cast<T *>(found->second.data());
   }
 
-  constexpr uint64_t vm2rva(uint64_t vm) { return textrva_ + vm - textvm_; }
-
   uc_arch ucArch();
   uc_mode ucMode();
 
   const void *mainEntry();
+  std::vector<const void *> ctorEntries();
+  std::vector<const void *> dtorEntries();
   const InsnInfo *insnInfo(uint64_t vm);
   std::string sourceInfo(uint64_t vm);
   std::string generateCache();
@@ -128,8 +143,11 @@ protected:
   void createObject(ObjectType type);
   void parseSymbols();
   void parseSections();
-  void decodeInsns();
-  std::string_view textSectName();
+  void decodeInsns(TextSection &text);
+  void decodeInsns() {
+    for (auto &s : textsects_)
+      decodeInsns(s);
+  }
 
 protected:
   ObjectDisassembler odiser_;
@@ -143,15 +161,10 @@ protected:
   std::unordered_map<std::string, const void *> funcs_;
   // <data name, data pointer>
   std::unordered_map<std::string, const void *> datas_;
-  // text section index, rva, size and vm values
-  uint32_t textsecti_ = 0;
-  uint32_t textsz_ = 0;
-  uint64_t textrva_ = 0;
-  uint64_t textvm_ = 0;
+  // text sections
+  std::vector<TextSection> textsects_;
   // dynamically allocated sections
   std::vector<DynSection> dynsects_;
-  // instruction informations
-  std::vector<InsnInfo> iinfs_;
   // instruction decoded informations from machine opcode
   // <opcodes, decodes>
   std::map<std::string, std::string> idecinfs_;
@@ -218,7 +231,7 @@ public:
   InterpObject(std::string_view srcpath, std::string_view path);
   virtual ~InterpObject();
 
-  bool belong(uint64_t vm) override;
+  bool belong(uint64_t vm, size_t *di) override;
   std::string cachePath() override { return path_; }
 
 private:

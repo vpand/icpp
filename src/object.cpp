@@ -14,6 +14,7 @@
 #include <iostream>
 #include <llvm/Object/ObjectFile.h>
 #include <llvm/Support/MemoryBuffer.h>
+#include <span>
 
 namespace icpp {
 
@@ -154,44 +155,33 @@ void Object::parseSymbols() {
   }
 }
 
-std::string_view Object::textSectName() {
-  std::string_view textname(".text");
-  if (ofile_->isMachO()) {
-    textname = "__text";
-  }
-  return textname;
-}
-
 void Object::parseSections() {
-  auto textname = textSectName();
-  textsecti_ = 0;
   for (auto &s : ofile_->sections()) {
     auto expName = s.getName();
     if (!expName) {
-      if (!textsz_)
-        textsecti_++;
       continue;
     }
 
     auto name = expName.get();
-    if (textname == name.data()) {
+    if (s.isText()) {
       auto expContent = s.getContents();
       if (!expContent) {
-        log_print(Runtime, "Empty object file, there's no {} section.",
-                  textname);
+        log_print(Runtime,
+                  "Empty object file, there's no content of {} section.",
+                  name.data());
         break;
       }
-      textsz_ = s.getSize();
-      textrva_ = s.getAddress();
-      textvm_ = reinterpret_cast<uint64_t>(expContent->data());
-      log_print(Develop, "Text rva={:x}, vm={:x}.", textrva_, textvm_);
-    } else if (name.ends_with("bss") || name.ends_with("common")) {
-      dynsects_.push_back(
-          {name.data(), s.getAddress(), std::string(s.getSize(), 0)});
+      auto news = textsects_.emplace_back(
+          TextSection{static_cast<uint32_t>(s.getIndex()),
+                      static_cast<uint32_t>(s.getSize()),
+                      static_cast<uint32_t>(s.getAddress()),
+                      reinterpret_cast<uint64_t>(expContent->data())});
+      log_print(Develop, "Section {} rva={:x}, vm={:x} size={}.", name.data(),
+                news.rva, news.vm, news.size);
+    } else if (s.isBSS() || name.ends_with("bss") || name.ends_with("common")) {
+      dynsects_.push_back({name.data(), static_cast<uint32_t>(s.getAddress()),
+                           std::string(s.getSize(), 0)});
     }
-
-    if (!textsz_)
-      textsecti_++;
   }
 }
 
@@ -226,12 +216,55 @@ const void *Object::mainEntry() {
   return found->second;
 }
 
+static std::vector<const void *>
+cdtor_entries(CObjectFile *ofile, const std::span<std::string_view> &names,
+              const std::unordered_map<std::string, const void *> &funcs) {
+  std::vector<const void *> results;
+  for (auto &s : ofile->sections()) {
+    auto expName = s.getName();
+    if (!expName)
+      continue;
+    for (auto sn : names) {
+      if (expName->contains(sn)) {
+        for (auto &r : s.relocations()) {
+          auto sym = r.getSymbol();
+          auto symName = sym->getName();
+          if (!symName)
+            continue;
+          auto found = funcs.find(symName->data());
+          if (found != funcs.end())
+            results.push_back(found->second);
+          else
+            log_print(Runtime,
+                      "Warning, failed to locate constructor function {}.",
+                      symName->data());
+        }
+      }
+    }
+  }
+  return results;
+}
+
+std::vector<const void *> Object::ctorEntries() {
+  std::string_view names[] = {"init_func"};
+  std::span sns{names, std::size(names)};
+  return cdtor_entries(ofile_.get(), sns, funcs_);
+}
+
+std::vector<const void *> Object::dtorEntries() {
+  std::string_view names[] = {"term_func"};
+  std::span sns{names, std::size(names)};
+  return cdtor_entries(ofile_.get(), sns, funcs_);
+}
+
 const InsnInfo *Object::insnInfo(uint64_t vm) {
-  auto rva = static_cast<uint32_t>(vm2rva(vm));
+  size_t ti;
+  auto rva = static_cast<uint32_t>(vm2rva(vm, &ti));
   // find insninfo related to this vm address
+  auto &ts = textsects_[ti];
   auto found =
-      std::lower_bound(iinfs_.begin(), iinfs_.end(), InsnInfo{.rva = rva});
-  if (found == iinfs_.end()) {
+      std::lower_bound(ts.iinfs.begin(), ts.iinfs.end(), InsnInfo{.rva = rva});
+  if (found == ts.iinfs.end()) {
     log_print(Runtime, "Failed to find instruction information of rva {:x}.",
               rva);
     abort();
@@ -239,8 +272,21 @@ const InsnInfo *Object::insnInfo(uint64_t vm) {
   return &*found;
 }
 
+uint64_t Object::vm2rva(uint64_t vm, size_t *ti) {
+  for (size_t i = 0; i < textsects_.size(); i++) {
+    auto &s = textsects_[i];
+    if (s.vm <= vm && vm < s.vm + s.size) {
+      if (ti) {
+        ti[0] = i;
+      }
+      return s.rva + vm - s.vm;
+    }
+  }
+  return -1;
+}
+
 bool Object::executable(uint64_t vm, Object **iobject) {
-  if (textvm_ <= vm && vm < textvm_ + textsz_)
+  if (vm2rva(vm) != -1)
     return true;
   if (!iobject)
     return false;
@@ -252,9 +298,21 @@ std::string Object::cachePath() {
   return (srcpath.parent_path() / (srcpath.stem().string() + ".io")).string();
 }
 
-bool Object::belong(uint64_t vm) {
+bool Object::belong(uint64_t vm, size_t *di) {
   auto ptr = reinterpret_cast<const char *>(vm);
-  return fbuf_->getBufferStart() <= ptr && ptr < fbuf_->getBufferEnd();
+  // in object file buffer
+  if (fbuf_->getBufferStart() <= ptr && ptr < fbuf_->getBufferEnd())
+    return true;
+  // in dynamically allocated section, .e.g.: bss
+  for (auto &s : dynsects_) {
+    if (s.buffer.data() <= ptr && ptr < s.buffer.data() + s.buffer.size()) {
+      if (di) {
+        di[0] = &s - &dynsects_[0];
+      }
+      return true;
+    }
+  }
+  return false;
 }
 
 std::string Object::generateCache() {
@@ -269,8 +327,13 @@ std::string Object::generateCache() {
   iobject.set_otype(static_cast<iobj::ObjectType>(type_));
 
   auto iins = iobject.mutable_instinfos();
-  for (auto &i : iinfs_) {
-    iins->Add(*reinterpret_cast<uint64_t *>(&i));
+  for (auto &ts : textsects_) {
+    iobj::InsnInfos iinfos;
+    auto infos = iinfos.mutable_infos();
+    infos->Resize(ts.iinfs.size(), 0);
+    std::memcpy(infos->mutable_data(), &ts.iinfs[0],
+                ts.iinfs.size() * sizeof(uint64_t));
+    iins->Add(std::move(iinfos));
   }
 
   auto imetas = iobject.mutable_instmetas();
@@ -301,17 +364,30 @@ std::string Object::generateCache() {
   }
   for (auto &r : irelocs_) {
     auto target = reinterpret_cast<uint64_t>(r.target);
-    bool self = belong(target);
+    size_t di = -1;
+    bool self = belong(target, &di);
 
     iobj::RelocInfo ri;
     ri.set_symbol(r.name);
     ri.set_type(r.type);
-    ri.set_rva(self ? vm2rva(target) : 0);
+
     if (self) {
-      ri.set_module(0);
+      if (di != -1) {
+        // it's in dynamical section
+        ri.set_dindex(static_cast<uint32_t>(di));
+        ri.set_rva(reinterpret_cast<const char *>(target) -
+                   dynsects_[di].buffer.data());
+      } else {
+        ri.set_dindex(-1);
+        ri.set_rva(vm2rva(target));
+      }
+      ri.set_module(0); // set self module index
     } else {
+      ri.set_dindex(0);
+      ri.set_rva(0);
       for (size_t i = 0; i < imods->size(); i++) {
         if (imods->at(i) == Loader::locateModule(r.target)) {
+          // set external module index
           ri.set_module(i);
           break;
         }
@@ -358,7 +434,10 @@ const void *Object::locateSymbol(std::string_view name, bool data) {
 }
 
 void Object::dump() {
-  log_print(Raw, "IObject({}) Details:\nRelocations:", path_);
+  log_print(Raw, "IObject({}) Details:", path_);
+
+#if 0
+  log_print(Raw, "Relocations:");
   for (auto &r : irelocs_) {
     auto target = reinterpret_cast<uint64_t>(r.target);
     if (belong(target))
@@ -366,6 +445,8 @@ void Object::dump() {
     else
       log_print(Raw, "EXTN - {}.{:x} type.{}", r.name, target, r.type);
   }
+#endif
+
   log_print(Raw, "");
 }
 
@@ -487,9 +568,12 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
   parseSymbols();
 
   auto iins = iobject.instinfos();
-  for (auto i : iins) {
-    // load instruction informations
-    iinfs_.push_back(*reinterpret_cast<InsnInfo *>(&i));
+  for (size_t i = 0; i < iins.size(); i++) {
+    auto &iinfs = textsects_[i].iinfs;
+    iinfs.resize(iins[i].infos_size());
+    // copy all the decoed instruction information
+    std::memcpy(&iinfs[0], iins[i].infos().data(),
+                sizeof(InsnInfo) * iinfs.size());
   }
 
   auto imetas = iobject.instmetas();
@@ -508,8 +592,12 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
     // dependent module
     auto module = imods[r.module()];
     if (module == "self") {
+      uint64_t basevm =
+          r.dindex() == -1
+              ? textsects_[0].vm
+              : reinterpret_cast<uint64_t>(dynsects_[r.dindex()].buffer.data());
       irelocs_.push_back(RelocInfo{
-          r.symbol(), reinterpret_cast<void *>(r.rva() + textvm_), r.type()});
+          r.symbol(), reinterpret_cast<void *>(r.rva() + basevm), r.type()});
       continue;
     }
     Loader loader(module);
@@ -529,9 +617,20 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
 
 InterpObject::~InterpObject() {}
 
-bool InterpObject::belong(uint64_t vm) {
-  auto start = reinterpret_cast<uint64_t>(ofbuf_.data());
-  return start <= vm && vm < start + ofbuf_.length();
+bool InterpObject::belong(uint64_t vm, size_t *di) {
+  auto vmstr = reinterpret_cast<char *>(vm);
+  if (ofbuf_.data() <= vmstr && vmstr < ofbuf_.data() + ofbuf_.length())
+    return true;
+  // in dynamically allocated section, .e.g.: bss
+  for (auto &s : dynsects_) {
+    if (s.buffer.data() <= vmstr && vmstr < s.buffer.data() + s.buffer.size()) {
+      if (di) {
+        di[0] = &s - &dynsects_[0];
+      }
+      return true;
+    }
+  }
+  return false;
 }
 
 } // namespace icpp

@@ -25,9 +25,15 @@ enum ObjectType {
 
 message RelocInfo {
   uint32 module = 1; // module index
-  uint32 rva = 2;    // symbol rva
+  uint32 rva = 2;    // symbol rva from section
   uint32 type = 3;   // symbol type
-  string symbol = 4; // symbol name
+  uint32 dindex = 4;  // dynamical section index
+  string symbol = 5; // symbol name
+}
+
+message InsnInfos {
+  // decoded instruction information
+  repeated uint64 infos = 1;
 }
 
 /*
@@ -49,17 +55,20 @@ message InterpObject {
   // .io proto instance header
   uint32 magic = 1;
   uint32 version = 2;
+
   // architecture and orignal object file type
   ArchType arch = 3;
   ObjectType otype = 4;
 
   // instruction details, e.g.: type, reloc, length, etc.
-  repeated uint64 instinfos = 5;
+  repeated InsnInfos instinfos = 5;
+
   // decoded instruction operand meta datas
   map<string, bytes> instmetas = 6;
 
   // module list referenced by relocation symbol
   repeated string modules = 7;
+  
   // details of the instruction relocation symbol
   repeated RelocInfo irefsyms = 8;
 
