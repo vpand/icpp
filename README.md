@@ -52,14 +52,14 @@ graph LR
 |CLI|Script Interpreter|Module Manager|In-Process Gadget|
 |-|-|-|-|
 |Python| % **python** helloworld.py | % **pip** install helloworld.zip | N/A | 
-|ICPP  | % **icpp** helloworld.cc | % **imod** --install=helloworld.zip | resident **icpp-gadget** in process |
+|ICPP  | % **icpp** helloworld.cc | % **imod** --install=helloworld.icpp | resident **icpp-gadget** in process |
 
 ### CLI
 
 ```sh
 vpand@MacBook-Pro icpp % icpp -h              
 OVERVIEW: ICPP v0.0.1.255 based on Unicorn and Clang/LLVM.
-  Interpreting C++, executing the source and executable like a script.
+  Interpreting C++, running C++ in anywhere like a script.
 
 USAGE: icpp [options] file0 [file1 ...] [-- args]
 OPTIONS:
@@ -67,19 +67,22 @@ OPTIONS:
   --version: print icpp and clang version.
   -h, -help: print icpp help list.
   --help: print icpp and clang help list.
-  -O0, -O1, -O2, -O3, -Os, -Oz: optimization level passed to clang, default to -O2.
+  -O0, -O1, -O2, -O3, -Os, -Oz: optimization level passed to clang, 
+    default to -O2.
   -I/path/to/include: header include directory passed to clang.
   -L/path/to/library: library search directory passed to icpp interpreting engine.
-  -lname: full name of the dependent library file passed to icpp interpreting engine, e.g.: liba.dylib, liba.so, a.dll.
+  -lname: full name of the dependent library file passed to icpp interpreting engine, 
+    e.g.: liba.dylib, liba.so, a.dll.
   -F/path/to/framework: framework search directory passed to icpp interpreting engine.
   -fname: framework name of the dependent library file passed to icpp interpreting engine.
-  -p/path/to/json: professional json configuration file for trace/profile/plugin/etc..
+  -p/path/to/json: a json configuration file for trace/profile/plugin/etc..
 FILES: input file can be C++ source code(.c/.cc/.cpp/.cxx), MachO/ELF/PE executable.
 ARGS: arguments passed to the main entry function of the input files.
 
 e.g.:
   icpp helloworld.cc
-  icpp helloworld.cc -- Hello World (i.e.: argc=3, argv[]={"helloworld.cc", "Hello", "World"})
+  icpp helloworld.cc -- Hello World 
+    i.e.: argc=3, argv[]={"helloworld.cc", "Hello", "World"}
   icpp -O3 helloworld.cc
   icpp -O0 -p/path/to/profile.json helloworld.cc
   icpp -p/path/to/trace.json helloworld.exe
@@ -87,9 +90,31 @@ e.g.:
   icpp -I/qt/include -L/qt/lib -lQtCore.dll hellowrold.cc
   icpp -I/qt/include -F/qt/framework -fQtCore hellowrold.cc
 ```
+```sh
+vpand@MacBook-Pro icpp % % src/imod -h                
+OVERVIEW: ICPP, Interpreting C++, running C++ in anywhere like a script.
+  IObject Module Manager Tool built with ICPP v0.0.1.255
+USAGE: imod [options]
+
+OPTIONS:
+
+Generic Options:
+
+  --help               - Display available options (--help-hidden for more)
+  --help-list          - Display list of available options (--help-list-hidden for more)
+  --version            - Display the version of this program
+
+ICPP Module Manager Options:
+
+  --create=<string>    - Create an icpp package from a json configuration file.
+  --install=<string>   - Install an icpp package file.
+  --list               - List all the installed modules.
+  --uninstall=<string> - Uninstall an installed module.
+```
 
 ## Status
-Under developing...
+ * macOS ARM64 &#10004;
+ * Under developing...
 
 | OS           | C++ Source | X86_64 Binary | AArch64 Binary | X86_64 on AArch64 | AArch64 on X86_64 |
 | :----------  | :--------: | :-----------: | :------------: | :---------------: | :---------------: |
@@ -98,16 +123,18 @@ Under developing...
 | **Linux**    | &#10008;   | &#10008;      | &#10008;       | &#10008;          | &#10008;          |
 
 ## Build
-Make sure the python3 command is in your system PATH environment.
+Make sure the cmake, python3 and make command are in your system PATH environment.
 ```sh
 mkdir build
 cd build
 cmake -DCMAKE_BUILD_TYPE=Release ..
-cmake --build . -- icpp -j8
+cmake --build . -- icpp imod icpp-gadget -j8
 ```
 
 ## Contact
-You can visit [vpand.com](https://vpand.com/) for more information on **VM, VMProtect, Clang/LLVM and Reverse Engineering** products. Or if you have any questions, just feel free to email to me:
+You can visit [vpand.com](https://vpand.com/) for more information on **VM, VMProtect, Clang/LLVM and Reverse Engineering** products.
+
+Or if you have any questions, just feel free to email to me:
 ```
 neoliu2011@gmail.com
 ```

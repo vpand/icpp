@@ -22,7 +22,7 @@ import os
 import sys
 import subprocess
 
-cmake_projects = ['visualicpp', 'icpp']
+cmake_projects = ['visualicpp', 'icpp', 'imod', 'icpp-gadget']
 
 def command(cmd, log = True):
     if log:

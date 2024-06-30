@@ -129,18 +129,6 @@ if(LINUX)
   target_link_options(icpp PRIVATE -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/ld.version)
 endif()
 
-# llvm disabled rtti
-if(WIN32 AND NOT CYGWIN)
-  if (MSVC)
-    target_compile_options(icpp PRIVATE /GR-)
-  else()
-    target_compile_options(icpp PRIVATE -fno-rtti)
-  endif()
-else()
-  target_compile_options(icpp PRIVATE -fno-rtti)
-  set_target_properties(icpp PROPERTIES VERSION ${CLANG_EXECUTABLE_VERSION})
-endif()
-
 # remove lib prefix on macOS/Linux
 set_target_properties(icpp PROPERTIES PREFIX "")
 
@@ -163,11 +151,14 @@ set(LLVM_LINK_COMPONENTS
 )
 add_llvm_tool(imod 
   icpp-mod.cpp
+  icpp.cpp
 
   PARTIAL_SOURCES_INTENDED
 )
 set_target_properties(imod PROPERTIES OUTPUT_NAME "imod")
 target_include_directories(imod PRIVATE
+  ${THIRD_ROOT}/llvm-project/llvm/include
+  ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include
   ${THIRD_ROOT}/brotli/c/include
   boost_asio
   boost_beast
@@ -178,6 +169,21 @@ target_link_libraries(imod PRIVATE
   brotlienc
   brotlidec
 )
+
+# llvm disabled rtti
+if(WIN32 AND NOT CYGWIN)
+  if (MSVC)
+    target_compile_options(icpp PRIVATE /GR-)
+    target_compile_options(imod PRIVATE /GR-)
+  else()
+    target_compile_options(icpp PRIVATE -fno-rtti)
+    target_compile_options(imod PRIVATE -fno-rtti)
+  endif()
+else()
+  target_compile_options(icpp PRIVATE -fno-rtti)
+  target_compile_options(imod PRIVATE -fno-rtti)
+  set_target_properties(icpp PROPERTIES VERSION ${CLANG_EXECUTABLE_VERSION})
+endif()
 
 # icpp gadget, running as a daemon in somewhere to receive the
 # interpretable object to execute

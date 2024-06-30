@@ -14,22 +14,20 @@
 #include <span>
 
 static void print_version() {
-  std::cout
-      << "ICPP " << icpp::version_string()
-      << " based on Unicorn and Clang/LLVM." << std::endl
-      << "Interpreting C++, executing the source and executable like a script."
-      << std::endl
-      << "Project website: https://github.com/vpand/icpp/" << std::endl
-      << "Sponsor website: https://vpand.com/" << std::endl
-      << std::endl;
+  std::cout << "ICPP " << icpp::version_string()
+            << " based on Unicorn and Clang/LLVM." << std::endl
+            << "Interpreting C++, running C++ in anywhere like a script."
+            << std::endl
+            << "Project website: https://github.com/vpand/icpp/" << std::endl
+            << "Sponsor website: https://vpand.com/" << std::endl
+            << std::endl;
 }
 
 static void print_help() {
   std::cout
       << "OVERVIEW: ICPP " << icpp::version_string()
       << " based on Unicorn and Clang/LLVM." << std::endl
-      << "  Interpreting C++, executing the source and executable like a "
-         "script."
+      << "  Interpreting C++, running C++ in anywhere like a script."
       << std::endl
       << std::endl
       << "USAGE: icpp [options] file0 [file1 ...] [-- args]" << std::endl
