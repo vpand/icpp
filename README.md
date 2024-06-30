@@ -91,7 +91,7 @@ e.g.:
   icpp -I/qt/include -F/qt/framework -fQtCore hellowrold.cc
 ```
 ```sh
-vpand@MacBook-Pro icpp % % src/imod -h                
+vpand@MacBook-Pro icpp % imod -h                
 OVERVIEW: ICPP, Interpreting C++, running C++ in anywhere like a script.
   IObject Module Manager Tool built with ICPP v0.0.1.255
 USAGE: imod [options]
@@ -113,6 +113,7 @@ ICPP Module Manager Options:
 ```
 
 ## Status
+ICPP_SRC/script:
  * macOS ARM64 &#10004;
  * Under developing...
 
