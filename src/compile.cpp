@@ -5,6 +5,7 @@
 */
 
 #include "compile.h"
+#include "object.h"
 #include "utils.h"
 #include <vector>
 
@@ -18,7 +19,8 @@ namespace icpp {
 
 static fs::path check_cache(std::string_view path) {
   auto srcpath = fs::path(path);
-  auto cachepath = srcpath.parent_path() / (srcpath.stem().string() + ".io");
+  auto cachepath = fs::absolute(srcpath.parent_path()) /
+                   (srcpath.stem().string() + iobj_ext.data());
   if (!fs::exists(cachepath)) {
     return "";
   }

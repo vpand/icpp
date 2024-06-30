@@ -295,7 +295,8 @@ bool Object::executable(uint64_t vm, Object **iobject) {
 
 std::string Object::cachePath() {
   auto srcpath = fs::path(srcpath_);
-  return (srcpath.parent_path() / (srcpath.stem().string() + ".io")).string();
+  return (srcpath.parent_path() / (srcpath.stem().string() + iobj_ext.data()))
+      .string();
 }
 
 bool Object::belong(uint64_t vm, size_t *di) {

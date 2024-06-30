@@ -5,6 +5,7 @@
 */
 
 #include "loader.h"
+#include "exec.h"
 #include "log.h"
 #include "object.h"
 #include <cstdio>
@@ -30,15 +31,16 @@ namespace icpp {
 // some simulated system global variables
 static uint64_t __dso_handle = 0;
 
-struct SymbolCache {
-  SymbolCache() : mainid_(std::this_thread::get_id()) {
+struct RuntimeLoader {
+  RuntimeLoader() : mainid_(std::this_thread::get_id()) {
     syms_.insert({"___dso_handle", &__dso_handle});
   }
 
   bool isMain() { return mainid_ == std::this_thread::get_id(); }
 
   struct LockGuard {
-    LockGuard(SymbolCache *p, std::recursive_mutex &m) : parent_(p), mutex_(m) {
+    LockGuard(RuntimeLoader *p, std::recursive_mutex &m)
+        : parent_(p), mutex_(m) {
       if (!parent_->isMain())
         mutex_.lock();
     }
@@ -48,7 +50,7 @@ struct SymbolCache {
         mutex_.unlock();
     }
 
-    SymbolCache *parent_;
+    RuntimeLoader *parent_;
     std::recursive_mutex &mutex_;
   };
 
@@ -58,7 +60,7 @@ struct SymbolCache {
   std::string find(const void *addr, bool update);
 
   // it'll be invoked by execute engine when loaded a iobject module
-  void cacheObject(std::shared_ptr<Object> imod) { imods_.push_back(imod); }
+  void cacheObject(std::shared_ptr<Object> imod);
 
   bool executable(uint64_t vm, Object **iobject) {
     for (auto m : imods_) {
@@ -86,17 +88,20 @@ private:
 
   std::thread::id mainid_;
   std::recursive_mutex mutex_;
+
   // cached symbols
   std::unordered_map<std::string, const void *> syms_;
+
   // native modules
   std::map<uint64_t, std::string> mods_;
   std::vector<std::map<uint64_t, std::string>::iterator> modits_;
   std::map<std::string, void *> mhandles_;
+
   // iobject modules
   std::vector<std::shared_ptr<Object>> imods_;
 } symcache;
 
-const void *SymbolCache::loadLibrary(std::string_view path) {
+const void *RuntimeLoader::loadLibrary(std::string_view path) {
   LockGuard lock(this, mutex_);
   auto found = mhandles_.find(path.data());
   if (found == mhandles_.end()) {
@@ -106,9 +111,18 @@ const void *SymbolCache::loadLibrary(std::string_view path) {
     auto addr = dlopen(path.data(), RTLD_NOW);
 #endif
     if (!addr) {
-      if (path.ends_with(".io")) {
+      if (path.ends_with(iobj_ext)) {
+        // check the already loaded/cached iobject module
+        auto found = mhandles_.find(path.data());
+        if (found != mhandles_.end()) {
+          return found->second;
+        }
+
         auto object = std::make_shared<InterpObject>("", path);
         if (object->valid()) {
+          // initialize this iobject module, call its construction functions
+          init_library(object);
+
           // save to iobject module list
           imods_.push_back(object);
           addr = object.get();
@@ -127,8 +141,8 @@ const void *SymbolCache::loadLibrary(std::string_view path) {
   return found->second;
 }
 
-const void *SymbolCache::resolve(const void *handle, std::string_view name,
-                                 bool data) {
+const void *RuntimeLoader::resolve(const void *handle, std::string_view name,
+                                   bool data) {
   LockGuard lock(this, mutex_);
   auto found = syms_.find(name.data());
   if (found != syms_.end()) {
@@ -169,7 +183,7 @@ const void *SymbolCache::resolve(const void *handle, std::string_view name,
   return data ? &found->second : found->second;
 }
 
-const void *SymbolCache::resolve(std::string_view name, bool data) {
+const void *RuntimeLoader::resolve(std::string_view name, bool data) {
   LockGuard lock(this, mutex_);
   auto found = syms_.find(name.data());
   if (found != syms_.end()) {
@@ -178,7 +192,7 @@ const void *SymbolCache::resolve(std::string_view name, bool data) {
   return lookup(name, data);
 }
 
-const void *SymbolCache::lookup(std::string_view name, bool data) {
+const void *RuntimeLoader::lookup(std::string_view name, bool data) {
   const void *target = nullptr;
 
   // check it in iobject modules
@@ -221,7 +235,7 @@ int iter_so_callback(dl_phdr_info *info, size_t size, void *data) {
 }
 #endif
 
-std::string SymbolCache::find(const void *addr, bool update) {
+std::string RuntimeLoader::find(const void *addr, bool update) {
   if (mods_.size() == 0 || update) {
     LockGuard lock(this, mutex_);
 #if __APPLE__
@@ -283,6 +297,13 @@ std::string SymbolCache::find(const void *addr, bool update) {
     }
   }
   return "";
+}
+
+void RuntimeLoader::cacheObject(std::shared_ptr<Object> imod) {
+  if (mhandles_.find(imod->path().data()) != mhandles_.end())
+    return;
+  imods_.push_back(imod);
+  mhandles_.insert({imod->path().data(), reinterpret_cast<void *>(imod.get())});
 }
 
 Loader::Loader(Object *object, const std::vector<std::string> &deps)

@@ -90,16 +90,14 @@ private:
 struct ExecEngine {
   // clone a new execute engine for thread function
   ExecEngine(ExecEngine &exec)
-      : loader_(exec.loader_), runcfg_(exec.runcfg_), iargs_(exec.iargs_),
-        iobject_(exec.iobject_) {
+      : loader_(exec.loader_), iargs_(exec.iargs_), iobject_(exec.iobject_) {
     init();
   }
 
   ExecEngine(std::shared_ptr<Object> object,
-             const std::vector<std::string> &deps, const char *procfg,
+             const std::vector<std::string> &deps,
              const std::vector<const char *> &iargs)
-      : loader_(object.get(), deps), runcfg_(procfg), iargs_(iargs),
-        iobject_(object) {
+      : loader_(object.get(), deps), iargs_(iargs), iobject_(object) {
     init();
   }
   ~ExecEngine() {
@@ -183,7 +181,8 @@ private:
   void saveRegisterX64(const ContextX64 &ctx);
 
   char *topStack() {
-    return reinterpret_cast<char *>(stack_.data()) + runcfg_.stackSize();
+    return reinterpret_cast<char *>(stack_.data()) +
+           RunConfig::inst()->stackSize();
   }
 
   constexpr void *topReturn() { return static_cast<void *>(this); }
@@ -191,8 +190,6 @@ private:
 private:
   // object dependency module loader
   Loader loader_;
-  // running config for advanced user from a json configuration file
-  RunConfig runcfg_;
   // argc and argv for object main entry
   const std::vector<const char *> &iargs_;
 
@@ -224,12 +221,12 @@ void ExecEngine::init() {
   // get a unicorn instruction emulation instance
   uc_ = ue.acquire(robject_);
 
-  if (runcfg_.hasDebugger()) {
+  if (RunConfig::inst()->hasDebugger()) {
     // initialize debugger instance
     debugger_ = Debugger::inst();
   }
   // interpreter vm stack buffer
-  stack_.resize(runcfg_.stackSize());
+  stack_.resize(RunConfig::inst()->stackSize());
 }
 
 bool ExecEngine::execCtor() {
@@ -1179,7 +1176,7 @@ bool ExecEngine::execLoop(uint64_t pc) {
     }
 
     // interpret relocation, branch, call, jump and syscall etc.
-    auto step = runcfg_.stepSize();
+    auto step = RunConfig::inst()->stepSize();
     if (interpret(inst, pc, step)) {
       continue;
     }
@@ -1367,8 +1364,7 @@ void ExecEngine::run() {
 }
 
 void exec_main(std::string_view path, const std::vector<std::string> &deps,
-               const char *procfg, std::string_view srcpath, int iargc,
-               char **iargv) {
+               std::string_view srcpath, int iargc, char **iargv) {
   llvm::file_magic magic;
   auto err = llvm::identify_magic(llvm::Twine(path), magic);
   if (err) {
@@ -1399,7 +1395,7 @@ void exec_main(std::string_view path, const std::vector<std::string> &deps,
     object = std::make_unique<COFFExeObject>(srcpath, path);
     break;
   default: {
-    if (path.ends_with(".io")) {
+    if (path.ends_with(iobj_ext)) {
       auto tmp = std::make_unique<InterpObject>(srcpath, path);
       if (tmp->valid()) {
         object = std::move(tmp);
@@ -1425,7 +1421,13 @@ void exec_main(std::string_view path, const std::vector<std::string> &deps,
   iargs.push_back(srcpath.data());
   for (int i = 0; i < iargc - 1; i++)
     iargs.push_back(iargv[i]);
-  ExecEngine(object, deps, procfg, iargs).run();
+  ExecEngine(object, deps, iargs).run();
+}
+
+void init_library(std::shared_ptr<Object> imod) {
+  std::vector<std::string> deps;
+  std::vector<const char *> iargs;
+  ExecEngine(imod, deps, iargs).run();
 }
 
 } // namespace icpp

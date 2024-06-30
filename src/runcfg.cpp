@@ -5,8 +5,19 @@
 */
 
 #include "runcfg.h"
+#include <memory>
 
 namespace icpp {
+
+RunConfig *RunConfig::inst(const char *cfg) {
+  static std::unique_ptr<RunConfig> runcfg;
+  if (runcfg)
+    return runcfg.get();
+  if (!cfg)
+    return nullptr;
+  runcfg = std::make_unique<RunConfig>(cfg);
+  return runcfg.get();
+}
 
 RunConfig::RunConfig(const char *cfg) {}
 

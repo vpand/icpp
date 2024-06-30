@@ -8,8 +8,13 @@
 
 namespace icpp {
 
+// running config for advanced user from a json configuration file,
+// it can be used to control the behaviour of icpp execute engine,
+// i.e.: interpreter's stack size, step count, step debugging, etc.
 class RunConfig {
 public:
+  static RunConfig *inst(const char *cfg = nullptr);
+
   RunConfig(const char *cfg);
   ~RunConfig();
 

@@ -6,13 +6,17 @@
 
 #pragma once
 
+#include <memory.h>
 #include <string_view>
 #include <vector>
 
 namespace icpp {
 
-void exec_main(std::string_view path, const std::vector<std::string> &deps,
-               const char *procfg, std::string_view srcpath, int iargc,
-               char **iargv);
+class Object;
 
-}
+void exec_main(std::string_view path, const std::vector<std::string> &deps,
+               std::string_view srcpath, int iargc, char **iargv);
+
+void init_library(std::shared_ptr<Object> imod);
+
+} // namespace icpp

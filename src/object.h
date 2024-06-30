@@ -28,8 +28,8 @@ using CObjectFile = llvm::object::ObjectFile;
 
 namespace icpp {
 
-static const uint32_t iobj_magic = 'ppci';
-static const char *iobj_ext = ".io";
+constexpr const uint32_t iobj_magic{'ppci'};
+constexpr const std::string_view iobj_ext{".io"};
 
 enum ObjectType {
   MachO_Reloc,
@@ -62,7 +62,7 @@ struct RelocInfo {
   const void *target; // symbol runtime vm address
   // converted from relocation type
   // e.g.: arm64 GOT reloc ==> ST_DATA, otherwise ST_FUNCTION, etc.
-  uint32_t type;      
+  uint32_t type;
 };
 
 struct DynSection {
@@ -107,7 +107,7 @@ public:
   constexpr ArchType arch() { return arch_; }
 
   constexpr std::string_view path() { return path_; }
-  constexpr bool isCache() { return path_.ends_with(".io"); }
+  constexpr bool isCache() { return path_.ends_with(iobj_ext); }
 
   uint64_t vm2rva(uint64_t vm, size_t *ti = nullptr);
 

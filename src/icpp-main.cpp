@@ -7,6 +7,8 @@
 #include "compile.h"
 #include "exec.h"
 #include "icpp.h"
+#include "object.h"
+#include "runcfg.h"
 #include "llvm/Support/InitLLVM.h"
 #include <format>
 #include <span>
@@ -182,6 +184,9 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
     }
   }
 
+  // initialize the running configuration
+  icpp::RunConfig::inst(icpp_option_procfg);
+
   auto deps = get_dependencies(icpp_option_libdirs, icpp_option_libs,
                                icpp_option_framedirs, icpp_option_frameworks);
   // interpret the input Source-C++ or
@@ -200,9 +205,9 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
       auto opath = icpp::compile_source(argv[0], sp, icpp_option_opt,
                                         icpp_option_incdirs);
       if (fs::exists(opath)) {
-        icpp::exec_main(opath.c_str(), deps, icpp_option_procfg, sp,
-                        argc - idoubledash, &argv[idoubledash + 1]);
-        if (opath.extension() != ".io")
+        icpp::exec_main(opath.c_str(), deps, sp, argc - idoubledash,
+                        &argv[idoubledash + 1]);
+        if (opath.extension() != icpp::iobj_ext)
           fs::remove(opath);
       } else {
         // if failed to compile the input source, clang has already printed the
@@ -210,8 +215,7 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
       }
     } else {
       // pass sp as an executable file
-      icpp::exec_main(sp, deps, icpp_option_procfg, sp, idoubledash - argc,
-                      &argv[idoubledash + 1]);
+      icpp::exec_main(sp, deps, sp, idoubledash - argc, &argv[idoubledash + 1]);
     }
   }
   return 0;
