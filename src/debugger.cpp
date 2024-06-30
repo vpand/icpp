@@ -5,6 +5,7 @@
 */
 
 #include "debugger.h"
+#include "object.h"
 #include <icppdbg.pb.h>
 #include <unicorn/unicorn.h>
 
@@ -141,7 +142,7 @@ Debugger::Thread *Debugger::enter(ArchType arch, uc_engine *uc) {
   auto found = threads_.find({.tid = curth});
   if (found == threads_.end()) {
     // add a new thread
-    found = threads_.insert({std::move(curth), uc, arch, 0}).first;
+    found = threads_.insert({std::move(curth), uc, arch, 0, nullptr}).first;
     // init mutex/cond facilities
     const_cast<Thread *>(&*found)->init();
   }
@@ -157,52 +158,53 @@ void Debugger::dump(ArchType arch, uc_engine *uc, uint64_t pc) {
   log_print(Raw, "Register Context:\n{}", curth.registers());
 }
 
-void Debugger::entry(Thread *thread, uint64_t pc) {
+void Debugger::entry(Thread *thread, uint64_t pc, const InsnInfo *inst) {
+  // update the current pc rva and instruction information
+  thread->pc = pc;
+  thread->inst = inst;
+
   switch (status_) {
   case Running:
-    runEntry(thread, pc);
+    runEntry(thread);
     break;
   case Stepping:
-    stepEntry(thread, pc, false);
+    stepEntry(thread, "Stepping into stopped");
     break;
   default:
     break;
   }
 }
 
-void Debugger::runEntry(Thread *thread, uint64_t pc) {
+void Debugger::runEntry(Thread *thread) {
   // check breakpoint
   for (auto it = breakpoint_.begin(), end = breakpoint_.end(); it != end;
        it++) {
-    if (it->addr == pc) {
+    if (it->addr == thread->pc) {
+      // restore the status to stepping
+      status_ = Stepping;
       if (it->oneshot) {
         // remove oneshot breakpoint
-        std::lock_guard lock(mutex_);
-        breakpoint_.erase(it);
+        {
+          std::lock_guard lock(mutex_);
+          breakpoint_.erase(it);
+        }
+        stepEntry(thread, "Stepping over stopped");
+      } else {
+        stepEntry(thread, "Hit breakpoint");
       }
-      stepEntry(thread, pc, true);
       break;
     }
   }
 }
 
-void Debugger::stepEntry(Thread *thread, uint64_t pc, bool hitbp) {
-  // update current pc
-  thread->pc = pc;
-
+void Debugger::stepEntry(Thread *thread, std::string_view reason) {
   // notify debugger client
   {
     std::lock_guard lock(mutex_);
     for (auto &s : clients_) {
-      std::string result;
-      if (hitbp) {
-        result = std::format("Hit breakpoint at {:x}, #thread {}", pc,
-                             reinterpret_cast<void *>(thread));
-      } else {
-        result =
-            std::format("Stepping stopped at {:x} #thread {}\n{}", pc,
-                        reinterpret_cast<void *>(thread), thread->registers());
-      }
+      std::string result =
+          std::format("{} at {:x} #thread {}\n{}", reason.data(), thread->pc,
+                      reinterpret_cast<void *>(thread), thread->registers());
       send_respose(s.get(), icppdbg::PAUSE, result);
     }
   }
@@ -359,26 +361,31 @@ void Debugger::process(const ProtocolHdr *hdr, const void *body, size_t size) {
     statements                                                                 \
   }
 
-void Debugger::procBreakpoint(uint64_t addr, bool set) {
+void Debugger::procBreakpoint(uint64_t addr, bool set, bool oneshot) {
   std::lock_guard lock(mutex_);
   if (set) {
-    breakpoint_.insert({addr, false});
-    foreach_client({
-      send_respose(s, icppdbg::SETBKPT,
-                   std::format("Set breakpoint at {:x}.", addr));
-    });
+    breakpoint_.insert({addr, oneshot});
+    if (!oneshot) {
+      foreach_client({
+        send_respose(s, icppdbg::SETBKPT,
+                     std::format("Set breakpoint at {:x}.", addr));
+      });
+    }
   } else {
     auto found = breakpoint_.find({addr, false});
     if (found != breakpoint_.end()) {
       breakpoint_.erase(found);
-      foreach_client({
-        send_respose(s, icppdbg::DELBKPT,
-                     std::format("Removed breakpoint at {:x}.", addr));
-      });
+      if (!found->oneshot) {
+        foreach_client({
+          send_respose(s, icppdbg::DELBKPT,
+                       std::format("Removed breakpoint at {:x}.", addr));
+        });
+      }
     } else {
       foreach_client({
-        send_respose(s, icppdbg::DELBKPT,
-                     std::format("Set breakpoint at {:x}.", addr));
+        send_respose(
+            s, icppdbg::DELBKPT,
+            std::format("No breakpoint found at {:x} when deleting.", addr));
       });
     }
   }
@@ -512,19 +519,22 @@ void Debugger::procStop() {
 void Debugger::procStepI() {
   if (status_ == Running) {
     foreach_client({
-      send_respose(s, icppdbg::STEPI,
-                   std::format("Pause execute engine before stepping."));
+      send_respose(
+          s, icppdbg::STEPI,
+          std::format("You should pause the execute engine before stepping."));
     });
     return;
   }
 
-  std::lock_guard lock(mutex_);
   curthread_->itc->signal();
 }
 
 void Debugger::procStepO() {
-  // currently make stepo the same as stepi
-  procStepI();
+  // set a oneshot breakpoint at the next instruction
+  procBreakpoint(curthread_->pc + curthread_->inst->len, true, true);
+
+  status_ = Running;
+  curthread_->itc->signal();
 }
 
 void Debugger::procListThread() {

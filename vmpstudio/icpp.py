@@ -56,7 +56,7 @@ def stop():
     vsp.vi_stop()
     
 def setbp(addr):
-    vsp.vi_setbp()
+    vsp.vi_setbp(addr)
     
 def delbp(addr):
     vsp.vi_delbp(addr)

@@ -1168,7 +1168,7 @@ bool ExecEngine::execLoop(uint64_t pc) {
   while (pc != reinterpret_cast<uint64_t>(topReturn())) {
     // debugging
     if (debugger_) {
-      debugger_->entry(dbgthread, robject_->vm2rva(pc));
+      debugger_->entry(dbgthread, robject_->vm2rva(pc), inst);
       if (debugger_->stopped()) {
         // stop executing by user request
         break;

@@ -22,7 +22,9 @@ namespace ip = asio::ip;
 
 namespace icpp {
 
-const int dbgport = 24623; // defined on the date 2024.6.23
+constexpr int dbgport = 24623; // defined on the date 2024.6.23
+
+struct InsnInfo;
 
 struct ProtocolHdr {
   std::uint32_t cmd : 8, // command id
@@ -45,6 +47,7 @@ public:
     uc_engine *uc;
     ArchType arch;
     uint64_t pc;
+    const InsnInfo *inst;
 
     // used for inter-thread communication
     std::unique_ptr<CondMutex> itc;
@@ -66,7 +69,7 @@ public:
   }
 
   Thread *enter(ArchType arch, uc_engine *uc);
-  void entry(Thread *thread, uint64_t pc);
+  void entry(Thread *thread, uint64_t pc, const InsnInfo *inst);
   void leave();
   bool stopped();
 
@@ -75,12 +78,12 @@ public:
 private:
   Debugger();
 
-  void runEntry(Thread *thread, uint64_t pc);
-  void stepEntry(Thread *thread, uint64_t pc, bool hitbp);
+  void runEntry(Thread *thread);
+  void stepEntry(Thread *thread, std::string_view reason);
   void listen();
   void recv(ip::tcp::socket *socket);
   void process(const ProtocolHdr *hdr, const void *body, size_t size);
-  void procBreakpoint(uint64_t addr, bool set);
+  void procBreakpoint(uint64_t addr, bool set, bool oneshot = false);
   void procReadMem(uint64_t addr, uint32_t size, const std::string &format);
   void procSwitchThread(uint64_t tid);
   void procPause();

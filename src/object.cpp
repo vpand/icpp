@@ -282,6 +282,21 @@ uint64_t Object::vm2rva(uint64_t vm, size_t *ti) {
       return s.rva + vm - s.vm;
     }
   }
+  for (auto &s : ofile_->sections()) {
+    auto expContent = s.getContents();
+    if (!expContent)
+      continue;
+    auto start = reinterpret_cast<uint64_t>(expContent->data());
+    if (start <= vm && vm < start + s.getSize()) {
+      if (ti) {
+        log_print(Runtime, "Logical error, if vm belongs to some data section, "
+                           "then ti must be nullptr.");
+        abort();
+      }
+      // return rva to text section
+      return textsects_[0].rva + vm - textsects_[0].vm;
+    }
+  }
   return -1;
 }
 
@@ -449,6 +464,21 @@ void Object::dump() {
 #endif
 
   log_print(Raw, "");
+}
+
+const void *Object::relocTarget(size_t i) {
+  auto cur = &irelocs_[i];
+  if (cur->type == llvm::object::SymbolRef::ST_Data) {
+    // herein we must return a pointer-to-pointer if this relocation type
+    // references a data type target, usually, it's a kind of GOT pointer
+    // reference instruction, e.g.: arm64-adrp reg, gotptr(address the
+    // pointer-to-pointer got pointer), arm64-ldr reg, [reg](load the real
+    // global variable pointer), for more implementation details, see
+    // object-llvm.cpp::convert_reloc_type for more information
+    return belong(reinterpret_cast<uint64_t>(cur->target)) ? &cur->target
+                                                           : cur->target;
+  }
+  return cur->target;
 }
 
 Object::~Object() {}

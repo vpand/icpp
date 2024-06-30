@@ -119,7 +119,7 @@ public:
 
   const char *triple();
   const void *locateSymbol(std::string_view name, bool data);
-  constexpr const void *relocTarget(size_t i) { return irelocs_[i].target; }
+  const void *relocTarget(size_t i);
 
   template <typename T> const T *metaInfo(const InsnInfo *inst, uint64_t vm) {
     auto found =
