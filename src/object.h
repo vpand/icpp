@@ -118,7 +118,7 @@ public:
   virtual std::string cachePath();
 
   const char *triple();
-  const void *locateSymbol(std::string_view name, bool data);
+  const void *locateSymbol(std::string_view name);
   const void *relocTarget(size_t i);
 
   template <typename T> const T *metaInfo(const InsnInfo *inst, uint64_t vm) {

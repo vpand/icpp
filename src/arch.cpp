@@ -369,7 +369,14 @@ void __NAKED__ host_call_asm(void *ctx, const void *func) {
 
 void host_call(void *ctx, const void *func) {
 #if __arm64__ || __aarch64__
+  auto context = reinterpret_cast<ContextA64 *>(ctx);
+  auto savedX17 = context->r[17];
+  auto savedX29 = context->r[29];
+  auto savedX30 = context->r[30];
   host_call_asm(ctx, func);
+  context->r[17] = savedX17;
+  context->r[29] = savedX29;
+  context->r[30] = savedX30;
 #else
   struct ContextCallX64 {
     uint64_t sp_after;  // stack after call
@@ -378,14 +385,17 @@ void host_call(void *ctx, const void *func) {
     ContextX64 context;
   };
 
+  auto context = reinterpret_cast<ContextX64 *>(ctx);
+  auto r11 = context->r11;
   ContextCallX64 callctx;
   callctx.sp_after = 0;
   callctx.sp_before = 0;
   callctx.target = func;
-  callctx.context = *reinterpret_cast<ContextX64 *>(ctx);
+  callctx.context = *context;
   host_call_asm(&callctx.context, func);
   std::memcpy(ctx, &callctx.context, sizeof(callctx.context));
 
+  context->r11 = r11;
   // process retn xx situation
   callctx.sp_before +=
       0x1000 + sizeof(void *); // 0x1000 temp stack + ptrsz context

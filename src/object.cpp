@@ -430,13 +430,13 @@ std::string Object::generateCache() {
   }
 }
 
-const void *Object::locateSymbol(std::string_view name, bool data) {
+const void *Object::locateSymbol(std::string_view name) {
   // symbol finder
-  auto finder = [&data]<typename T>(const T &conts,
-                                    const std::string &sym) -> const void * {
+  auto finder = []<typename T>(const T &conts,
+                               const std::string &sym) -> const void * {
     auto fit = conts.find(sym);
     if (fit != conts.end())
-      return data ? &fit->second : fit->second;
+      return fit->second;
     return nullptr;
   };
   std::string sym(name.data());
@@ -445,7 +445,6 @@ const void *Object::locateSymbol(std::string_view name, bool data) {
   if (target)
     return target;
   // find in data list
-  data = true;
   return finder(datas_, sym);
 }
 

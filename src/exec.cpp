@@ -33,7 +33,10 @@
 #include <pthread.h>
 #endif
 
-extern "C" int __cxa_atexit(void (*f)(void *), void *p, void *d);
+extern "C" {
+int __cxa_atexit(void (*f)(void *), void *p, void *d);
+void __stack_chk_fail(void);
+}
 
 namespace icpp {
 
@@ -503,6 +506,14 @@ bool ExecEngine::specialCallProcess(uint64_t target) {
       // replace it with a nop stub function
       args[0] = reinterpret_cast<uint64_t>(nop_function);
     }
+  } else if (reinterpret_cast<uint64_t>(__stack_chk_fail) == target) {
+    log_print(Runtime, "Fatal error, stack overflow checked.");
+    dump();
+    std::exit(-1);
+  } else if (reinterpret_cast<uint64_t>(abort) == target) {
+    log_print(Runtime, "Fatal error, abort called.");
+    dump();
+    std::exit(-1);
   }
 
   // update changed arugments

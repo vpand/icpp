@@ -155,7 +155,7 @@ const void *RuntimeLoader::resolve(const void *handle, std::string_view name,
   for (auto io : imods_) {
     if (handle != io.get())
       continue;
-    auto t = io->locateSymbol(name, data);
+    auto t = io->locateSymbol(name);
     if (t) {
       target = t;
       break;
@@ -197,7 +197,7 @@ const void *RuntimeLoader::lookup(std::string_view name, bool data) {
 
   // check it in iobject modules
   for (auto io : imods_) {
-    auto t = io->locateSymbol(name, data);
+    auto t = io->locateSymbol(name);
     if (t) {
       target = t;
       break;
