@@ -145,6 +145,16 @@ target_link_libraries(icppcli PRIVATE boost_dll)
 
 # icpp module manager command line
 message(STATUS "Configuring icpp module manager imod...")
+
+# generate module symbol hash file
+add_custom_command(
+  OUTPUT isymhash.pb.cc
+  COMMAND ${CMAKE_BINARY_DIR}/third/protobuf/protoc 
+    -I=${CMAKE_SOURCE_DIR}/proto --cpp_out=${CMAKE_CURRENT_BINARY_DIR} 
+    ${CMAKE_SOURCE_DIR}/proto/isymhash.proto
+  DEPENDS ${CMAKE_SOURCE_DIR}/proto/isymhash.proto
+  VERBATIM)
+
 set(LLVM_LINK_COMPONENTS
   Option
   Support
@@ -152,6 +162,8 @@ set(LLVM_LINK_COMPONENTS
 add_llvm_tool(imod 
   icpp-mod.cpp
   icpp.cpp
+  imod/createcfg.cpp
+  isymhash.pb.cc
 
   PARTIAL_SOURCES_INTENDED
 )
@@ -160,14 +172,19 @@ target_include_directories(imod PRIVATE
   ${THIRD_ROOT}/llvm-project/llvm/include
   ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include
   ${THIRD_ROOT}/brotli/c/include
+  ${CMAKE_CURRENT_BINARY_DIR}
   boost_asio
   boost_beast
+  boost_json
+  libprotobuf
 )
 target_link_libraries(imod PRIVATE
   boost_asio
   boost_beast
+  boost_json
   brotlienc
   brotlidec
+  libprotobuf
 )
 
 # llvm disabled rtti

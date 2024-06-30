@@ -5,12 +5,14 @@
 */
 
 #include "icpp.h"
+#include "imod/createcfg.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/SystemUtils.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include <format>
+#include <isymhash.pb.h>
 
 using namespace llvm;
 
