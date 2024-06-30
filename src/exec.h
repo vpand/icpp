@@ -14,9 +14,18 @@ namespace icpp {
 
 class Object;
 
+// execute with a source file and its relational dependencies
 void exec_main(std::string_view path, const std::vector<std::string> &deps,
                std::string_view srcpath, int iargc, char **iargv);
 
+// execute with a small code snippet
+void exec_string(const char *argv0, std::string_view snippet,
+                 bool whole = false);
+
+// the Read-Evaluate-Print-Loop Implementation of ICPP
+int exec_repl(const char *argv0);
+
+// execute the dynamically loaded module's constructors
 void init_library(std::shared_ptr<Object> imod);
 
 } // namespace icpp

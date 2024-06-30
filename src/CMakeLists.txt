@@ -55,6 +55,7 @@ add_clang_tool(icpp
   exec.cpp
   icpp-driver.cpp
   icpp-main.cpp
+  icpp-repl.cpp
   icpp.cpp
   loader.cpp
   log.cpp
@@ -98,6 +99,7 @@ clang_target_link_libraries(icpp
   clangSerialization
 
   unicorn
+  boost_algorithm
   boost_asio
   boost_beast
   libprotobuf
@@ -117,6 +119,7 @@ target_include_directories(icpp PRIVATE
   ${CMAKE_CURRENT_BINARY_DIR}
   ${THIRD_ROOT}/brotli/c/include
 
+  boost_algorithm
   boost_asio
   boost_beast
   libprotobuf

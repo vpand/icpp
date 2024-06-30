@@ -1366,7 +1366,7 @@ void ExecEngine::run() {
 
   if (execCtor()) {
     if (execMain()) {
-      if (!robject_->isCache()) {
+      if (!robject_->isCache() && !RunConfig::repl) {
         // generate the interpretable object file if everthing went well
         robject_->generateCache();
       }

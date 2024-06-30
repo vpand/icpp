@@ -24,6 +24,9 @@ public:
   int stepSize();
 
   bool hasDebugger();
+
+  // whether in repl mode
+  static bool repl;
 };
 
 } // namespace icpp

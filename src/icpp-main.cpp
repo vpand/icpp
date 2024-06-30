@@ -42,17 +42,17 @@ static void print_help() {
       << "  -I/path/to/include: header include directory passed to clang."
       << std::endl
       << "  -L/path/to/library: library search directory passed to icpp "
-         "interpreting engine."
+         "interpreter."
       << std::endl
       << "  -lname: full name of the dependent library file passed to icpp "
-         "interpreting engine, e.g.: liba.dylib, liba.so, a.dll."
+         "interpreter, e.g.: liba.dylib, liba.so, a.dll."
       << std::endl
       << "  -F/path/to/framework: framework search directory passed to icpp "
-         "interpreting engine."
+         "interpreter."
       << std::endl
       << "  -fname: framework name of the dependent library file passed to "
          "icpp "
-         "interpreting engine."
+         "interpreter."
       << std::endl
       << "  -p/path/to/json: professional json configuration file for "
          "trace/profile/plugin/etc.."
@@ -131,6 +131,10 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
   // professional json configuration file for trace/profile/plugin
   const char *icpp_option_procfg = "";
 
+  // if nothing input, then enter in REPL mode
+  if (argc == 1)
+    return icpp::exec_repl(argv[0]);
+
   // mark the double dash index, all the args after idoubledash will be passed
   // to the input file
   int idoubledash = argc;
@@ -194,7 +198,8 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
     if (sp[0] == '-')
       continue;
     if (!fs::exists(fs::path(sp))) {
-      std::cout << "Input file '" << sp << "' doesn't exist." << std::endl;
+      // execute as a code snippet
+      icpp::exec_string(argv[0], sp);
       continue;
     }
     if (icpp::is_cpp_source(sp)) {

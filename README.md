@@ -67,14 +67,13 @@ OPTIONS:
   --version: print icpp and clang version.
   -h, -help: print icpp help list.
   --help: print icpp and clang help list.
-  -O0, -O1, -O2, -O3, -Os, -Oz: optimization level passed to clang, 
-    default to -O2.
+  -O0, -O1, -O2, -O3, -Os: optimization level passed to clang, default to -O2.
   -I/path/to/include: header include directory passed to clang.
-  -L/path/to/library: library search directory passed to icpp interpreting engine.
-  -lname: full name of the dependent library file passed to icpp interpreting engine, 
+  -L/path/to/library: library search directory passed to icpp interpreter.
+  -lname: full name of the dependent library file passed to icpp interpreter, 
     e.g.: liba.dylib, liba.so, a.dll.
-  -F/path/to/framework: framework search directory passed to icpp interpreting engine.
-  -fname: framework name of the dependent library file passed to icpp interpreting engine.
+  -F/path/to/framework: framework search directory passed to icpp interpreter.
+  -fname: framework name of the dependent library file passed to icpp interpreter.
   -p/path/to/json: a json configuration file for trace/profile/plugin/etc..
 FILES: input file can be C++ source code(.c/.cc/.cpp/.cxx), MachO/ELF/PE executable.
 ARGS: arguments passed to the main entry function of the input files.
@@ -90,6 +89,21 @@ e.g.:
   icpp -I/qt/include -L/qt/lib -lQtCore.dll hellowrold.cc
   icpp -I/qt/include -F/qt/framework -fQtCore hellowrold.cc
 ```
+### REPL
+```sh
+vpand@MacBook-Pro icpp % icpp     
+ICPP v0.0.1.255. Copyright (c) vpand.com.
+Running C++ in anywhere like a script.
+>>> #include <stdio.h>
+>>> puts("Hello, world.")   
+Hello, world.
+>>> #include <iostream> 
+>>> std::cout << "Hello, world." << std::endl
+Hello, world.
+>>> std::cout << std::hex << 88888888 << std::endl
+54c5638
+```
+### IMOD
 ```sh
 vpand@MacBook-Pro icpp % imod -h                
 OVERVIEW: ICPP, Interpreting C++, running C++ in anywhere like a script.

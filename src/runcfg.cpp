@@ -9,6 +9,8 @@
 
 namespace icpp {
 
+bool RunConfig::repl = false;
+
 RunConfig *RunConfig::inst(const char *cfg) {
   static std::unique_ptr<RunConfig> runcfg;
   if (runcfg)
