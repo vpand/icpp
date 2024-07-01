@@ -107,7 +107,6 @@ get_dependencies(const std::vector<const char *> &libdirs,
 }
 
 extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
-  using namespace std::literals;
   llvm::InitLLVM X(argc, argv);
 
   // optimization level passed to clang
@@ -139,7 +138,7 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
   // to the input file
   int idoubledash = argc;
   for (int i = 0; i < argc; i++) {
-    if (std::string_view(argv[i]) == "--"sv) {
+    if (std::string_view(argv[i]) == "--") {
       idoubledash = i;
       break;
     }
@@ -151,24 +150,25 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
   // parse the command line arguments for icpp options
   for (auto p : args) {
     auto sp = std::string_view(p);
-    if (sp == "-v"sv || sp == "-version"sv) {
+    if (sp == "-v" || sp == "-version") {
       print_version();
       return 0; // return to main to exit this program
     }
-    if (sp == "--version"sv) {
+    if (sp == "--version") {
       print_version();
       return 1; // continuing let clang print its version
     }
-    if (sp == "-h"sv || sp == "-help"sv) {
+    if (sp == "-h" || sp == "-help") {
       print_help();
       return 0;
     }
-    if (sp == "--help"sv) {
+    if (sp == "--help") {
       print_help();
       return 1; // continuing let clang print its help list
     }
-    if (sp == "-c"sv || sp == "-o"sv) {
-      return 1; // continuing let clang do the compilation task
+    if (sp == "-c" || sp == "-o") {
+      // let clang do the compilation task directly
+      return icpp::compile_source(argc, const_cast<const char **>(argv));
     }
     if (sp.starts_with("-I")) {
       // forward to clang

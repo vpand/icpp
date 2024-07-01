@@ -4,7 +4,7 @@ int main(int argc, const char *argv[]) {
   try {
     if (argc == 1) {
       // when hit this line, icpp will stop interpreting.
-      throw "Threw this exception because of argc is 1.";
+      throw std::invalid_argument("Threw this exception because of argc is 1.");
     }
     std::cout << "The argv[1] is " << argv[1] << std::endl;
   } catch (...) {

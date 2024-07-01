@@ -46,9 +46,9 @@ manager's repository, their layout is as follows:
 ------boost
 ------icpp
 ---------name
-------------binary-objs.io
+------------binary-objs.o
 ------------binary-libs
-------------sources.io
+------------sources.o
 ------------symbol.hash
 
 e.g.:
@@ -72,7 +72,7 @@ json {
 ------boost
 ------icpp
 ---------module-demo
-------------module.io
+------------module.o
 ------------symbol.hash
 
 The symbol.hash file is kind of symbol-hash cache file which is automatically
@@ -88,7 +88,7 @@ constexpr std::string_view module_libs = "binary-libs";
 
 /*
 These "compile_" prefixed keys-values are used by icpp to compile the module
-"sources" when creating the package.
+"sources" to binary object file when creating the package.
 */
 constexpr std::string_view compile_incdirs = "include-dirs";
 

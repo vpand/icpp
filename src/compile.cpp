@@ -35,6 +35,20 @@ static fs::path check_cache(std::string_view path) {
   return cachepath;
 }
 
+int compile_source(int argc, const char **argv) {
+  // construct a full path which the last element must be "clang" to make clang
+  // driver happy, otherwise it can't compile source to object, it seems that
+  // clang driver depends on clang name to do the right compilation logic
+  auto exepath = GetExecutablePath(argv[0], true);
+  // this full path ends with "clang", it's exactly the format that clang driver
+  // wants
+  auto program = fs::path(exepath).parent_path() / ".." / "lib" / "clang";
+  argv[0] = program.c_str();
+  // iclang_main will invoke clang_main to generate the object file with the
+  // default host triple
+  return iclang_main(argc, argv);
+}
+
 fs::path compile_source(const char *argv0, std::string_view path,
                         const char *opt,
                         const std::vector<const char *> &incdirs) {
@@ -47,16 +61,8 @@ fs::path compile_source(const char *argv0, std::string_view path,
   auto opath = fs::temp_directory_path() / icpp::rand_filename(8, ".o");
   log_print(Develop, "Object path: {}", opath.c_str());
 
-  // construct a full path which the last element must be "clang" to make clang
-  // driver happy, otherwise it can't compile source to object, it seems that
-  // clang driver depends on clang name to do the right compilation logic
-  auto exepath = GetExecutablePath(argv0, true);
-  // this full path ends with "clang", it's exactly the format that clang driver
-  // wants
-  auto program = fs::path(exepath).parent_path() / ".." / "lib" / "clang";
-
   std::vector<const char *> args;
-  args.push_back(program.c_str());
+  args.push_back(argv0);
   // make clang driver to use our fake clang path as the executable path
   args.push_back("-no-canonical-prefixes");
   args.push_back("-std=gnu++23");
@@ -94,9 +100,7 @@ fs::path compile_source(const char *argv0, std::string_view path,
 #error Unknown compiling platform.
 #endif
 
-  // iclang_main will invoke clang_main to generate the object file with the
-  // default host triple
-  iclang_main(static_cast<int>(args.size()), &args[0]);
+  compile_source(static_cast<int>(args.size()), &args[0]);
   return opath;
 }
 

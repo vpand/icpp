@@ -10,8 +10,10 @@
 
 namespace icpp {
 
+int compile_source(int argc, const char **argv);
+
 fs::path compile_source(const char *argv0, std::string_view path,
                         const char *opt,
                         const std::vector<const char *> &incdirs);
 
-}
+} // namespace icpp

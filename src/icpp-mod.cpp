@@ -38,6 +38,24 @@ static void print_version(raw_ostream &os) {
      << icpp::version_string() << "\n";
 }
 
+static void create_package(std::string_view cfgpath) {
+  try {
+    imod::CreateConfig cfg(cfgpath);
+  } catch (std::invalid_argument &e) {
+    std::cout << e.what() << std::endl;
+  } catch (std::system_error &e) {
+    std::cout << e.what() << std::endl;
+  } catch (...) {
+    std::cout << "Failed to parse " << cfgpath << "." << std::endl;
+  }
+}
+
+static void install_package(std::string_view pkgpath) {}
+
+static void uninstall_module(std::string_view name) {}
+
+static void list_module() {}
+
 int main(int argc, char **argv) {
   InitLLVM X(argc, argv);
   cl::HideUnrelatedOptions(IModCat);
@@ -48,5 +66,15 @@ int main(int argc, char **argv) {
           "ICPP, Interpreting C++, running C++ in anywhere like a script.\n"
           "  IObject Module Manager Tool built with ICPP {}",
           icpp::version_string()));
+
+  if (CreatePackage.length())
+    create_package(CreatePackage);
+  if (InstallPath.length())
+    install_package(InstallPath);
+  if (UninstallModule.length())
+    uninstall_module(UninstallModule);
+  if (ListModule)
+    list_module();
+
   return 0;
 }

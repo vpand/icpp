@@ -132,7 +132,7 @@ def main(argv):
                     cmake_projects = [p]
                     increment_make()
                     sys.exit(0)
-        print('Usage: build %% %s [full|visualicpp|icpp]' % (argv[0]))
+        print('Usage: build %% %s [full|visualicpp|icpp|imod|icpp-gadget' % (argv[0]))
 
 if __name__ == '__main__':
     main(sys.argv)
