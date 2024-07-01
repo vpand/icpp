@@ -76,11 +76,11 @@ void pack_recursively(std::string_view dstroot, std::string_view srcroot,
                       std::string_view title, FILTER filter, PACKER packer) {
   for (auto &entry : fs::recursive_directory_iterator(srcroot)) {
     if (entry.is_regular_file() && filter(entry.path())) {
-      auto file = srcroot / entry.path();
-      packer(dstroot, file.c_str(), title);
+      packer(dstroot, entry.path().c_str(), title);
     } else if (entry.is_directory()) {
-      auto dst = fs::path(dstroot) / entry.path();
-      auto src = fs::path(srcroot) / entry.path();
+      auto name = entry.path().filename();
+      auto dst = fs::path(dstroot) / name;
+      auto src = fs::path(srcroot) / name;
       pack_recursively(dst.c_str(), src.c_str(), title, filter, packer);
     }
   }
@@ -265,7 +265,7 @@ static void install_package(std::string_view pkgpath) {
   }
 
   Package pkg;
-  // remove magic
+  // load package data
   if (!pkg.ParseFromArray(&origbuf[0], origbuf.size())) {
     icpp::log_print(prefix_error, "Failed to parse package buffer.");
     return;
@@ -279,6 +279,7 @@ static void install_package(std::string_view pkgpath) {
   }
   icpp::log_print(prefix_prog, "Installing module {}...", pkg.name());
 
+  // icpp local module repository is at $HOME/.icpp
   auto repo = fs::path(icpp::home_directory()) / ".icpp";
   if (!fs::exists(repo)) {
     if (!fs::create_directory(repo)) {
@@ -289,6 +290,7 @@ static void install_package(std::string_view pkgpath) {
     }
   }
 
+  // <name, symbol hash array>
   SymbolHash symhash;
   auto allhashes = symhash.mutable_hashes();
   for (auto &file : pkg.files()) {
@@ -309,7 +311,7 @@ static void install_package(std::string_view pkgpath) {
     }
     icpp::log_print(prefix_prog, "Installing {}...", file.path().c_str());
     outf.write(file.content().data(), file.content().size());
-    outf.close();
+    outf.close(); // flush the file buffer
     if (!file.path().starts_with("lib"))
       continue;
 
@@ -317,6 +319,7 @@ static void install_package(std::string_view pkgpath) {
                     file.path().c_str());
     std::string message;
     icpp::SymbolHash hasher(fullpath.c_str());
+    // parse and calculate the symbol hash array
     auto hashes = hasher.hashes(message);
     if (!hashes.size()) {
       icpp::log_print(prefix_error, "{}", message);
@@ -329,6 +332,7 @@ static void install_package(std::string_view pkgpath) {
                                          sizeof(hashes[0]) * hashes.size())});
   }
 
+  // success flag: symbol.hash created
   auto hashfile = (repo / "lib" / pkg.name() / "symbol.hash").string();
   std::ofstream outf(hashfile, std::ios::binary);
   if (!outf.is_open()) {
@@ -340,9 +344,31 @@ static void install_package(std::string_view pkgpath) {
                   hashfile, pkg.name());
 }
 
-static void uninstall_module(std::string_view name) {}
+static void uninstall_module(std::string_view name) {
+  auto repo = fs::path(icpp::home_directory()) / ".icpp";
+  auto include = repo / "include" / "icpp" / name.data();
+  auto lib = repo / "lib" / name.data();
+  if (!fs::exists(include) && !fs::exists(lib)) {
+    icpp::log_print(prefix_error, "There's no module: {}.", name.data());
+    return;
+  }
+  if (fs::exists(include))
+    fs::remove_all(include);
+  if (fs::exists(lib))
+    fs::remove_all(lib);
+  icpp::log_print(prefix_prog, "Uninstalled module {}.", name.data());
+}
 
-static void list_module() {}
+static void list_module() {
+  auto repo = fs::path(icpp::home_directory()) / ".icpp";
+  auto include = repo / "include" / "icpp";
+  icpp::log_print(icpp::Raw, "Installed module:");
+  for (auto &entry : fs::directory_iterator(include)) {
+    if (entry.is_directory()) {
+      icpp::log_print(icpp::Raw, " * {}", entry.path().filename().c_str());
+    }
+  }
+}
 
 int main(int argc, char **argv) {
   llvm::InitLLVM X(argc, argv);
