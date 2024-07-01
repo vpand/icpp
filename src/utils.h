@@ -33,5 +33,6 @@ bool is_cpp_source(std::string_view path);
 int rand_value();
 std::string rand_string(int length);
 std::string rand_filename(int length, std::string_view ext = "");
+std::string home_directory();
 
 } // namespace icpp

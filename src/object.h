@@ -11,7 +11,6 @@
 #include <map>
 #include <memory>
 #include <string_view>
-#include <unicorn/unicorn.h>
 #include <unordered_map>
 
 namespace llvm {
@@ -28,7 +27,7 @@ using CObjectFile = llvm::object::ObjectFile;
 
 namespace icpp {
 
-constexpr const uint32_t iobj_magic{'ppci'};
+constexpr const uint32_t iobj_magic{'jboi'};
 constexpr const std::string_view iobj_ext{".io"};
 
 enum ObjectType {
@@ -127,9 +126,6 @@ public:
     assert(found != idecinfs_.end() && "Null meta information is impossiple.");
     return reinterpret_cast<T *>(found->second.data());
   }
-
-  uc_arch ucArch();
-  uc_mode ucMode();
 
   const void *mainEntry();
   std::vector<const void *> ctorEntries();
@@ -236,6 +232,14 @@ public:
 
 private:
   std::string ofbuf_; // .o file buffer copied from .io file
+};
+
+class SymbolHash : public Object {
+public:
+  SymbolHash(std::string_view path);
+  virtual ~SymbolHash();
+
+  std::vector<uint32_t> hashes(std::string &message);
 };
 
 } // namespace icpp

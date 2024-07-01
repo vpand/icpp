@@ -6,6 +6,7 @@
 
 #include "utils.h"
 #include <array>
+#include <cstdlib>
 #include <format>
 #include <random>
 
@@ -46,6 +47,14 @@ std::string rand_string(int length) {
 
 std::string rand_filename(int length, std::string_view ext) {
   return rand_string(length) + std::string(ext);
+}
+
+std::string home_directory() {
+#ifdef _WIN32
+  return std::getenv("userprofile");
+#else
+  return std::getenv("HOME");
+#endif
 }
 
 } // namespace icpp

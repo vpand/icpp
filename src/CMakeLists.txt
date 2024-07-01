@@ -47,7 +47,7 @@ add_custom_command(
   VERBATIM)
 
 # llvm disabled rtti, so sources depend on them should also apply it
-file(GLOB LLVM_SRC_FILES
+file(GLOB ICPP_LLVM_SOURCES
   object.cpp
   object-llvm.cpp
   ${LLVM_OBJDUMP_ROOT}/SourcePrinter.cpp
@@ -82,7 +82,7 @@ add_clang_tool(icpp
   ${CMAKE_BINARY_DIR}/vmpstudio/icppdbg.pb.cc
 
   # llvm relational files
-  ${LLVM_SRC_FILES}
+  ${ICPP_LLVM_SOURCES}
   
   PARTIAL_SOURCES_INTENDED
 
@@ -101,7 +101,7 @@ if(WIN32 AND NOT CYGWIN)
 else()
   set_target_properties(icpp PROPERTIES VERSION ${CLANG_EXECUTABLE_VERSION})
 endif()
-set_source_files_properties(${LLVM_SRC_FILES} PROPERTIES COMPILE_FLAGS ${DISABLE_RTTI})
+set_source_files_properties(${ICPP_LLVM_SOURCES} PROPERTIES COMPILE_FLAGS ${DISABLE_RTTI})
 
 clang_target_link_libraries(icpp
   PRIVATE
@@ -177,20 +177,29 @@ add_custom_command(
   VERBATIM)
 
 set(LLVM_LINK_COMPONENTS
+  Object
   Option
   Support
 )
-add_llvm_tool(imod 
+file(GLOB IMOD_LLVM_SOURCES
   icpp-mod.cpp
+  object.cpp
+)
+add_llvm_tool(imod 
+  ${IMOD_LLVM_SOURCES}
+  arch.cpp
   icpp.cpp
+  loader.cpp
+  utils.cpp
   imod/createcfg.cpp
   isymhash.pb.cc
   icppmod.pb.cc
+  icppiobj.pb.cc
 
   PARTIAL_SOURCES_INTENDED
 )
 set_target_properties(imod PROPERTIES OUTPUT_NAME "imod")
-set_source_files_properties(icpp-mod.cpp PROPERTIES COMPILE_FLAGS ${DISABLE_RTTI})
+set_source_files_properties(${IMOD_LLVM_SOURCES} PROPERTIES COMPILE_FLAGS ${DISABLE_RTTI})
 target_include_directories(imod PRIVATE
   ${THIRD_ROOT}/llvm-project/llvm/include
   ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include

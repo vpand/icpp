@@ -23,6 +23,17 @@ ArchType host_arch() {
 #endif
 }
 
+const char *arch_name(ArchType arch) {
+  switch (arch) {
+  case AArch64:
+    return "aarch64";
+  case X86_64:
+    return "x86_64";
+  default:
+    return "unknown";
+  }
+}
+
 #define switch_stack_strsize "0x1000"
 
 #define save_gpr_a64()                                                         \

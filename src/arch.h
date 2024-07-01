@@ -155,6 +155,7 @@ struct ContextX64 {
 };
 
 ArchType host_arch();
+const char *arch_name(ArchType arch);
 
 // call a host function with specified register context,
 // ctx is a ContextA64 or ContextX64 instance,

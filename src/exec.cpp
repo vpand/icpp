@@ -14,6 +14,7 @@
 #include <llvm/ADT/Twine.h>
 #include <llvm/BinaryFormat/Magic.h>
 #include <mutex>
+#include <unicorn/unicorn.h>
 
 #if ICPP_GADGET
 #if __APPLE__
@@ -53,7 +54,7 @@ struct UnicornEngine {
       free.erase(free.begin());
     } else {
       // there's no available cache uc, create a new one
-      auto err = uc_open(object->ucArch(), object->ucMode(), &uc);
+      auto err = uc_open(arch(object), mode(object), &uc);
       if (err != UC_ERR_OK) {
         std::cout << "Failed to create unicorn engine instance: "
                   << uc_strerror(err) << std::endl;
@@ -70,6 +71,26 @@ struct UnicornEngine {
     free.insert(uc);
     // remove from busy list
     busy.erase(busy.find(uc));
+  }
+
+  static uc_arch arch(Object *object) {
+    switch (object->arch()) {
+    case AArch64:
+      return UC_ARCH_ARM64;
+    case X86_64:
+      return UC_ARCH_X86;
+    default:
+      return UC_ARCH_MAX; // unsupported
+    }
+  }
+
+  static uc_mode mode(Object *object) {
+    switch (object->arch()) {
+    case X86_64:
+      return UC_MODE_64;
+    default:
+      return UC_MODE_LITTLE_ENDIAN;
+    }
   }
 
   ~UnicornEngine() {

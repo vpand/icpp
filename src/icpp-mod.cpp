@@ -6,10 +6,12 @@
 
 #include "icpp.h"
 #include "imod/createcfg.h"
-#include "log.h"
+#include "object.h"
+#include "utils.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SystemUtils.h"
 #include "llvm/Support/ToolOutputFile.h"
 #ifdef _WIN32
@@ -20,6 +22,7 @@
 #include <boost/process.hpp>
 #pragma clang diagnostic pop
 #endif // end of _WIN32
+#include <brotli/decode.h>
 #include <brotli/encode.h>
 #include <filesystem>
 #include <fstream>
@@ -30,9 +33,13 @@ namespace proc = boost::process;
 namespace fs = std::filesystem;
 namespace cl = llvm::cl;
 
-static std::string_view pack_prefix(" + ");
-static std::string_view erro_prefix(" x ");
-static std::string_view prog_prefix(" | ");
+using Package = com::vpand::imod::MoudlePackage;
+using File = com::vpand::imod::File;
+using SymbolHash = com::vpand::imod::SymbolHash;
+
+static std::string_view prefix_pack(" + ");
+static std::string_view prefix_prog(" | ");
+static std::string_view prefix_error(" x ");
 
 cl::OptionCategory IModCat("ICPP Module Manager Options");
 
@@ -56,6 +63,14 @@ static void print_version(llvm::raw_ostream &os) {
      << icpp::version_string() << "\n";
 }
 
+// Don't need these implementations at all in imod tool
+namespace icpp {
+void init_library(std::__1::shared_ptr<icpp::Object>) {}
+ObjectDisassembler::~ObjectDisassembler() {}
+void ObjectDisassembler::init(CObjectFile *, std::string_view) {}
+void Object::decodeInsns(TextSection &) {}
+} // namespace icpp
+
 template <typename FILTER, typename PACKER>
 void pack_recursively(std::string_view dstroot, std::string_view srcroot,
                       std::string_view title, FILTER filter, PACKER packer) {
@@ -71,9 +86,12 @@ void pack_recursively(std::string_view dstroot, std::string_view srcroot,
   }
 };
 
+struct icpp_package_header_t {
+  uint32_t magic; // "icpp" magic value
+  uint32_t size;  // original size before compression
+};
+
 static void create_package(const char *program, std::string_view cfgpath) {
-  using Package = com::vpand::imod::MoudlePackage;
-  using File = com::vpand::imod::File;
   try {
     Package pkg;
     imod::CreateConfig cfg(cfgpath);
@@ -82,7 +100,7 @@ static void create_package(const char *program, std::string_view cfgpath) {
     auto libroot = std::format("lib/{}/", cfg.name().data());
     auto missing = [](std::string_view title, std::string_view item) {
       icpp::log_print(
-          erro_prefix,
+          prefix_error,
           "{} {} doesn't exist, make sure it can be accessed in {}.", title,
           item, fs::current_path().string());
     };
@@ -90,21 +108,19 @@ static void create_package(const char *program, std::string_view cfgpath) {
     auto packer = [&files, &missing](std::string_view dstroot,
                                      std::string_view path,
                                      std::string_view title) {
-      std::ifstream inf(path, std::ios::binary | std::ios::ate);
-      if (!inf.is_open()) {
+      auto expBuff = llvm::MemoryBuffer::getFile(path.data());
+      if (!expBuff) {
         missing(title, path);
         return false;
       }
-      std::string buffer(inf.tellg(), '\0');
-      inf.seekg(std::ios::beg);
-      inf.read(const_cast<char *>(buffer.data()), buffer.size());
 
       File file;
+      auto buffer = expBuff.get()->getBuffer();
       auto dstfile = std::string(dstroot) + fs::path(path).filename().string();
       file.set_path(dstfile);
       file.set_content(buffer);
       files->Add(std::move(file));
-      icpp::log_print(pack_prefix, "Packing {}.", dstfile);
+      icpp::log_print(prefix_pack, "Packing {}.", dstfile);
       return true;
     };
 
@@ -176,20 +192,20 @@ static void create_package(const char *program, std::string_view cfgpath) {
 
     // serialize the package instance
     auto pkgbuff = pkg.SerializeAsString();
-    icpp::log_print(prog_prefix, "Built a new package with raw size: {}.",
+    icpp::log_print(prefix_prog, "Built a new package with raw size: {}.",
                     pkgbuff.size());
 
     // compress the raw package buffer
     auto maxcompsz = BrotliEncoderMaxCompressedSize(pkgbuff.size());
     auto compsz = maxcompsz;
     std::vector<uint8_t> compbuff(maxcompsz);
-    icpp::log_print(prog_prefix,
+    icpp::log_print(prefix_prog,
                     "Compressing the package buffer with brotli...");
     if (!BrotliEncoderCompress(
             BROTLI_DEFAULT_QUALITY, BROTLI_DEFAULT_WINDOW, BROTLI_DEFAULT_MODE,
             pkgbuff.size(), reinterpret_cast<const uint8_t *>(pkgbuff.data()),
             &compsz, &compbuff[0])) {
-      icpp::log_print(erro_prefix, "Failed to compress the package buffer.");
+      icpp::log_print(prefix_error, "Failed to compress the package buffer.");
       return;
     }
 
@@ -198,29 +214,131 @@ static void create_package(const char *program, std::string_view cfgpath) {
                    std::format("{}.icpp", cfg.name().data());
     std::ofstream outf(pkgpath.c_str(), std::ios::binary);
     if (!outf.is_open()) {
-      icpp::log_print(erro_prefix, "Failed to create the package file {}.",
+      icpp::log_print(prefix_error, "Failed to create the package file {}.",
                       pkgpath.c_str());
       return;
     }
     // write icpp module magic value
-    outf.write(reinterpret_cast<const char *>(&imod::module_magic),
-               sizeof(imod::module_magic));
+    icpp_package_header_t pkghdr{imod::module_magic,
+                                 static_cast<uint32_t>(pkgbuff.size())};
+    outf.write(reinterpret_cast<const char *>(&pkghdr), sizeof(pkghdr));
     // write the compressed buffer
     outf.write(reinterpret_cast<const char *>(&compbuff[0]), compsz);
-    icpp::log_print(prog_prefix,
+    icpp::log_print(prefix_prog,
                     "Successfully created {} with compressed size: "
                     "{}.",
                     pkgpath.c_str(), compsz);
   } catch (std::invalid_argument &e) {
-    icpp::log_print(erro_prefix, "{}", e.what());
+    icpp::log_print(prefix_error, "{}", e.what());
   } catch (std::system_error &e) {
-    icpp::log_print(erro_prefix, "{}", e.what());
+    icpp::log_print(prefix_error, "{}", e.what());
   } catch (...) {
-    icpp::log_print(erro_prefix, "Failed to parse {}.", cfgpath);
+    icpp::log_print(prefix_error, "Failed to parse {}.", cfgpath);
   }
 }
 
-static void install_package(std::string_view pkgpath) {}
+static void install_package(std::string_view pkgpath) {
+  auto expBuff = llvm::MemoryBuffer::getFile(pkgpath.data());
+  if (!expBuff) {
+    icpp::log_print(prefix_error, "Failed to open {}.", pkgpath.data());
+    return;
+  }
+  auto bufferhdr = reinterpret_cast<const icpp_package_header_t *>(
+      expBuff.get()->getBuffer().data());
+  if (bufferhdr->magic != imod::module_magic) {
+    icpp::log_print(prefix_error,
+                    "The input file {} isn't an icpp module package.",
+                    pkgpath.data());
+    return;
+  }
+  // decompress
+  std::vector<uint8_t> origbuf(bufferhdr->size);
+  size_t decodedsz = bufferhdr->size;
+  icpp::log_print(prefix_prog, "Decompressing package buffer...");
+  if (!BrotliDecoderDecompress(expBuff.get()->getBufferSize() -
+                                   sizeof(bufferhdr),
+                               reinterpret_cast<const uint8_t *>(&bufferhdr[1]),
+                               &decodedsz, &origbuf[0])) {
+    icpp::log_print(prefix_error,
+                    "Failed to decompress the input package buffer.");
+    return;
+  }
+
+  Package pkg;
+  // remove magic
+  if (!pkg.ParseFromArray(&origbuf[0], origbuf.size())) {
+    icpp::log_print(prefix_error, "Failed to parse package buffer.");
+    return;
+  }
+  if (pkg.version() != icpp::version_value().value) {
+    icpp::log_print(prefix_error,
+                    "The version of the package creator doesn't match current "
+                    "imod, {} is expected.",
+                    icpp::version_string());
+    return;
+  }
+  icpp::log_print(prefix_prog, "Installing module {}...", pkg.name());
+
+  auto repo = fs::path(icpp::home_directory()) / ".icpp";
+  if (!fs::exists(repo)) {
+    if (!fs::create_directory(repo)) {
+      icpp::log_print(prefix_error,
+                      "Failed to create icpp module home repository {}.",
+                      repo.c_str());
+      return;
+    }
+  }
+
+  SymbolHash symhash;
+  auto allhashes = symhash.mutable_hashes();
+  for (auto &file : pkg.files()) {
+    auto fullpath = repo / file.path();
+    auto parent = fullpath.parent_path();
+    if (!fs::exists(parent)) {
+      if (!fs::create_directories(parent)) {
+        icpp::log_print(prefix_error, "Failed to create module directory {}.",
+                        parent.c_str());
+        return;
+      }
+    }
+    std::ofstream outf(fullpath, std::ios::binary);
+    if (!outf.is_open()) {
+      icpp::log_print(prefix_error, "Failed to write module file {}.",
+                      fullpath.c_str());
+      return;
+    }
+    icpp::log_print(prefix_prog, "Installing {}...", file.path().c_str());
+    outf.write(file.content().data(), file.content().size());
+    outf.close();
+    if (!file.path().starts_with("lib"))
+      continue;
+
+    icpp::log_print(prefix_prog, "Parsing the symbols of {}...",
+                    file.path().c_str());
+    std::string message;
+    icpp::SymbolHash hasher(fullpath.c_str());
+    auto hashes = hasher.hashes(message);
+    if (!hashes.size()) {
+      icpp::log_print(prefix_error, "{}", message);
+      return;
+    }
+    auto name = fullpath.filename().string();
+    icpp::log_print(prefix_prog, "Parsed {} symbols in {}.", hashes.size(),
+                    name);
+    allhashes->insert({name, std::string(reinterpret_cast<char *>(&hashes[0]),
+                                         sizeof(hashes[0]) * hashes.size())});
+  }
+
+  auto hashfile = (repo / "lib" / pkg.name() / "symbol.hash").string();
+  std::ofstream outf(hashfile, std::ios::binary);
+  if (!outf.is_open()) {
+    icpp::log_print(prefix_error, "Failed to create {}.", hashfile);
+    return;
+  }
+  symhash.SerializePartialToOstream(&outf);
+  icpp::log_print(prefix_prog, "Created {}.\n + Successfully installed {}.",
+                  hashfile, pkg.name());
+}
 
 static void uninstall_module(std::string_view name) {}
 

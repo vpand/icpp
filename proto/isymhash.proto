@@ -16,5 +16,5 @@ message SymbolHash {
   symbol hash array. It's used by icpp interpreter at runtime to quickly check 
   which module contains the symbol to be resolved.
   */
-  map<string, bytes> instmetas = 2;
+  map<string, bytes> hashes = 2;
 }

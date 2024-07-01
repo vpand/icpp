@@ -94,6 +94,7 @@
 #include <optional>
 #include <set>
 #include <system_error>
+#include <unicorn/unicorn.h>
 #include <unordered_map>
 #include <utility>
 

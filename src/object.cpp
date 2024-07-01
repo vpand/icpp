@@ -185,26 +185,6 @@ void Object::parseSections() {
   }
 }
 
-uc_arch Object::ucArch() {
-  switch (arch_) {
-  case AArch64:
-    return UC_ARCH_ARM64;
-  case X86_64:
-    return UC_ARCH_X86;
-  default:
-    return UC_ARCH_MAX; // unsupported
-  }
-}
-
-uc_mode Object::ucMode() {
-  switch (arch_) {
-  case X86_64:
-    return UC_MODE_64;
-  default:
-    return UC_MODE_LITTLE_ENDIAN;
-  }
-}
-
 const void *Object::mainEntry() {
   auto found = funcs_.find("_main");
   if (found == funcs_.end()) {
@@ -661,6 +641,56 @@ bool InterpObject::belong(uint64_t vm, size_t *di) {
     }
   }
   return false;
+}
+
+SymbolHash::SymbolHash(std::string_view path) : Object("", path) {}
+
+SymbolHash::~SymbolHash() {}
+
+std::vector<uint32_t> SymbolHash::hashes(std::string &message) {
+  std::vector<uint32_t> result;
+  auto errBuff = llvm::MemoryBuffer::getFile(path_);
+  if (!errBuff) {
+    message = std::format("Failed to read '{}': ", path_,
+                          errBuff.getError().message());
+    return result;
+  }
+  auto buffRef = llvm::MemoryBufferRef(*errBuff.get());
+  auto expObj = CObjectFile::createObjectFile(buffRef);
+  if (expObj) {
+    ofile_ = std::move(expObj.get());
+    switch (ofile_->getArch()) {
+    case llvm::Triple::aarch64:
+      arch_ = AArch64;
+      break;
+    case llvm::Triple::x86_64:
+      arch_ = X86_64;
+      break;
+    default:
+      arch_ = Unsupported;
+      break;
+    }
+    if (host_arch() != arch_) {
+      message = std::format("Architecture mismatch, '{}' is expected.",
+                            arch_name(host_arch()));
+      return result;
+    }
+    parseSymbols();
+
+    std::set<uint32_t> sorted;
+    for (auto &sym : funcs_) {
+      sorted.insert(std::hash<std::string>{}(sym.first));
+    }
+    for (auto &sym : funcs_) {
+      sorted.insert(std::hash<std::string>{}(sym.first));
+    }
+    result.resize(sorted.size());
+    std::copy(sorted.begin(), sorted.end(), result.begin());
+  } else {
+    message = std::format("Failed to create llvm object: {}.",
+                          llvm::toString(std::move(expObj.takeError())));
+  }
+  return result;
 }
 
 } // namespace icpp
