@@ -45,6 +45,7 @@ void exec_string(const char *argv0, std::string_view snippet, bool whole) {
   const char *iarg[] = {""};
   exec_main(opath.c_str(), deps, srcpath.c_str(), iargc,
             reinterpret_cast<char **>(&iarg));
+  fs::remove(opath);
 }
 
 int exec_repl(const char *argv0) {
@@ -53,13 +54,18 @@ int exec_repl(const char *argv0) {
                            version_string());
 
   std::set<std::string> directives;
+  std::string lastsnippet;
   while (!std::cin.eof()) {
     std::string snippet;
     std::cout << ">>> ";
     std::getline(std::cin, snippet);
     boost::trim<std::string>(snippet);
-    if (!snippet.length())
-      continue;
+    if (!snippet.length()) {
+      if (!lastsnippet.length())
+        continue;
+      // repeat the last snippet if nothing input
+      snippet = lastsnippet;
+    }
 
     // only support ascii snippet input
     bool valid = true;
@@ -88,6 +94,7 @@ int exec_repl(const char *argv0) {
     // the main entry
     dyncodes += "int main(void) {" + snippet + ";return 0;}";
     exec_string(argv0, dyncodes, true);
+    lastsnippet = snippet;
   }
   return 0;
 }

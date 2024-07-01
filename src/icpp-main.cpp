@@ -193,6 +193,7 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
                                icpp_option_framedirs, icpp_option_frameworks);
   // interpret the input Source-C++ or
   // Executable-MachO/Executable-ELF/Executable-PE files
+  int exitcode = 0;
   for (auto p : args) {
     auto sp = std::string_view(p);
     if (sp[0] == '-')
@@ -208,8 +209,8 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
       auto opath = icpp::compile_source(argv[0], sp, icpp_option_opt,
                                         icpp_option_incdirs);
       if (fs::exists(opath)) {
-        icpp::exec_main(opath.c_str(), deps, sp, argc - idoubledash,
-                        &argv[idoubledash + 1]);
+        exitcode = icpp::exec_main(opath.c_str(), deps, sp, argc - idoubledash,
+                                   &argv[idoubledash + 1]);
         if (opath.extension() != icpp::iobj_ext)
           fs::remove(opath);
       } else {
@@ -218,8 +219,9 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
       }
     } else {
       // pass sp as an executable file
-      icpp::exec_main(sp, deps, sp, idoubledash - argc, &argv[idoubledash + 1]);
+      exitcode = icpp::exec_main(sp, deps, sp, idoubledash - argc,
+                                 &argv[idoubledash + 1]);
     }
   }
-  return 0;
+  return exitcode;
 }

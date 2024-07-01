@@ -15,8 +15,8 @@ namespace icpp {
 class Object;
 
 // execute with a source file and its relational dependencies
-void exec_main(std::string_view path, const std::vector<std::string> &deps,
-               std::string_view srcpath, int iargc, char **iargv);
+int exec_main(std::string_view path, const std::vector<std::string> &deps,
+              std::string_view srcpath, int iargc, char **iargv);
 
 // execute with a small code snippet
 void exec_string(const char *argv0, std::string_view snippet,

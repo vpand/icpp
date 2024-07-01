@@ -6,6 +6,7 @@
 
 #include "compile.h"
 #include "object.h"
+#include "runcfg.h"
 #include "utils.h"
 #include <vector>
 
@@ -63,6 +64,10 @@ fs::path compile_source(const char *argv0, std::string_view path,
   if (opt[2] == '0') {
     // only generate dwarf debug information for non-optimization compilation
     args.push_back("-g");
+  }
+  // suppress all warnings if in repl mode
+  if (RunConfig::repl) {
+    args.push_back("-w");
   }
   args.push_back(opt);
   args.push_back("-c");

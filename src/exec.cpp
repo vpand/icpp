@@ -36,6 +36,8 @@
 extern "C" {
 int __cxa_atexit(void (*f)(void *), void *p, void *d);
 void __stack_chk_fail(void);
+void __cxa_throw(void *thrown_object, std::type_info *tinfo,
+                 void (*dest)(void *));
 }
 
 namespace icpp {
@@ -76,7 +78,7 @@ struct UnicornEngine {
       uc_close(uc);
     for (auto uc : busy)
       log_print(
-          Runtime,
+          Develop,
           "Virtual CPU instance {} is still running while exiting program.",
           reinterpret_cast<void *>(uc));
   }
@@ -110,7 +112,7 @@ struct ExecEngine {
     ue.release(uc_);
   }
 
-  void run();
+  int run();
   bool run(uint64_t vm, uint64_t arg0, uint64_t arg1);
   uint64_t returnValue(); // get x0/rax register value
   void dump();
@@ -135,7 +137,9 @@ private:
 
   // some special functions should be invoked with stub helper
   // e.g.: thread create, system api callback, etc.
-  bool specialCallProcess(uint64_t target);
+  // if target is kind of abort, exit or throw, the retaddr will be modified to
+  // stop interpreting
+  bool specialCallProcess(uint64_t &target, uint64_t &retaddr);
 
   /*
   helper routines for aarch64
@@ -209,6 +213,9 @@ private:
 
   // vm stack
   std::string stack_;
+
+  // exit code
+  int exitcode_ = 0;
 
   // dynamically registered dtors by atexit, __cxa_atexit, etc.
   struct Atexit {
@@ -443,7 +450,7 @@ static thread_return_t exec_thread_stub(void *pcontext) {
 
 static void nop_function() {}
 
-bool ExecEngine::specialCallProcess(uint64_t target) {
+bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
   uint64_t args[4], backups[4];
   int rids[4]; // register id
   switch (robject_->arch()) {
@@ -511,9 +518,24 @@ bool ExecEngine::specialCallProcess(uint64_t target) {
     dump();
     std::exit(-1);
   } else if (reinterpret_cast<uint64_t>(abort) == target) {
-    log_print(Runtime, "Fatal error, abort called.");
+    log_print(Runtime, "Abort called in script.");
     dump();
-    std::exit(-1);
+    exitcode_ = -1;
+    target = reinterpret_cast<uint64_t>(nop_function);
+    retaddr = reinterpret_cast<uint64_t>(topReturn());
+  } else if (reinterpret_cast<uint64_t>(__cxa_throw) == target) {
+    auto typeinfo = reinterpret_cast<std::type_info *>(args[1]);
+    // as icpp depends on clang/llvm which disables C++ rtti,
+    // so we have to use the name to distinguish the exactly exception type
+    if (typeinfo->name() && typeinfo->name() == std::string_view("PKc")) {
+      log_print(Runtime, "Exception {} thrown in script: {}", typeinfo->name(),
+                *reinterpret_cast<const char **>(args[0]));
+    } else {
+      log_print(Runtime, "Exception thrown in script.");
+    }
+    exitcode_ = -1;
+    target = reinterpret_cast<uint64_t>(nop_function);
+    retaddr = reinterpret_cast<uint64_t>(topReturn());
   }
 
   // update changed arugments
@@ -552,13 +574,19 @@ bool ExecEngine::interpretCallAArch64(const InsnInfo *&inst, uint64_t &pc,
     return true;
   } else {
     // check and process some api which has callback argument
-    specialCallProcess(target);
+    specialCallProcess(target, retaddr);
 
     // call external function
     auto context = loadRegisterAArch64();
     context.r[A64_LR] = retaddr; // set return address
     host_call(&context, reinterpret_cast<const void *>(target));
     saveRegisterAArch64(context);
+
+    // finish interpreting
+    if (retaddr == reinterpret_cast<uint64_t>(topReturn())) {
+      pc = retaddr;
+      return true;
+    }
     return false;
   }
 }
@@ -577,12 +605,16 @@ bool ExecEngine::interpretJumpAArch64(const InsnInfo *&inst, uint64_t &pc,
     if (executable(retaddr) ||
         topReturn() == reinterpret_cast<void *>(retaddr)) {
       // check and process some api which has callback argument
-      specialCallProcess(target);
+      specialCallProcess(target, retaddr);
 
-      // return to our control
-      pc = retaddr;
       host_call(&context, reinterpret_cast<const void *>(target));
       saveRegisterAArch64(context);
+
+      // finish interpreting
+      if (retaddr == reinterpret_cast<uint64_t>(topReturn())) {
+        pc = retaddr;
+        return true;
+      }
       return true;
     }
     UNIMPL_ABORT();
@@ -604,8 +636,8 @@ void ExecEngine::interpretPCLdrAArch64(const InsnInfo *&inst, uint64_t &pc) {
 
 bool ExecEngine::interpretCallX64(const InsnInfo *&inst, uint64_t &pc,
                                   uint64_t target) {
+  auto retaddr = pc + inst->len;
   if (executable(target)) {
-    auto retaddr = pc + inst->len;
     uint64_t rsp;
     uc_reg_read(uc_, UC_X86_REG_RSP, &rsp);
     // push return address
@@ -617,12 +649,18 @@ bool ExecEngine::interpretCallX64(const InsnInfo *&inst, uint64_t &pc,
     return true;
   } else {
     // check and process some api which has callback argument
-    specialCallProcess(target);
+    specialCallProcess(target, retaddr);
 
     // call external function
     auto context = loadRegisterX64();
     host_call(&context, reinterpret_cast<const void *>(target));
     saveRegisterX64(context);
+
+    // finish interpreting
+    if (retaddr == reinterpret_cast<uint64_t>(topReturn())) {
+      pc = retaddr;
+      return true;
+    }
     return false;
   }
 }
@@ -639,16 +677,20 @@ bool ExecEngine::interpretJumpX64(const InsnInfo *&inst, uint64_t &pc,
     uint64_t rsp, retaddr;
     uc_reg_read(uc_, UC_X86_REG_RSP, &rsp);
     retaddr = *reinterpret_cast<uint64_t *>(rsp);
-    auto context = loadRegisterAArch64();
+    auto context = loadRegisterX64();
     if (executable(retaddr) ||
         topReturn() == reinterpret_cast<void *>(retaddr)) {
       // check and process some api which has callback argument
-      specialCallProcess(target);
+      specialCallProcess(target, retaddr);
 
-      // return to our control
-      pc = retaddr;
       host_call(&context, reinterpret_cast<const void *>(target));
-      saveRegisterAArch64(context);
+      saveRegisterX64(context);
+
+      // finish interpreting
+      if (retaddr == reinterpret_cast<uint64_t>(topReturn())) {
+        pc = retaddr;
+        return true;
+      }
       return true;
     }
     UNIMPL_ABORT();
@@ -805,7 +847,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     // common instruction
     case INSN_ABORT:
       log_print(Runtime,
-                "Breakpoint or trap instruction hit at rva {:x}.\nAborting...",
+                "Breakpoint or trap instruction hit at rva {:x}. Aborting...",
                 robject_->vm2rva(pc));
       dump();
       std::exit(-1);
@@ -1331,9 +1373,9 @@ static void llvm_signal_handler(void *) {
 
 #endif // ICPP_GADGET
 
-void ExecEngine::run() {
+int ExecEngine::run() {
   if (!uc_ || !loader_.valid()) {
-    return;
+    return -1;
   }
 
 #if ICPP_GADGET
@@ -1372,16 +1414,17 @@ void ExecEngine::run() {
       }
     }
   }
+  return exitcode_;
 }
 
-void exec_main(std::string_view path, const std::vector<std::string> &deps,
-               std::string_view srcpath, int iargc, char **iargv) {
+int exec_main(std::string_view path, const std::vector<std::string> &deps,
+              std::string_view srcpath, int iargc, char **iargv) {
   llvm::file_magic magic;
   auto err = llvm::identify_magic(llvm::Twine(path), magic);
   if (err) {
     std::cout << "Failed to identify the file type of '" << path
               << "': " << err.message() << std::endl;
-    return;
+    return -1;
   }
 
   std::shared_ptr<Object> object;
@@ -1417,7 +1460,7 @@ void exec_main(std::string_view path, const std::vector<std::string> &deps,
               << ", currently supported file type includes "
                  "MachO/ELF/PE-Object/Executable."
               << std::endl;
-    return;
+    return -1;
   }
   }
   if (!object->valid()) {
@@ -1432,7 +1475,7 @@ void exec_main(std::string_view path, const std::vector<std::string> &deps,
   iargs.push_back(srcpath.data());
   for (int i = 0; i < iargc - 1; i++)
     iargs.push_back(iargv[i]);
-  ExecEngine(object, deps, iargs).run();
+  return ExecEngine(object, deps, iargs).run();
 }
 
 void init_library(std::shared_ptr<Object> imod) {
