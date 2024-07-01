@@ -5,7 +5,6 @@
 */
 
 #include "createcfg.h"
-#include <boost/json.hpp>
 #include <format>
 #include <fstream>
 
@@ -21,16 +20,16 @@ CreateConfig::CreateConfig(std::string_view path)
 
 CreateConfig::~CreateConfig() {}
 
-std::string_view CreateConfig::name() {
+boost::json::string CreateConfig::name() {
   auto object = json_->as_object();
   if (object.contains(module_name))
     return object.at(module_name).as_string();
   throw std::invalid_argument(std::format("Key '{}' is missing.", module_name));
 }
 
-static std::vector<std::string_view> get_arrays(const json::value &json,
-                                                std::string_view key) {
-  std::vector<std::string_view> result;
+static std::vector<boost::json::string> get_arrays(const json::value &json,
+                                                   std::string_view key) {
+  std::vector<boost::json::string> result;
   auto object = json.as_object();
   if (!object.contains(key))
     return result;
@@ -44,27 +43,27 @@ static std::vector<std::string_view> get_arrays(const json::value &json,
   return result;
 }
 
-std::vector<std::string_view> CreateConfig::headers() {
+std::vector<boost::json::string> CreateConfig::headers() {
   return get_arrays(*json_, module_hdrs);
 }
 
-std::vector<std::string_view> CreateConfig::headerDirs() {
+std::vector<boost::json::string> CreateConfig::headerDirs() {
   return get_arrays(*json_, module_hdrdirs);
 }
 
-std::vector<std::string_view> CreateConfig::sources() {
+std::vector<boost::json::string> CreateConfig::sources() {
   return get_arrays(*json_, module_srcs);
 }
 
-std::vector<std::string_view> CreateConfig::binaryObjects() {
+std::vector<boost::json::string> CreateConfig::binaryObjects() {
   return get_arrays(*json_, module_objs);
 }
 
-std::vector<std::string_view> CreateConfig::binaryLibraries() {
+std::vector<boost::json::string> CreateConfig::binaryLibraries() {
   return get_arrays(*json_, module_libs);
 }
 
-std::vector<std::string_view> CreateConfig::includeDirs() {
+std::vector<boost::json::string> CreateConfig::includeDirs() {
   return get_arrays(*json_, compile_incdirs);
 }
 

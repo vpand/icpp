@@ -40,3 +40,4 @@ build/
 
 # icpp interpretable object
 *.io
+*.icpp

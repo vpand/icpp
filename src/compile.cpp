@@ -35,7 +35,7 @@ static fs::path check_cache(std::string_view path) {
   return cachepath;
 }
 
-int compile_source(int argc, const char **argv) {
+static int compile_source_clang(int argc, const char **argv) {
   // construct a full path which the last element must be "clang" to make clang
   // driver happy, otherwise it can't compile source to object, it seems that
   // clang driver depends on clang name to do the right compilation logic
@@ -47,6 +47,34 @@ int compile_source(int argc, const char **argv) {
   // iclang_main will invoke clang_main to generate the object file with the
   // default host triple
   return iclang_main(argc, argv);
+}
+
+int compile_source(int argc, const char **argv) {
+  std::vector<const char *> args;
+  for (int i = 0; i < argc; i++)
+    args.push_back(argv[i]);
+
+  // make clang driver to use our fake clang path as the executable path
+  args.push_back("-no-canonical-prefixes");
+  // use C++23 standard
+  args.push_back("-std=gnu++23");
+
+  // add some system level specific compiler flags
+#if __APPLE__
+#define MACOSX_SDK                                                             \
+  "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/"      \
+  "Developer/SDKs/MacOSX.sdk"
+  args.push_back("-isysroot");
+  args.push_back(MACOSX_SDK);
+#elif __linux__
+#error Un-implement the Linux platform currently.
+#elif _WIN32
+#error Un-implement the Windows platform currently.
+#else
+#error Unknown compiling platform.
+#endif
+
+  return compile_source_clang(static_cast<int>(args.size()), &args[0]);
 }
 
 fs::path compile_source(const char *argv0, std::string_view path,
@@ -63,9 +91,6 @@ fs::path compile_source(const char *argv0, std::string_view path,
 
   std::vector<const char *> args;
   args.push_back(argv0);
-  // make clang driver to use our fake clang path as the executable path
-  args.push_back("-no-canonical-prefixes");
-  args.push_back("-std=gnu++23");
   // used to indicate the source location when script crashes
   if (opt[2] == '0') {
     // only generate dwarf debug information for non-optimization compilation
@@ -85,21 +110,6 @@ fs::path compile_source(const char *argv0, std::string_view path,
   for (auto i : incdirs) {
     args.push_back(i);
   }
-
-#if __APPLE__
-#define MACOSX_SDK                                                             \
-  "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/"      \
-  "Developer/SDKs/MacOSX.sdk"
-  args.push_back("-isysroot");
-  args.push_back(MACOSX_SDK);
-#elif __linux__
-#error Un-implement the Linux platform currently.
-#elif _WIN32
-#error Un-implement the Windows platform currently.
-#else
-#error Unknown compiling platform.
-#endif
-
   compile_source(static_cast<int>(args.size()), &args[0]);
   return opath;
 }

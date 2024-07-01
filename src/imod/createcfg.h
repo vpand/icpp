@@ -6,16 +6,13 @@
 
 #pragma once
 
-#include <string_view>
+#include <boost/json.hpp>
 #include <vector>
 
-namespace boost {
-namespace json {
-class value;
-}
-} // namespace boost
-
 namespace imod {
+
+// icpp module magic value
+constexpr const uint32_t module_magic = 'ppci';
 
 /*
 The json configuration format to create an icpp module package:
@@ -97,13 +94,13 @@ public:
   CreateConfig(std::string_view path);
   ~CreateConfig();
 
-  std::string_view name();
-  std::vector<std::string_view> headers();
-  std::vector<std::string_view> headerDirs();
-  std::vector<std::string_view> sources();
-  std::vector<std::string_view> binaryObjects();
-  std::vector<std::string_view> binaryLibraries();
-  std::vector<std::string_view> includeDirs();
+  boost::json::string name();
+  std::vector<boost::json::string> headers();
+  std::vector<boost::json::string> headerDirs();
+  std::vector<boost::json::string> sources();
+  std::vector<boost::json::string> binaryObjects();
+  std::vector<boost::json::string> binaryLibraries();
+  std::vector<boost::json::string> includeDirs();
 
 private:
   std::unique_ptr<boost::json::value> json_;

@@ -11,6 +11,7 @@
 #include <format>
 #include <iomanip>
 #include <iostream>
+#include <string_view>
 
 namespace icpp {
 
@@ -50,6 +51,14 @@ inline void log_print(LogType type, std::format_string<Args...> format,
               << " - ";
   }
   std::cout << std::vformat(format.get(), std::make_format_args(args...))
+            << std::endl;
+}
+
+template <typename... Args>
+inline void log_print(std::string_view prefix,
+                      std::format_string<Args...> format, Args &&...args) {
+  std::cout << prefix
+            << std::vformat(format.get(), std::make_format_args(args...))
             << std::endl;
 }
 

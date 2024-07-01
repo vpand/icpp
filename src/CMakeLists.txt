@@ -165,11 +165,15 @@ message(STATUS "Configuring icpp module manager imod...")
 
 # generate module symbol hash file
 add_custom_command(
-  OUTPUT isymhash.pb.cc
+  OUTPUT isymhash.pb.cc icppmod.pb.cc
   COMMAND ${CMAKE_BINARY_DIR}/third/protobuf/protoc 
     -I=${CMAKE_SOURCE_DIR}/proto --cpp_out=${CMAKE_CURRENT_BINARY_DIR} 
     ${CMAKE_SOURCE_DIR}/proto/isymhash.proto
-  DEPENDS ${CMAKE_SOURCE_DIR}/proto/isymhash.proto
+  COMMAND ${CMAKE_BINARY_DIR}/third/protobuf/protoc 
+    -I=${CMAKE_SOURCE_DIR}/proto --cpp_out=${CMAKE_CURRENT_BINARY_DIR} 
+      ${CMAKE_SOURCE_DIR}/proto/icppmod.proto
+  DEPENDS ${CMAKE_SOURCE_DIR}/proto/isymhash.proto 
+          ${CMAKE_SOURCE_DIR}/proto/icppmod.proto
   VERBATIM)
 
 set(LLVM_LINK_COMPONENTS
@@ -181,6 +185,7 @@ add_llvm_tool(imod
   icpp.cpp
   imod/createcfg.cpp
   isymhash.pb.cc
+  icppmod.pb.cc
 
   PARTIAL_SOURCES_INTENDED
 )
@@ -194,12 +199,14 @@ target_include_directories(imod PRIVATE
   boost_asio
   boost_beast
   boost_json
+  boost_process
   libprotobuf
 )
 target_link_libraries(imod PRIVATE
   boost_asio
   boost_beast
   boost_json
+  boost_process
   brotlienc
   brotlidec
   libprotobuf
