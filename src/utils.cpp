@@ -5,6 +5,7 @@
 */
 
 #include "utils.h"
+#include "platform.h"
 #include <array>
 #include <cstdlib>
 #include <format>
@@ -49,12 +50,6 @@ std::string rand_filename(int length, std::string_view ext) {
   return rand_string(length) + std::string(ext);
 }
 
-std::string home_directory() {
-#ifdef _WIN32
-  return std::getenv("userprofile");
-#else
-  return std::getenv("HOME");
-#endif
-}
+std::string home_directory() { return std::getenv(env_home.data()); }
 
 } // namespace icpp

@@ -39,15 +39,19 @@ execute_process(COMMAND ${CMAKE_COMMAND} -E copy
 
 # generate debugger protocol and interpretable object source
 add_custom_command(
-  OUTPUT icppdbg.pb.cc icppiobj.pb.cc
+  OUTPUT icppdbg.pb.cc icppiobj.pb.cc isymhash.pb.cc
   COMMAND ${CMAKE_BINARY_DIR}/third/protobuf/protoc 
     -I=${CMAKE_SOURCE_DIR}/proto --cpp_out=${CMAKE_CURRENT_BINARY_DIR} 
        ${CMAKE_SOURCE_DIR}/proto/icppdbg.proto
   COMMAND ${CMAKE_BINARY_DIR}/third/protobuf/protoc 
     -I=${CMAKE_SOURCE_DIR}/proto --cpp_out=${CMAKE_CURRENT_BINARY_DIR} 
        ${CMAKE_SOURCE_DIR}/proto/icppiobj.proto
+  COMMAND ${CMAKE_BINARY_DIR}/third/protobuf/protoc 
+    -I=${CMAKE_SOURCE_DIR}/proto --cpp_out=${CMAKE_CURRENT_BINARY_DIR} 
+       ${CMAKE_SOURCE_DIR}/proto/isymhash.proto
   DEPENDS ${CMAKE_SOURCE_DIR}/proto/icppdbg.proto
           ${CMAKE_SOURCE_DIR}/proto/icppiobj.proto
+          ${CMAKE_SOURCE_DIR}/proto/isymhash.proto
   VERBATIM)
 
 # llvm disabled rtti, so sources depend on them should also apply it

@@ -6,6 +6,7 @@
 
 #include "compile.h"
 #include "object.h"
+#include "platform.h"
 #include "runcfg.h"
 #include "utils.h"
 #include <vector>
@@ -60,19 +61,8 @@ int compile_source(int argc, const char **argv) {
   args.push_back("-std=gnu++23");
 
   // add some system level specific compiler flags
-#if __APPLE__
-#define MACOSX_SDK                                                             \
-  "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/"      \
-  "Developer/SDKs/MacOSX.sdk"
-  args.push_back("-isysroot");
-  args.push_back(MACOSX_SDK);
-#elif __linux__
-#error Un-implement the Linux platform currently.
-#elif _WIN32
-#error Un-implement the Windows platform currently.
-#else
-#error Unknown compiling platform.
-#endif
+  for (auto a : extra_cflags())
+    args.push_back(a.data());
 
   return compile_source_clang(static_cast<int>(args.size()), &args[0]);
 }

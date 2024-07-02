@@ -8,6 +8,7 @@
 #include "debugger.h"
 #include "loader.h"
 #include "object.h"
+#include "platform.h"
 #include "runcfg.h"
 #include "utils.h"
 
@@ -26,12 +27,6 @@
 #endif
 #else
 #include "llvm/Support/Signals.h"
-#endif
-
-#ifdef _WIN32
-#include <Windows.h>
-#else
-#include <pthread.h>
 #endif
 
 extern "C" {
@@ -433,22 +428,6 @@ void ExecEngine::saveRegisterX64(const ContextX64 &ctx) {
   }
 }
 
-// thread function stub
-#ifdef _WIN32
-static HANDLE (*thread_create_func)(
-    [ in, optional ] LPSECURITY_ATTRIBUTES lpThreadAttributes,
-    [in] SIZE_T dwStackSize, [in] LPTHREAD_START_ROUTINE lpStartAddress,
-    [ in, optional ] __drv_aliasesMem LPVOID lpParameter,
-    [in] DWORD dwCreationFlags,
-    [ out, optional ] LPDWORD lpThreadId) = CreateThread;
-typedef DWORD thread_return_t;
-#else
-static int (*thread_create_func)(pthread_t *thread, const pthread_attr_t *attr,
-                                 void *(*start_routine)(void *),
-                                 void *arg) = pthread_create;
-typedef void *thread_return_t;
-#endif
-
 struct exec_thread_context_t {
   ExecEngine *parent_exe;
   // the original thread entry and argument
@@ -509,9 +488,9 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
     uc_reg_read(uc_, rids[i], &args[i]);
   std::memcpy(backups, args, sizeof(args));
 
-  if (reinterpret_cast<uint64_t>(thread_create_func) == target) {
+  if (reinterpret_cast<uint64_t>(thread_create) == target) {
     // index of thread and argument in thread_create_func arguments list
-#ifdef _WIN32
+#ifdef ON_WINDOWS
     int ientry = 1, iarg = 2;
 #else
     int ientry = 2, iarg = 3;
@@ -1408,7 +1387,7 @@ int ExecEngine::run() {
       breakpad_filter_callback, /* filter */
       0,                        /* minidump callback */
       this                      /* calback_context */
-#ifdef _WIN32
+#ifdef ON_WINDOWS
       ,
       google_breakpad::ExceptionHandler::HANDLER_ALL /* handler_types */
 #else

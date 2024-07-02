@@ -8,6 +8,7 @@
 #include "exec.h"
 #include "icpp.h"
 #include "object.h"
+#include "platform.h"
 #include "runcfg.h"
 #include "llvm/Support/InitLLVM.h"
 #include <format>

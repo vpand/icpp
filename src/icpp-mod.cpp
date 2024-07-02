@@ -7,6 +7,7 @@
 #include "icpp.h"
 #include "imod/createcfg.h"
 #include "object.h"
+#include "platform.h"
 #include "utils.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
@@ -14,14 +15,14 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SystemUtils.h"
 #include "llvm/Support/ToolOutputFile.h"
-#ifdef _WIN32
+#ifdef ON_WINDOWS
 #include <boost/process.hpp>
 #else
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #include <boost/process.hpp>
 #pragma clang diagnostic pop
-#endif // end of _WIN32
+#endif // end of ON_WINDOWS
 #include <brotli/decode.h>
 #include <brotli/encode.h>
 #include <filesystem>

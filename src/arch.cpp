@@ -5,6 +5,7 @@
 */
 
 #include "arch.h"
+#include "platform.h"
 #include <cstdlib>
 #include <cstring>
 
@@ -323,7 +324,7 @@ void __NAKED__ host_call_asm(void *ctx, const void *func) {
   __ASM__("frstor 0x280(%rsp)");
 
   // convert Win64 ABI to System-V ABI
-#ifdef _WIN32
+#ifdef _ON_WINDOWS
   __ASM__("movq %rcx, %rdi");
 #endif
 
@@ -332,7 +333,7 @@ void __NAKED__ host_call_asm(void *ctx, const void *func) {
 #if __APPLE__
   __ASM__("call _pickup_rsp");
 #else
-#ifdef _WIN32
+#ifdef _ON_WINDOWS
   __ASM__("movq %rdi, %rcx");
   __ASM__("movq %rsi, %rdx");
 #endif
@@ -348,7 +349,7 @@ void __NAKED__ host_call_asm(void *ctx, const void *func) {
 #if __APPLE__
   __ASM__("callq _load_vmp_stack"); /*copy interp sp to host*/
 #else
-#ifdef _WIN32
+#ifdef _ON_WINDOWS
   __ASM__("movq %rdx, %r8");
   __ASM__("movq %rcx, %r9");
   __ASM__("movq %rdi, %rcx");
@@ -434,7 +435,7 @@ uint64_t __NAKED__ host_naked_compare(uint64_t left, uint64_t right) {
 #if __arm64__ || __aarch64__
   __ASM__("brk #0");
 #elif __x86_64__ || __x64__
-#ifdef _WIN32
+#ifdef _ON_WINDOWS
   __ASM__("cmpq %rdx, %rcx");
 #else
   __ASM__("cmpq %rsi, %rdi");
@@ -451,7 +452,7 @@ uint64_t __NAKED__ host_naked_test(uint64_t left, uint64_t right) {
 #if __arm64__ || __aarch64__
   __ASM__("brk #0");
 #elif __x86_64__ || __x64__
-#ifdef _WIN32
+#ifdef _ON_WINDOWS
   __ASM__("testq %rdx, %rcx");
 #else
   __ASM__("testq %rsi, %rdi");

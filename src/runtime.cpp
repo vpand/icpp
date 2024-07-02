@@ -5,5 +5,8 @@
 */
 
 #include "runtime.h"
+#include "icpp.h"
+#include "utils.h"
+#include <isymhash.pb.h>
 
 namespace icpp {}

@@ -8,6 +8,7 @@
 #include "exec.h"
 #include "log.h"
 #include "object.h"
+#include "platform.h"
 #include <cstdio>
 #include <iostream>
 #include <locale>
@@ -17,29 +18,20 @@
 #include <thread>
 #include <unordered_map>
 
-#ifdef _WIN32
-#include <Windows.h>
-#else
-#include <dlfcn.h>
-#if __APPLE__
-#include <mach-o/dyld.h>
-#endif
-#endif
-
 namespace icpp {
 
 // some simulated system global variables
 static uint64_t __dso_handle = 0;
 
-struct RuntimeLoader {
-  RuntimeLoader() : mainid_(std::this_thread::get_id()) {
+struct ModuleLoader {
+  ModuleLoader() : mainid_(std::this_thread::get_id()) {
     syms_.insert({"___dso_handle", &__dso_handle});
   }
 
   bool isMain() { return mainid_ == std::this_thread::get_id(); }
 
   struct LockGuard {
-    LockGuard(RuntimeLoader *p, std::recursive_mutex &m)
+    LockGuard(ModuleLoader *p, std::recursive_mutex &m)
         : parent_(p), mutex_(m) {
       if (!parent_->isMain())
         mutex_.lock();
@@ -50,7 +42,7 @@ struct RuntimeLoader {
         mutex_.unlock();
     }
 
-    RuntimeLoader *parent_;
+    ModuleLoader *parent_;
     std::recursive_mutex &mutex_;
   };
 
@@ -95,21 +87,17 @@ private:
   // native modules
   std::map<uint64_t, std::string> mods_;
   std::vector<std::map<uint64_t, std::string>::iterator> modits_;
-  std::map<std::string, void *> mhandles_;
+  std::map<std::string, const void *> mhandles_;
 
   // iobject modules
   std::vector<std::shared_ptr<Object>> imods_;
 } symcache;
 
-const void *RuntimeLoader::loadLibrary(std::string_view path) {
+const void *ModuleLoader::loadLibrary(std::string_view path) {
   LockGuard lock(this, mutex_);
   auto found = mhandles_.find(path.data());
   if (found == mhandles_.end()) {
-#if _WIN32
-    auto addr = ::LoadLibraryA(path.data());
-#else
-    auto addr = dlopen(path.data(), RTLD_NOW);
-#endif
+    auto addr = load_library(path.data());
     if (!addr) {
       if (path.ends_with(iobj_ext)) {
         // check the already loaded/cached iobject module
@@ -135,14 +123,13 @@ const void *RuntimeLoader::loadLibrary(std::string_view path) {
     }
     if (addr)
       log_print(Runtime, "Loaded module {}.", path.data());
-    found =
-        mhandles_.insert({path.data(), reinterpret_cast<void *>(addr)}).first;
+    found = mhandles_.insert({path.data(), addr}).first;
   }
   return found->second;
 }
 
-const void *RuntimeLoader::resolve(const void *handle, std::string_view name,
-                                   bool data) {
+const void *ModuleLoader::resolve(const void *handle, std::string_view name,
+                                  bool data) {
   LockGuard lock(this, mutex_);
   auto found = syms_.find(name.data());
   if (found != syms_.end()) {
@@ -164,17 +151,7 @@ const void *RuntimeLoader::resolve(const void *handle, std::string_view name,
 
   // check it in native modules
   if (!target) {
-#if _WIN32
-    auto addr = ::GetProcAddress(
-        reinterpret_cast<HMODULE>(const_cast<void *>(handle)), name.data());
-#else
-#if __APPLE__
-    auto sym = name.data() + 1;
-#else
-    auto sym = name.data();
-#endif
-    target = dlsym(const_cast<void *>(handle), sym);
-#endif
+    target = find_symbol(const_cast<void *>(handle), name);
   }
 
   if (!target)
@@ -183,7 +160,7 @@ const void *RuntimeLoader::resolve(const void *handle, std::string_view name,
   return data ? &found->second : found->second;
 }
 
-const void *RuntimeLoader::resolve(std::string_view name, bool data) {
+const void *ModuleLoader::resolve(std::string_view name, bool data) {
   LockGuard lock(this, mutex_);
   auto found = syms_.find(name.data());
   if (found != syms_.end()) {
@@ -192,7 +169,7 @@ const void *RuntimeLoader::resolve(std::string_view name, bool data) {
   return lookup(name, data);
 }
 
-const void *RuntimeLoader::lookup(std::string_view name, bool data) {
+const void *ModuleLoader::lookup(std::string_view name, bool data) {
   const void *target = nullptr;
 
   // check it in iobject modules
@@ -205,18 +182,9 @@ const void *RuntimeLoader::lookup(std::string_view name, bool data) {
   }
 
   // check it in native system modules
-  if (!target) {
-#ifdef _WIN32
-#error Un-implement symbol lookup on Windows.
-#else
-#if __APPLE__
-    auto sym = name.data() + 1;
-#else
-    auto sym = name.data();
-#endif
-    target = dlsym(RTLD_DEFAULT, sym);
-#endif
-  }
+  if (!target)
+    target = find_symbol(nullptr, name);
+
   if (!target) {
     log_print(Runtime, "Fatal error, failed to resolve symbol: {}.", dlerror());
     std::exit(-1);
@@ -227,40 +195,12 @@ const void *RuntimeLoader::lookup(std::string_view name, bool data) {
   return data ? &newit->second : newit->second;
 }
 
-#if __linux__
-int iter_so_callback(dl_phdr_info *info, size_t size, void *data) {
-  symcache.mods_.insert(
-      {reinterpret_cast<uint64_t>(info->dlpi_addr), info->dlpi_name});
-  return 0;
-}
-#endif
-
-std::string RuntimeLoader::find(const void *addr, bool update) {
+std::string ModuleLoader::find(const void *addr, bool update) {
   if (mods_.size() == 0 || update) {
     LockGuard lock(this, mutex_);
-#if __APPLE__
-    for (uint32_t i = 0; i < _dyld_image_count(); i++) {
-      symcache.mods_.insert(
-          {reinterpret_cast<uint64_t>(_dyld_get_image_header(i)),
-           _dyld_get_image_name(i)});
-    }
-#elif __linux__
-    dl_iterate_phdr(iter_so_callback, nullptr);
-#elif _WIN32
-    HANDLE hProcess = ::GetCurrentProcess();
-    HMODULE hMods[4096];
-    DWORD cbNeeded;
-    ::EnumProcessModules(hProcess, hMods, sizeof(hMods), &cbNeeded);
-    for (unsigned i = 0; i < (cbNeeded / sizeof(HMODULE)); i++) {
-      char szModName[MAX_PATH];
-      ::GetModuleFileNameEx(hProcess, hMods[i], szModName, sizeof(szModName));
-      symcache.mods_.insert(
-          {reinterpret_cast<uint64_t>(::GetModuleHandle(szModName)),
-           szModName});
-    }
-#else
-#error Unsupported host os platform.
-#endif
+    iterate_modules([](uint64_t base, std::string_view path) {
+      symcache.mods_.insert({base, path.data()});
+    });
     // reset module iterators
     modits_.clear();
     for (auto it = mods_.begin(); it != mods_.end(); it++) {
@@ -299,7 +239,7 @@ std::string RuntimeLoader::find(const void *addr, bool update) {
   return "";
 }
 
-void RuntimeLoader::cacheObject(std::shared_ptr<Object> imod) {
+void ModuleLoader::cacheObject(std::shared_ptr<Object> imod) {
   if (mhandles_.find(imod->path().data()) != mhandles_.end())
     return;
   imods_.push_back(imod);
