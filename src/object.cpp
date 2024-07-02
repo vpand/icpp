@@ -19,7 +19,13 @@
 namespace icpp {
 
 Object::Object(std::string_view srcpath, std::string_view path)
-    : srcpath_(srcpath), path_(path) {}
+    : srcpath_(srcpath), path_(path) {
+  if (!srcpath_.length())
+    srcpath_ = path_;
+
+  srcpath_ = fs::absolute(srcpath_).string();
+  path_ = fs::absolute(path_).string();
+}
 
 const char *Object::triple() {
   switch (type_) {
@@ -356,7 +362,7 @@ std::string Object::generateCache() {
   }
   imods->Add("self");
   for (auto &m : refmods) {
-    imods->Add(fs::absolute(m));
+    imods->Add(m.data());
   }
   for (auto &r : irelocs_) {
     auto target = reinterpret_cast<uint64_t>(r.target);
@@ -381,8 +387,9 @@ std::string Object::generateCache() {
     } else {
       ri.set_dindex(0);
       ri.set_rva(0);
-      for (size_t i = 0; i < imods->size(); i++) {
-        if (imods->at(i) == Loader::locateModule(r.target)) {
+      auto tarmod = Loader::locateModule(r.target);
+      for (size_t i = 1; i < imods->size(); i++) {
+        if (imods->at(i) == tarmod) {
           // set external module index
           ri.set_module(i);
           break;
@@ -544,7 +551,7 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
   if (iobject.magic() != iobj_magic) {
     log_print(
         Runtime,
-        "Can't load the file {}, it isn't a icpp interpretable object file.",
+        "Can't load the file {}, it isn't an icpp interpretable object file.",
         path_);
     return;
   }
@@ -695,6 +702,25 @@ std::vector<uint32_t> SymbolHash::hashes(std::string &message) {
 
 std::shared_ptr<Object> create_object(std::string_view srcpath,
                                       std::string_view path) {
+  if (path.ends_with(iobj_ext)) {
+    // it's the cache of the source file
+    auto tmp = std::make_shared<InterpObject>(srcpath, path);
+    return tmp->valid() ? tmp : nullptr;
+  }
+  if (!srcpath.length() && path.ends_with(obj_ext)) {
+    // it's the cache of the module object file
+    auto cache = convert_file(path, iobj_ext);
+    if (cache.has_filename()) {
+      auto tmp = std::make_shared<InterpObject>(srcpath, path);
+      if (tmp->valid()) {
+        log_print(Runtime, "Using iobject cache file when loading: {}.",
+                  cache.string());
+        return tmp;
+      }
+    }
+    // continue to load the original object file with llvm
+  }
+
   llvm::file_magic magic;
   auto err = llvm::identify_magic(llvm::Twine(path), magic);
   if (err) {
@@ -718,11 +744,6 @@ std::shared_ptr<Object> create_object(std::string_view srcpath,
   case fm::pecoff_executable:
     return std::make_shared<COFFExeObject>(srcpath, path);
   default:
-    if (path.ends_with(iobj_ext)) {
-      auto tmp = std::make_shared<InterpObject>(srcpath, path);
-      if (tmp->valid())
-        return tmp;
-    }
     log_print(Runtime,
               "Unsupported input file type {} "
               ", currently supported file type includes "

@@ -319,12 +319,9 @@ uint64_t ExecEngine::returnValue() {
 bool ExecEngine::execMain() {
   auto mainfn = iobject_->mainEntry();
   if (!mainfn) {
-    // save iobject module to loader cache
+    // save this iobject module to the loader
     Loader::cacheObject(iobject_);
-
-    // module has no main but it's a valid iobject,
-    // return true to have a chance to generate its cache
-    return true;
+    return false;
   }
 
   return run(reinterpret_cast<uint64_t>(mainfn), iargs_.size(),

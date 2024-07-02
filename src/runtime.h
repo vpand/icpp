@@ -17,7 +17,7 @@ class SymbolHash;
 } // namespace vpand
 } // namespace com
 
-using SymbolHash = com::vpand::imod::SymbolHash;
+namespace imod = com::vpand::imod;
 
 namespace icpp {
 
@@ -25,10 +25,7 @@ namespace icpp {
 // by imod package manager
 class RuntimeLib {
 public:
-  static RuntimeLib &inst() {
-    static RuntimeLib rt;
-    return rt;
-  }
+  static RuntimeLib &inst();
 
   fs::path repo();
   fs::path includeFull();
@@ -64,11 +61,11 @@ public:
   const std::string_view packageExtension{".icpp"};
 
 private:
-  RuntimeLib() {}
-  ~RuntimeLib() {}
+  RuntimeLib();
+  ~RuntimeLib();
 
   // <module name, hashes>
-  std::map<std::string, SymbolHash> hashes_;
+  std::map<std::string, std::unique_ptr<imod::SymbolHash>> hashes_;
 };
 
 } // namespace icpp

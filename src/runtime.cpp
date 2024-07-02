@@ -11,6 +11,15 @@
 
 namespace icpp {
 
+RuntimeLib &RuntimeLib::inst() {
+  static RuntimeLib rt;
+  return rt;
+}
+
+RuntimeLib::RuntimeLib() {}
+
+RuntimeLib::~RuntimeLib() {}
+
 fs::path RuntimeLib::repo() {
   return must_exist(fs::path(home_directory()) / repoName);
 }
@@ -39,10 +48,12 @@ void RuntimeLib::initHashes() {
         continue; // symbol.hash file is missing, ignore this module
 
       auto buffer = expBuff.get().get();
-      auto newit =
-          hashes_.insert({entry.path().filename(), SymbolHash()}).first;
-      if (!newit->second.ParseFromArray(buffer->getBufferStart(),
-                                        buffer->getBufferSize())) {
+      auto newit = hashes_
+                       .insert({entry.path().filename(),
+                                std::make_unique<imod::SymbolHash>()})
+                       .first;
+      if (!newit->second->ParseFromArray(buffer->getBufferStart(),
+                                         buffer->getBufferSize())) {
         log_print(Runtime, "Failed to parse {}.", hashfile.string());
         continue;
       }
@@ -52,11 +63,11 @@ void RuntimeLib::initHashes() {
 }
 
 fs::path RuntimeLib::find(std::string_view symbol) {
-  auto hash = std::hash<std::string_view>{}(symbol);
+  auto hash = static_cast<uint32_t>(std::hash<std::string_view>{}(symbol));
   // foreach module
   for (auto &mh : hashes_) {
     // foreach object/library
-    for (auto lh : mh.second.hashes()) {
+    for (auto lh : mh.second->hashes()) {
       auto hashbuff = reinterpret_cast<const uint32_t *>(&lh.second[0]);
       if (std::binary_search(hashbuff,
                              hashbuff + lh.second.size() / sizeof(hashbuff[0]),

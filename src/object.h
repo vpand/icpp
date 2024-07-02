@@ -29,6 +29,7 @@ namespace icpp {
 
 constexpr const uint32_t iobj_magic{'jboi'};
 constexpr const std::string_view iobj_ext{".io"};
+constexpr const std::string_view obj_ext{".o"};
 
 enum ObjectType {
   MachO_Reloc,

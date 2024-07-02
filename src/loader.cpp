@@ -34,6 +34,15 @@ struct ModuleLoader {
     RuntimeLib::inst().initHashes();
   }
 
+  ~ModuleLoader() {
+    // generate the iobject module cache
+    for (auto io : imods_) {
+      if (io->isCache())
+        continue;
+      io->generateCache();
+    }
+  }
+
   bool isMain() { return mainid_ == std::this_thread::get_id(); }
 
   struct LockGuard {
@@ -105,7 +114,7 @@ const void *ModuleLoader::loadLibrary(std::string_view path) {
   if (found == mhandles_.end()) {
     auto addr = load_library(path.data());
     if (!addr) {
-      if (path.ends_with(iobj_ext)) {
+      if (path.ends_with(obj_ext) || path.ends_with(iobj_ext)) {
         // check the already loaded/cached iobject module
         auto found = mhandles_.find(path.data());
         if (found != mhandles_.end()) {
@@ -114,11 +123,9 @@ const void *ModuleLoader::loadLibrary(std::string_view path) {
 
         auto object = create_object("", path);
         if (object && object->valid()) {
-          // initialize this iobject module, call its construction functions
+          // initialize this iobject module, call its construction functions,
+          // it'll call the Loader::cacheObject after executing the ctors
           init_library(object);
-
-          // save to iobject module list
-          imods_.push_back(object);
           addr = object.get();
         }
       }

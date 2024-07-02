@@ -8,6 +8,7 @@
 #include "object.h"
 #include "platform.h"
 #include "runcfg.h"
+#include "runtime.h"
 #include "utils.h"
 #include <vector>
 
@@ -18,23 +19,6 @@ int iclang_main(int argc, const char **argv);
 extern std::string GetExecutablePath(const char *argv0, bool CanonicalPrefixes);
 
 namespace icpp {
-
-static fs::path check_cache(std::string_view path) {
-  auto srcpath = fs::path(path);
-  auto cachepath = fs::absolute(srcpath.parent_path()) /
-                   (srcpath.stem().string() + iobj_ext.data());
-  if (!fs::exists(cachepath)) {
-    return "";
-  }
-  auto srctm = fs::last_write_time(srcpath);
-  auto objtm = fs::last_write_time(cachepath);
-  if (srctm > objtm) {
-    // source has been updated, so the cache file becomes invalid
-    return "";
-  }
-  log_print(Runtime, "Using iobject cache file: {}.", cachepath.string());
-  return cachepath;
-}
 
 static int compile_source_clang(int argc, const char **argv) {
   // construct a full path which the last element must be "clang" to make clang
@@ -64,6 +48,10 @@ int compile_source(int argc, const char **argv) {
   for (auto a : extra_cflags())
     args.push_back(a.data());
 
+  // add icpp module include
+  auto icppinc = std::format("-I{}", RuntimeLib::inst().includeFull().string());
+  args.push_back(icppinc.data());
+
   return compile_source_clang(static_cast<int>(args.size()), &args[0]);
 }
 
@@ -71,12 +59,14 @@ fs::path compile_source(const char *argv0, std::string_view path,
                         const char *opt,
                         const std::vector<const char *> &incdirs) {
   // directly return the cache file if there exists one
-  auto cache = check_cache(path);
+  auto cache = convert_file(path, iobj_ext);
   if (cache.has_filename()) {
+    log_print(Runtime, "Using iobject cache file when compiling: {}.",
+              cache.string());
     return cache;
   }
   // construct a temporary output object file path
-  auto opath = fs::temp_directory_path() / icpp::rand_filename(8, ".o");
+  auto opath = fs::temp_directory_path() / icpp::rand_filename(8, obj_ext);
   log_print(Develop, "Object path: {}", opath.c_str());
 
   std::vector<const char *> args;

@@ -35,5 +35,6 @@ std::string rand_string(int length);
 std::string rand_filename(int length, std::string_view ext = "");
 std::string home_directory();
 fs::path must_exist(const fs::path &path);
+fs::path convert_file(std::string_view path, std::string_view newext);
 
 } // namespace icpp
