@@ -8,6 +8,14 @@
 
 Copyright (c) vpand.com 2024.
 
+## Comparison
+|*|Source|Executable|Package|Memory Resident|
+|-|-|-|-|-|
+| **ICPP** | C++ | **ARM64/X86_64** Object | **imod** for *.icpp | **iopad**/**icpp-gadget** |
+| **LLI** | C++ | **LLVM-IR** Bitcode |  N/A | N/A | 
+| **Python** | Python | Bytecode | pip for *.wheel | N/A |
+| **Frida** | JavaScript | Bytecode | N/A | frida/frida-gadget |
+
 ## Scenarios
 **Using ICPP to write C++ code just as a script.** Write and then run directly, no creating project, no configuring build, no compiling, no linking...
 
@@ -52,21 +60,6 @@ graph LR
  * **imod**: an icpp module package manager tool used to install, uninstall and show the third-party modules;
  * **iopad**: a local C++ source compiler driver, object launch pad and REPL for the remote icpp-gadget;
  * **icpp-gadget**: a remote memory resident daemon which may run inside an Android/iOS process, waiting for iopad to send the interpretable object to execute.
-
-
-### ICPP vs Python
-
-|CLI|Script Interpreter|Module Manager|In-Process Gadget|
-|-|-|-|-|
-|Python| % **python** helloworld.py | % **pip** install helloworld.zip | N/A | 
-|ICPP  | % **icpp** helloworld.cc | % **imod** --install=helloworld.icpp | resident **icpp-gadget** in process |
-
-### ICPP vs LLVM-LLI
-
-|CLI|Script Interpreter|Executable Format|Module Manager|In-Process Gadget|
-|-|-|-|-|-|
-|LLVM-LLI| % **lli** helloworld.cc | llvm-ir bitcode | N/A | N/A | 
-|ICPP  | % **icpp** helloworld.cc | assembly instruction | % **imod** --install=helloworld.icpp | resident **icpp-gadget** in process |
 
 ### CLI
 
