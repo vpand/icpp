@@ -693,4 +693,43 @@ std::vector<uint32_t> SymbolHash::hashes(std::string &message) {
   return result;
 }
 
+std::shared_ptr<Object> create_object(std::string_view srcpath,
+                                      std::string_view path) {
+  llvm::file_magic magic;
+  auto err = llvm::identify_magic(llvm::Twine(path), magic);
+  if (err) {
+    log_print(Runtime, "Failed to identify the file type of '{}': {}.", path,
+              err.message());
+    return nullptr;
+  }
+
+  using fm = llvm::file_magic;
+  switch (magic) {
+  case fm::macho_object:
+    return std::make_shared<MachORelocObject>(srcpath, path);
+  case fm::macho_executable:
+    return std::make_shared<MachOExeObject>(srcpath, path);
+  case fm::elf_relocatable:
+    return std::make_shared<ELFRelocObject>(srcpath, path);
+  case fm::elf_executable:
+    return std::make_shared<ELFExeObject>(srcpath, path);
+  case fm::coff_object:
+    return std::make_shared<COFFRelocObject>(srcpath, path);
+  case fm::pecoff_executable:
+    return std::make_shared<COFFExeObject>(srcpath, path);
+  default:
+    if (path.ends_with(iobj_ext)) {
+      auto tmp = std::make_shared<InterpObject>(srcpath, path);
+      if (tmp->valid())
+        return tmp;
+    }
+    log_print(Runtime,
+              "Unsupported input file type {} "
+              ", currently supported file type includes "
+              "MachO/ELF/PE-Object/Executable.",
+              static_cast<uint32_t>(magic));
+    return nullptr;
+  }
+}
+
 } // namespace icpp

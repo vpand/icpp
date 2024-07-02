@@ -8,6 +8,7 @@
 #include "imod/createcfg.h"
 #include "object.h"
 #include "platform.h"
+#include "runtime.h"
 #include "utils.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
@@ -37,6 +38,7 @@ namespace cl = llvm::cl;
 using Package = com::vpand::imod::MoudlePackage;
 using File = com::vpand::imod::File;
 using SymbolHash = com::vpand::imod::SymbolHash;
+using Rtlib = icpp::RuntimeLib;
 
 static std::string_view prefix_pack(" + ");
 static std::string_view prefix_prog(" | ");
@@ -97,8 +99,8 @@ static void create_package(const char *program, std::string_view cfgpath) {
     Package pkg;
     imod::CreateConfig cfg(cfgpath);
     auto files = pkg.mutable_files();
-    auto incroot = std::format("include/icpp/{}/", cfg.name().data());
-    auto libroot = std::format("lib/{}/", cfg.name().data());
+    auto incroot = Rtlib::inst().includeRelative(cfg.name()).string();
+    auto libroot = Rtlib::inst().libRelative(cfg.name()).string();
     auto missing = [](std::string_view title, std::string_view item) {
       icpp::log_print(
           prefix_error,
@@ -117,7 +119,7 @@ static void create_package(const char *program, std::string_view cfgpath) {
 
       File file;
       auto buffer = expBuff.get()->getBuffer();
-      auto dstfile = std::string(dstroot) + fs::path(path).filename().string();
+      auto dstfile = (fs::path(dstroot) / fs::path(path).filename()).string();
       file.set_path(dstfile);
       file.set_content(buffer);
       files->Add(std::move(file));
@@ -211,8 +213,9 @@ static void create_package(const char *program, std::string_view cfgpath) {
     }
 
     // done.
-    auto pkgpath = fs::path(cfgpath).parent_path() /
-                   std::format("{}.icpp", cfg.name().data());
+    auto pkgpath =
+        fs::path(cfgpath).parent_path() /
+        std::format("{}{}", cfg.name().data(), Rtlib::inst().packageExtension);
     std::ofstream outf(pkgpath.c_str(), std::ios::binary);
     if (!outf.is_open()) {
       icpp::log_print(prefix_error, "Failed to create the package file {}.",
@@ -281,29 +284,15 @@ static void install_package(std::string_view pkgpath) {
   icpp::log_print(prefix_prog, "Installing module {}...", pkg.name());
 
   // icpp local module repository is at $HOME/.icpp
-  auto repo = fs::path(icpp::home_directory()) / ".icpp";
-  if (!fs::exists(repo)) {
-    if (!fs::create_directory(repo)) {
-      icpp::log_print(prefix_error,
-                      "Failed to create icpp module home repository {}.",
-                      repo.c_str());
-      return;
-    }
-  }
-
-  // <name, symbol hash array>
+  auto repo = Rtlib::inst().repo();
+  // <libname, symbol hash array>
   SymbolHash symhash;
   auto allhashes = symhash.mutable_hashes();
   for (auto &file : pkg.files()) {
     auto fullpath = repo / file.path();
     auto parent = fullpath.parent_path();
-    if (!fs::exists(parent)) {
-      if (!fs::create_directories(parent)) {
-        icpp::log_print(prefix_error, "Failed to create module directory {}.",
-                        parent.c_str());
-        return;
-      }
-    }
+    icpp::must_exist(parent);
+
     std::ofstream outf(fullpath, std::ios::binary);
     if (!outf.is_open()) {
       icpp::log_print(prefix_error, "Failed to write module file {}.",
@@ -333,8 +322,17 @@ static void install_package(std::string_view pkgpath) {
                                          sizeof(hashes[0]) * hashes.size())});
   }
 
-  // success flag: symbol.hash created
-  auto hashfile = (repo / "lib" / pkg.name() / "symbol.hash").string();
+  // make sure the symbol.hash file at least contains 1 item
+  allhashes->insert({pkg.name(), ""});
+
+  // the flag of module installed by user: symbol.hash
+  // even if this module only contains headers still needs to create this file,
+  // it's a flag to indicate this is a valid icpp module that is installed by
+  // imod, otherwise any of the libraries in its lib directory won't be loaded
+  // by icpp at runtime.
+  auto hashfile = (icpp::must_exist(Rtlib::inst().libFull(pkg.name())) /
+                   Rtlib::inst().hashFile)
+                      .string();
   std::ofstream outf(hashfile, std::ios::binary);
   if (!outf.is_open()) {
     icpp::log_print(prefix_error, "Failed to create {}.", hashfile);
@@ -346,9 +344,8 @@ static void install_package(std::string_view pkgpath) {
 }
 
 static void uninstall_module(std::string_view name) {
-  auto repo = fs::path(icpp::home_directory()) / ".icpp";
-  auto include = repo / "include" / "icpp" / name.data();
-  auto lib = repo / "lib" / name.data();
+  auto include = Rtlib::inst().includeFull(name);
+  auto lib = Rtlib::inst().libFull(name);
   if (!fs::exists(include) && !fs::exists(lib)) {
     icpp::log_print(prefix_error, "There's no module: {}.", name.data());
     return;
@@ -361,10 +358,8 @@ static void uninstall_module(std::string_view name) {
 }
 
 static void list_module() {
-  auto repo = fs::path(icpp::home_directory()) / ".icpp";
-  auto include = repo / "include" / "icpp";
   icpp::log_print(icpp::Raw, "Installed module:");
-  for (auto &entry : fs::directory_iterator(include)) {
+  for (auto &entry : fs::directory_iterator(Rtlib::inst().includeFull(""))) {
     if (entry.is_directory()) {
       icpp::log_print(icpp::Raw, " * {}", entry.path().filename().c_str());
     }

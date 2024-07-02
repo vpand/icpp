@@ -52,4 +52,15 @@ std::string rand_filename(int length, std::string_view ext) {
 
 std::string home_directory() { return std::getenv(env_home.data()); }
 
+fs::path must_exist(const fs::path &path) {
+  if (!fs::exists(path)) {
+    if (!fs::create_directories(path)) {
+      icpp::log_print(Runtime, "Fatal error, failed to create directory {}.",
+                      path.c_str());
+      std::exit(-1);
+    }
+  }
+  return path;
+}
+
 } // namespace icpp

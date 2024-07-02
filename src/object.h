@@ -242,4 +242,7 @@ public:
   std::vector<uint32_t> hashes(std::string &message);
 };
 
+std::shared_ptr<Object> create_object(std::string_view srcpath,
+                                      std::string_view path);
+
 } // namespace icpp

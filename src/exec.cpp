@@ -1422,55 +1422,13 @@ int ExecEngine::run() {
 
 int exec_main(std::string_view path, const std::vector<std::string> &deps,
               std::string_view srcpath, int iargc, char **iargv) {
-  llvm::file_magic magic;
-  auto err = llvm::identify_magic(llvm::Twine(path), magic);
-  if (err) {
-    std::cout << "Failed to identify the file type of '" << path
-              << "': " << err.message() << std::endl;
+  auto object = create_object(srcpath, path);
+  if (!object)
     return -1;
-  }
-
-  std::shared_ptr<Object> object;
-  using fm = llvm::file_magic;
-  switch (magic) {
-  case fm::macho_object:
-    object = std::make_unique<MachORelocObject>(srcpath, path);
-    break;
-  case fm::macho_executable:
-    object = std::make_unique<MachOExeObject>(srcpath, path);
-    break;
-  case fm::elf_relocatable:
-    object = std::make_unique<ELFRelocObject>(srcpath, path);
-    break;
-  case fm::elf_executable:
-    object = std::make_unique<ELFExeObject>(srcpath, path);
-    break;
-  case fm::coff_object:
-    object = std::make_unique<COFFRelocObject>(srcpath, path);
-    break;
-  case fm::pecoff_executable:
-    object = std::make_unique<COFFExeObject>(srcpath, path);
-    break;
-  default: {
-    if (path.ends_with(iobj_ext)) {
-      auto tmp = std::make_unique<InterpObject>(srcpath, path);
-      if (tmp->valid()) {
-        object = std::move(tmp);
-        break;
-      }
-    }
-    std::cout << "Unsupported input file type " << magic
-              << ", currently supported file type includes "
-                 "MachO/ELF/PE-Object/Executable."
-              << std::endl;
-    return -1;
-  }
-  }
   if (!object->valid()) {
-    std::cout << "Unsupported input file type " << magic
-              << ", currently supported file type includes "
-                 "MachO/ELF/PE-Object/Executable-X86_64/AArch64."
-              << std::endl;
+    log_print(Runtime, "Unsupported input arch type, currently supported arch "
+                       "includes: X86_64, AArch64.");
+    return -1;
   }
 
   // construct arguments passed to the main entry of the input file

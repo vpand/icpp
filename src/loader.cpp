@@ -9,6 +9,7 @@
 #include "log.h"
 #include "object.h"
 #include "platform.h"
+#include "runtime.h"
 #include <cstdio>
 #include <iostream>
 #include <locale>
@@ -25,7 +26,12 @@ static uint64_t __dso_handle = 0;
 
 struct ModuleLoader {
   ModuleLoader() : mainid_(std::this_thread::get_id()) {
+    // these symbols are extern in object but finally linked in exe/lib,
+    // herein simulates this behaviour
     syms_.insert({"___dso_handle", &__dso_handle});
+
+    // initialize the symbol hashes for the third-party modules lazy loading
+    RuntimeLib::inst().initHashes();
   }
 
   bool isMain() { return mainid_ == std::this_thread::get_id(); }
@@ -106,8 +112,8 @@ const void *ModuleLoader::loadLibrary(std::string_view path) {
           return found->second;
         }
 
-        auto object = std::make_shared<InterpObject>("", path);
-        if (object->valid()) {
+        auto object = create_object("", path);
+        if (object && object->valid()) {
           // initialize this iobject module, call its construction functions
           init_library(object);
 
@@ -186,8 +192,18 @@ const void *ModuleLoader::lookup(std::string_view name, bool data) {
     target = find_symbol(nullptr, name);
 
   if (!target) {
-    log_print(Runtime, "Fatal error, failed to resolve symbol: {}.", dlerror());
-    std::exit(-1);
+    // the final chance to resolve this symbol
+    auto path = RuntimeLib::inst().find(name);
+    if (!path.empty()) {
+      auto handle = loadLibrary(path.c_str());
+      target = resolve(handle, name, data);
+    }
+    // Oops...
+    if (!target) {
+      log_print(Runtime, "Fatal error, failed to resolve symbol: {}.",
+                dlerror());
+      std::exit(-1);
+    }
   }
 
   // cache it
