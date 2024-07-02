@@ -63,6 +63,8 @@ struct RelocInfo {
   // converted from relocation type
   // e.g.: arm64 GOT reloc ==> ST_DATA, otherwise ST_FUNCTION, etc.
   uint32_t type;
+
+  const void *realTarget();
 };
 
 struct DynSection {

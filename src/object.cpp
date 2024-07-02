@@ -16,6 +16,8 @@
 #include <llvm/Support/MemoryBuffer.h>
 #include <span>
 
+using CSymbolRef = llvm::object::SymbolRef;
+
 namespace icpp {
 
 Object::Object(std::string_view srcpath, std::string_view path)
@@ -99,7 +101,7 @@ void Object::createObject(ObjectType type) {
 }
 
 void Object::parseSymbols() {
-  using SymbolRef = llvm::object::SymbolRef;
+  using SymbolRef = CSymbolRef;
   for (auto sym : ofile_->symbols()) {
     auto expType = sym.getType();
     if (!expType)
@@ -172,7 +174,7 @@ void Object::parseSections() {
     if (s.isText()) {
       auto expContent = s.getContents();
       if (!expContent) {
-        log_print(Runtime,
+        log_print(Develop,
                   "Empty object file, there's no content of {} section.",
                   name.data());
         break;
@@ -221,7 +223,7 @@ cdtor_entries(CObjectFile *ofile, const std::span<std::string_view> &names,
           if (found != funcs.end())
             results.push_back(found->second);
           else
-            log_print(Runtime,
+            log_print(Develop,
                       "Warning, failed to locate constructor function {}.",
                       symName->data());
         }
@@ -317,6 +319,12 @@ bool Object::belong(uint64_t vm, size_t *di) {
   return false;
 }
 
+const void *RelocInfo::realTarget() {
+  return type == CSymbolRef::ST_Data
+             ? *reinterpret_cast<void **>(const_cast<void *>(target))
+             : target;
+}
+
 std::string Object::generateCache() {
   namespace iobj = com::vpand::icppiobj;
   namespace base64 = boost::beast::detail::base64;
@@ -356,8 +364,8 @@ std::string Object::generateCache() {
   Loader::locateModule("", true); // update loader's module list
   for (auto &r : irelocs_) {
     // collect referenced modules
-    if (!belong(reinterpret_cast<uint64_t>(r.target))) {
-      refmods.insert(Loader::locateModule(r.target).data());
+    if (!belong(reinterpret_cast<uint64_t>(r.realTarget()))) {
+      refmods.insert(Loader::locateModule(r.realTarget()).data());
     }
   }
   imods->Add("self");
@@ -385,9 +393,9 @@ std::string Object::generateCache() {
       }
       ri.set_module(0); // set self module index
     } else {
-      ri.set_dindex(0);
-      ri.set_rva(0);
-      auto tarmod = Loader::locateModule(r.target);
+      ri.set_dindex(-1);
+      ri.set_rva(-1);
+      auto tarmod = Loader::locateModule(r.realTarget());
       for (size_t i = 1; i < imods->size(); i++) {
         if (imods->at(i) == tarmod) {
           // set external module index
@@ -454,7 +462,7 @@ void Object::dump() {
 
 const void *Object::relocTarget(size_t i) {
   auto cur = &irelocs_[i];
-  if (cur->type == llvm::object::SymbolRef::ST_Data) {
+  if (cur->type == CSymbolRef::ST_Data) {
     // herein we must return a pointer-to-pointer if this relocation type
     // references a data type target, usually, it's a kind of GOT pointer
     // reference instruction, e.g.: arm64-adrp reg, gotptr(address the
@@ -618,16 +626,18 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
       continue;
     }
     Loader loader(module);
+    auto data = r.type() == CSymbolRef::ST_Data;
     if (loader.valid()) {
-      auto target = loader.locate(r.symbol(),
-                                  r.type() == llvm::object::SymbolRef::ST_Data);
+      // resolve this symbol in the current module
+      auto target = loader.locate(r.symbol(), data);
       // if fail then abort, never return
       if (!target)
-        target = Loader::locateSymbol(r.symbol(), false);
+        target = Loader::locateSymbol(r.symbol(), data);
       irelocs_.push_back(RelocInfo{r.symbol(), target, r.type()});
     } else {
-      log_print(Runtime, "Can't load dependent module {}.", module);
-      std::exit(-1);
+      // the final chance to resolve this symbol, abort if fails
+      irelocs_.push_back(RelocInfo{
+          r.symbol(), Loader::locateSymbol(r.symbol(), data), r.type()});
     }
   }
 }
@@ -713,7 +723,7 @@ std::shared_ptr<Object> create_object(std::string_view srcpath,
     if (cache.has_filename()) {
       auto tmp = std::make_shared<InterpObject>(srcpath, path);
       if (tmp->valid()) {
-        log_print(Runtime, "Using iobject cache file when loading: {}.",
+        log_print(Develop, "Using iobject cache file when loading: {}.",
                   cache.string());
         return tmp;
       }

@@ -21,6 +21,15 @@ extern std::string GetExecutablePath(const char *argv0, bool CanonicalPrefixes);
 namespace icpp {
 
 static int compile_source_clang(int argc, const char **argv) {
+  // just echo the compiling args
+  if (std::string_view(argv[0]) == "echo") {
+    std::string cmds("icpp ");
+    for (int i = 1; i < argc; i++)
+      cmds += std::string(argv[i]) + " ";
+    log_print(Develop, "{}", cmds);
+    return 0;
+  }
+
   // construct a full path which the last element must be "clang" to make clang
   // driver happy, otherwise it can't compile source to object, it seems that
   // clang driver depends on clang name to do the right compilation logic
@@ -58,13 +67,6 @@ int compile_source(int argc, const char **argv) {
 fs::path compile_source(const char *argv0, std::string_view path,
                         const char *opt,
                         const std::vector<const char *> &incdirs) {
-  // directly return the cache file if there exists one
-  auto cache = convert_file(path, iobj_ext);
-  if (cache.has_filename()) {
-    log_print(Runtime, "Using iobject cache file when compiling: {}.",
-              cache.string());
-    return cache;
-  }
   // construct a temporary output object file path
   auto opath = fs::temp_directory_path() / icpp::rand_filename(8, obj_ext);
   log_print(Develop, "Object path: {}", opath.c_str());
@@ -90,8 +92,18 @@ fs::path compile_source(const char *argv0, std::string_view path,
   for (auto i : incdirs) {
     args.push_back(i);
   }
+
+  // using the cache file if there exists one
+  auto cache = convert_file(path, iobj_ext);
+  if (cache.has_filename()) {
+    log_print(Develop, "Using iobject cache file when compiling: {}.",
+              cache.string());
+    // print the current compiling args
+    args[0] = "echo";
+  }
+
   compile_source(static_cast<int>(args.size()), &args[0]);
-  return opath;
+  return cache.has_filename() ? cache : opath;
 }
 
 } // namespace icpp

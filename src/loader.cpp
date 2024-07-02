@@ -135,7 +135,7 @@ const void *ModuleLoader::loadLibrary(std::string_view path) {
       }
     }
     if (addr)
-      log_print(Runtime, "Loaded module {}.", path.data());
+      log_print(Develop, "Loaded module {}.", path.data());
     found = mhandles_.insert({path.data(), addr}).first;
   }
   return found->second;

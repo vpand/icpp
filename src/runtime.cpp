@@ -50,14 +50,14 @@ void RuntimeLib::initHashes() {
       auto buffer = expBuff.get().get();
       auto newit = hashes_
                        .insert({entry.path().filename(),
-                                std::make_unique<imod::SymbolHash>()})
+                                std::make_unique<vpimod::SymbolHash>()})
                        .first;
       if (!newit->second->ParseFromArray(buffer->getBufferStart(),
                                          buffer->getBufferSize())) {
         log_print(Runtime, "Failed to parse {}.", hashfile.string());
         continue;
       }
-      log_print(Runtime, "Loaded symbol hashes from {}.", newit->first);
+      log_print(Develop, "Loaded symbol hashes from {}.", newit->first);
     }
   }
 }

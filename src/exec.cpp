@@ -12,22 +12,11 @@
 #include "runcfg.h"
 #include "utils.h"
 
+#include "llvm/Support/Signals.h"
 #include <llvm/ADT/Twine.h>
 #include <llvm/BinaryFormat/Magic.h>
 #include <mutex>
 #include <unicorn/unicorn.h>
-
-#if ICPP_GADGET
-#if __APPLE__
-#include "client/mac/handler/exception_handler.h"
-#elif __linux__
-#include "client/linux/handler/exception_handler.h"
-#else
-#include "client/windows/handler/exception_handler.h"
-#endif
-#else
-#include "llvm/Support/Signals.h"
-#endif
 
 extern "C" {
 int __cxa_atexit(void (*f)(void *), void *p, void *d);
@@ -1348,21 +1337,7 @@ void ExecEngine::dump() {
   log_print(Raw, "\n");
 }
 
-/*
-signal hanlder to dump runtime information when crashes
-*/
-#if ICPP_GADGET
-
-static bool breakpad_filter_callback(void *context) {
-  auto exec = reinterpret_cast<ExecEngine *>(context);
-  exec->dump();
-  // never return to breakpad
-  abort();
-  return false;
-}
-
-#else
-
+// current execution engine instance
 static ExecEngine *exec_engine = nullptr;
 static bool llvm_signal_installed = false;
 static void llvm_signal_handler(void *) {
@@ -1371,40 +1346,17 @@ static void llvm_signal_handler(void *) {
   std::exit(-1);
 }
 
-#endif // ICPP_GADGET
-
 int ExecEngine::run() {
   if (!uc_ || !loader_.valid()) {
     return -1;
   }
 
-#if ICPP_GADGET
-  google_breakpad::ExceptionHandler ehandler(
-      "",                       /* minidump output directory */
-      breakpad_filter_callback, /* filter */
-      0,                        /* minidump callback */
-      this                      /* calback_context */
-#ifdef ON_WINDOWS
-      ,
-      google_breakpad::ExceptionHandler::HANDLER_ALL /* handler_types */
-#else
-      ,
-      true /* install_handler */
-#if __APPLE__
-      ,
-      nullptr /* port name, set to null so in-process dump generation is used.
-               */
-#endif
-#endif
-  );
-#else
   if (!llvm_signal_installed) {
     llvm_signal_installed = true;
     llvm::sys::AddSignalHandler(llvm_signal_handler, nullptr);
   }
   // update current execute engine instance
   exec_engine = this;
-#endif
 
   if (execCtor()) {
     if (execMain()) {

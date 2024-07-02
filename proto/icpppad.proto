@@ -8,15 +8,29 @@ syntax = "proto3";
 
 package com.vpand.iopad;
 
-enum CommandID {
-  OUTPUT       = 0;  // output
-  RUN          = 1;  // run the object in payload
-  RESPONE      = 99;
+/*
+The values of ArchType/ObjectType must be synchronized with object.cpp
+*/
+
+enum ArchType {
+  Unsupported = 0;
+  X86_64 = 1;
+  AArch64 = 2;
 }
 
-message Object {
-  string name = 1; // source name
-  bytes buff = 2;  // compiled object buffer
+enum ObjectType {
+  MachO_Reloc = 0;
+  ELF_Reloc = 2;
+  COFF_Reloc = 4;
+}
+
+enum CommandID {
+  OUTPUT       = 0;  // message output
+  // synchronize the environment, i.e.:
+  // iopad should send the exact compatible object to icpp-gadget
+  SYNCENV      = 1;
+  RUN          = 2;  // run the object in payload
+  RESPONE      = 99;
 }
 
 //
@@ -24,7 +38,19 @@ message Object {
 //
 
 message Command {
-  CommandID cmd = 1;
+  CommandID id = 1;
+}
+
+message CommandSyncEnv {
+  Command cmd = 1;
+  ArchType arch = 2;
+  ObjectType otype = 3;
+}
+
+message CommandRun {
+  Command cmd = 1;
+  string name = 2; // source name
+  bytes buff = 3;  // compiled object buffer
 }
 
 //

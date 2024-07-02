@@ -52,10 +52,6 @@ add_subdirectory(third/boost)
 message(STATUS "Configuring brotli...")
 add_subdirectory(third/brotli)
 
-# breakpad
-message(STATUS "Configuring breadpad...")
-add_subdirectory(cmake/breakpad)
-
 # icpp project
 add_subdirectory(vmpstudio)
 add_subdirectory(src)

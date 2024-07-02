@@ -13,6 +13,3 @@
 [submodule "third/brotli"]
 	path = third/brotli
 	url = https://github.com/google/brotli.git
-[submodule "third/breakpad"]
-	path = third/breakpad
-	url = https://github.com/google/breakpad.git

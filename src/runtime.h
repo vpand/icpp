@@ -17,7 +17,7 @@ class SymbolHash;
 } // namespace vpand
 } // namespace com
 
-namespace imod = com::vpand::imod;
+namespace vpimod = com::vpand::imod;
 
 namespace icpp {
 
@@ -65,7 +65,7 @@ private:
   ~RuntimeLib();
 
   // <module name, hashes>
-  std::map<std::string, std::unique_ptr<imod::SymbolHash>> hashes_;
+  std::map<std::string, std::unique_ptr<vpimod::SymbolHash>> hashes_;
 };
 
 } // namespace icpp

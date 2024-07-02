@@ -272,20 +272,29 @@ target_link_libraries(iopad PRIVATE
 # icpp gadget, running as a daemon in somewhere to receive the
 # interpretable object to execute
 message(STATUS "Configuring memory resident interpreter icpp-gadget...")
-add_library(icpp-gadget SHARED 
+set(LLVM_LINK_COMPONENTS
+  Object
+  Support
+)
+file(GLOB IGADGET_LLVM_SOURCES
   icpp-gadget.cpp
+)
+add_llvm_library(icpp-gadget SHARED 
+  ${IGADGET_LLVM_SOURCES}
   icpppad.pb.cc
+
+  PARTIAL_SOURCES_INTENDED
 )
 set_target_properties(icpp-gadget PROPERTIES PREFIX "")
-target_compile_definitions(icpp-gadget PRIVATE ICPP_GADGET)
+set_source_files_properties(${IGADGET_LLVM_SOURCES} PROPERTIES COMPILE_FLAGS ${DISABLE_RTTI})
 target_include_directories(icpp-gadget PRIVATE 
-  ${THIRD_ROOT}/breakpad/src
+  ${THIRD_ROOT}/llvm-project/llvm/include
+  ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include
   ${CMAKE_CURRENT_BINARY_DIR}
   boost_asio
   libprotobuf
 )
 target_link_libraries(icpp-gadget PRIVATE 
-  breakpad-static
   boost_asio
   libprotobuf
 )
