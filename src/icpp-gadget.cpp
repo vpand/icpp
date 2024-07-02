@@ -4,7 +4,10 @@
    See LICENSE in root directory for more details
 */
 
-#include "gadget.h"
+#include "arch.h"
+#include "icpp.h"
+#include "utils.h"
+#include <icpppad.pb.h>
 
 namespace icpp {
 

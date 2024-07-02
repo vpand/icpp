@@ -39,7 +39,7 @@ graph LR
 ```mermaid
 graph LR
     A(C++ Source) -- ICPP --> B(IObject)
-    B -- Network --> C(ICPP Gadget)
+    B -- IOPAD --> C(ICPP Gadget)
     C -- Interpreter --> D(Run in Process)
     C -- Extension --> E(Hooking/Tracing)
     C -- Extension --> F(Testing)
@@ -47,12 +47,26 @@ graph LR
 
 ## Usage
 
+### Summarization
+ * **icpp**: a local C++ source compiler, interpreter and REPL used to interpret C++ directly;
+ * **imod**: an icpp module package manager tool used to install, uninstall and show the third-party modules;
+ * **iopad**: a local C++ source compiler driver, object launch pad and REPL for the remote icpp-gadget;
+ * **icpp-gadget**: a remote memory resident daemon which may run inside an Android/iOS process, waiting for iopad to send the interpretable object to execute.
+
+
 ### ICPP vs Python
 
 |CLI|Script Interpreter|Module Manager|In-Process Gadget|
 |-|-|-|-|
 |Python| % **python** helloworld.py | % **pip** install helloworld.zip | N/A | 
 |ICPP  | % **icpp** helloworld.cc | % **imod** --install=helloworld.icpp | resident **icpp-gadget** in process |
+
+### ICPP vs LLVM-LLI
+
+|CLI|Script Interpreter|Executable Format|Module Manager|In-Process Gadget|
+|-|-|-|-|-|
+|LLVM-LLI| % **lli** helloworld.cc | llvm-ir bitcode | N/A | N/A | 
+|ICPP  | % **icpp** helloworld.cc | assembly instruction | % **imod** --install=helloworld.icpp | resident **icpp-gadget** in process |
 
 ### CLI
 
@@ -143,7 +157,7 @@ Make sure the cmake, python3 and make command are in your system PATH environmen
 mkdir build
 cd build
 cmake -DCMAKE_BUILD_TYPE=Release ..
-cmake --build . -- icpp imod icpp-gadget -j8
+cmake --build . -- icpp imod iopad icpp-gadget -j8
 ```
 
 ## Contact

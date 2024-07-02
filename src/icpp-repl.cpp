@@ -76,7 +76,7 @@ int exec_repl(const char *argv0) {
       }
     }
     if (!valid) {
-      std::cout << "Ignored this non ascii code snippet: " << snippet
+      std::cout << "Ignored this non ascii snippet code: " << snippet
                 << std::endl;
       continue;
     }
