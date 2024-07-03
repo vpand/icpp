@@ -216,38 +216,6 @@ static const Target *getTarget(const ObjectFile *Obj, std::string &TripleName) {
   return TheTarget;
 }
 
-/// Indicates whether this relocation should hidden when listing
-/// relocations, usually because it is the trailing part of a multipart
-/// relocation that will be printed as part of the leading relocation.
-static bool getHidden(RelocationRef RelRef) {
-  auto *MachO = dyn_cast<MachOObjectFile>(RelRef.getObject());
-  if (!MachO)
-    return false;
-
-  unsigned Arch = MachO->getArch();
-  DataRefImpl Rel = RelRef.getRawDataRefImpl();
-  uint64_t Type = MachO->getRelocationType(Rel);
-
-  // On arches that use the generic relocations, GENERIC_RELOC_PAIR
-  // is always hidden.
-  if (Arch == Triple::x86 || Arch == Triple::arm || Arch == Triple::ppc)
-    return Type == MachO::GENERIC_RELOC_PAIR;
-
-  if (Arch == Triple::x86_64) {
-    // On x86_64, X86_64_RELOC_UNSIGNED is hidden only when it follows
-    // an X86_64_RELOC_SUBTRACTOR.
-    if (Type == MachO::X86_64_RELOC_UNSIGNED && Rel.d.a > 0) {
-      DataRefImpl RelPrev = Rel;
-      RelPrev.d.a--;
-      uint64_t PrevType = MachO->getRelocationType(RelPrev);
-      if (PrevType == MachO::X86_64_RELOC_SUBTRACTOR)
-        return true;
-    }
-  }
-
-  return false;
-}
-
 class DisassemblerTarget {
 public:
   const Target *TheTarget;
@@ -938,9 +906,29 @@ static SymbolRef::Type convert_reloc_type(ArchType arch, ObjectType otype,
   return SymbolRef::ST_Function;
 }
 
+static int reloc_addend(const CObjectFile *object,
+                        object::RelocationRef reloc) {
+  if (object->isMachO()) {
+    auto O = static_cast<const object::MachOObjectFile *>(object);
+    const DataRefImpl Rel = reloc.getRawDataRefImpl();
+    const MachO::any_relocation_info RE = O->getRelocation(Rel);
+    const unsigned r_type = O->getAnyRelocationType(RE);
+    const bool r_scattered = O->isRelocationScattered(RE);
+    const unsigned r_symbolnum =
+        (r_scattered ? 0 : O->getPlainRelocationSymbolNum(RE));
+    if (r_type == MachO::ARM64_RELOC_ADDEND)
+      return r_symbolnum;
+  } else if (object->isELF()) {
+
+  } else if (object->isCOFF()) {
+  }
+  return 0;
+}
+
 void Object::decodeInsns(TextSection &text) {
   // load text relocations
   std::map<uint64_t, object::RelocationRef> relocs;
+  std::map<uint64_t, int> addends;
   for (auto &s : ofile_->sections()) {
     if (s.getIndex() != text.index) {
       continue;
@@ -950,16 +938,12 @@ void Object::decodeInsns(TextSection &text) {
       auto expType = sym->getType();
       if (!expType)
         continue;
-      // only load data/function symbols
-      switch (expType.get()) {
-      case SymbolRef::ST_Unknown:
-      case SymbolRef::ST_Data:
-      case SymbolRef::ST_Function:
-        relocs.insert({s.getAddress() + r.getOffset(), r});
-        break;
-      default:
-        break;
-      }
+      auto addr = s.getAddress() + r.getOffset();
+      auto addend = reloc_addend(ofile_.get(), r);
+      if (addend)
+        addends.insert({addr, addend});
+      else
+        relocs.insert({addr, r});
     }
     break;
   }
@@ -988,8 +972,14 @@ void Object::decodeInsns(TextSection &text) {
     default: {
       iinfo.len = static_cast<uint32_t>(size);
       // check and resolve the relocation symbol
-      auto found = relocs.find(vm2rva(opc));
+      auto found = relocs.find(iinfo.rva);
       if (found != relocs.end()) {
+        // apple arm64-adrp relocation may hit this situation
+        int addend = 0;
+        auto addendit = addends.find(iinfo.rva);
+        if (addendit != addends.end())
+          addend = addendit->second;
+
         auto cureloc = found->second;
         auto sym = cureloc.getSymbol();
         auto expName = sym->getName();
@@ -1014,7 +1004,7 @@ void Object::decodeInsns(TextSection &text) {
           }
         }
         auto symtype = convert_reloc_type(arch(), type(), cureloc.getType());
-        if (rit == irelocs_.end()) {
+        if (addend || rit == irelocs_.end()) {
           if (expFlags.get() & SymbolRef::SF_Undefined) {
             // locate and insert a new extern relocation
             auto rtaddr =
@@ -1044,7 +1034,7 @@ void Object::decodeInsns(TextSection &text) {
                   "Fatal error, the section name is missing for relocation.");
               abort();
             }
-            auto symoff = expAddr.get() - expSect.get()->getAddress();
+            auto symoff = expAddr.get() - expSect.get()->getAddress() + addend;
             for (auto &ds : dynsects_) {
               if (sectname.get() == ds.name) {
                 // dynamically allocated section
