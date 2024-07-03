@@ -52,51 +52,8 @@ int exec_repl(const char *argv0) {
   std::cout << std::format("ICPP {}. Copyright (c) vpand.com.\nRunning C++ in "
                            "anywhere like a script.\n",
                            version_string());
-
-  std::set<std::string> directives;
-  std::string lastsnippet;
-  while (!std::cin.eof()) {
-    std::string snippet;
-    std::cout << ">>> ";
-    std::getline(std::cin, snippet);
-    boost::trim<std::string>(snippet);
-    if (!snippet.length()) {
-      if (!lastsnippet.length())
-        continue;
-      // repeat the last snippet if nothing input
-      snippet = lastsnippet;
-    }
-
-    // only support ascii snippet input
-    bool valid = true;
-    for (auto c : snippet) {
-      if (!std::isprint(c)) {
-        valid = false;
-        break;
-      }
-    }
-    if (!valid) {
-      std::cout << "Ignored this non ascii snippet code: " << snippet
-                << std::endl;
-      continue;
-    }
-
-    if (snippet.starts_with("#")) {
-      // accumulated compiler directives, like #include, #define, etc.
-      directives.insert(snippet);
-      continue;
-    }
-
-    std::string dyncodes;
-    // the # prefixed compiler directives
-    for (auto &d : directives)
-      dyncodes += d + "\n";
-    // the main entry
-    dyncodes += "int main(void) {" + snippet + ";return 0;}";
-    exec_string(argv0, dyncodes, true);
-    lastsnippet = snippet;
-  }
-  return 0;
+  return icpp::repl_entry(
+      [&](std::string_view dyncode) { exec_string(argv0, dyncode, true); });
 }
 
 } // namespace icpp

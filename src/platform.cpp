@@ -77,8 +77,8 @@ void iterate_modules(
 #endif
 }
 
-std::vector<std::string_view> extra_cflags() {
-  std::vector<std::string_view> args;
+std::vector<std::string> extra_cflags() {
+  std::vector<std::string> args;
 #if __APPLE__
 #define MACOSX_SDK                                                             \
   "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/"      \

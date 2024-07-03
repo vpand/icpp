@@ -22,7 +22,13 @@ import os
 import sys
 import subprocess
 
-cmake_projects = ['visualicpp', 'icpp', 'imod', 'icpp-gadget']
+cmake_projects = ['visualicpp', 'icpp', 'imod', 'iopad', 'icpp-gadget']
+
+def projects():
+    str = ''
+    for p in cmake_projects:
+        str += '|' + p
+    return str
 
 def command(cmd, log = True):
     if log:
@@ -132,7 +138,7 @@ def main(argv):
                     cmake_projects = [p]
                     increment_make()
                     sys.exit(0)
-        print('Usage: build %% %s [full|visualicpp|icpp|imod|icpp-gadget' % (argv[0]))
+        print('Usage: build %% %s [full|%s' % (argv[0], projects()))
 
 if __name__ == '__main__':
     main(sys.argv)

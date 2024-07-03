@@ -7,9 +7,11 @@
 #include "utils.h"
 #include "platform.h"
 #include <array>
+#include <boost/algorithm/string.hpp>
 #include <cstdlib>
 #include <format>
 #include <random>
+#include <set>
 
 namespace icpp {
 
@@ -78,6 +80,65 @@ fs::path convert_file(std::string_view path, std::string_view newext) {
     return "";
   }
   return cachepath;
+}
+
+int repl_entry(const std::function<void(std::string_view)> &exec) {
+  std::set<std::string> directives;
+  std::string lastsnippet;
+  while (!std::cin.eof()) {
+    std::string snippet;
+    std::cout << ">>> ";
+    std::getline(std::cin, snippet);
+    boost::trim<std::string>(snippet);
+    if (!snippet.length()) {
+      if (!lastsnippet.length())
+        continue;
+      // repeat the last snippet if nothing input
+      snippet = lastsnippet;
+    }
+
+    // only support ascii snippet input
+    bool valid = true;
+    for (auto c : snippet) {
+      if (!std::isprint(c)) {
+        valid = false;
+        break;
+      }
+    }
+    if (!valid) {
+      std::cout << "Ignored this non ascii snippet code: " << snippet
+                << std::endl;
+      continue;
+    }
+
+    if (snippet.starts_with("#") || snippet.starts_with("typedef ") ||
+        snippet.starts_with("using ") || snippet.starts_with("namespace ") ||
+        snippet.starts_with(R"(extern "C")")) {
+      // accumulated compiler directives, like #include, #define, etc.
+      directives.insert(snippet);
+      continue;
+    }
+
+    std::string dyncodes;
+    // the # prefixed compiler directives
+    for (auto &d : directives)
+      dyncodes += d + "\n";
+    // the main entry
+    dyncodes += "int main(void) {" + snippet + ";return 0;}";
+    exec(dyncodes);
+    lastsnippet = snippet;
+  }
+  return 0;
+}
+
+void iterate_pathenv(
+    const std::function<IterateState(std::string_view path)> &callback) {
+  std::vector<std::string> paths;
+  for (auto &p :
+       boost::split(paths, std::getenv("PATH"), boost::is_any_of(path_split))) {
+    if (callback(p) == IterBreak)
+      break;
+  }
 }
 
 } // namespace icpp

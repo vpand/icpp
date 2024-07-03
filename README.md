@@ -61,7 +61,7 @@ graph LR
  * **iopad**: a local C++ source compiler driver, object launch pad and REPL for the remote icpp-gadget;
  * **icpp-gadget**: a remote memory resident daemon which may run inside an Android/iOS process, waiting for iopad to send the interpretable object to execute.
 
-### CLI
+### ICPP CLI
 
 ```sh
 vpand@MacBook-Pro icpp % icpp -h              
@@ -96,7 +96,7 @@ e.g.:
   icpp -I/qt/include -L/qt/lib -lQtCore.dll hellowrold.cc
   icpp -I/qt/include -F/qt/framework -fQtCore hellowrold.cc
 ```
-### REPL
+### ICPP REPL
 ```sh
 vpand@MacBook-Pro icpp % icpp     
 ICPP v0.0.1.255. Copyright (c) vpand.com.
@@ -131,6 +131,30 @@ ICPP Module Manager Options:
   --install=<string>   - Install an icpp package file.
   --list               - List all the installed modules.
   --uninstall=<string> - Uninstall an installed module.
+```
+### IOPAD
+```sh
+vpand@MacBook-Pro icpp % iopad -h
+OVERVIEW: ICPP, Interpreting C++, running C++ in anywhere like a script.
+  IObject Launch Pad Tool built with ICPP v0.0.1.255
+USAGE: iopad [options]
+
+OPTIONS:
+
+Generic Options:
+
+  --help            - Display available options (--help-hidden for more)
+  --help-list       - Display list of available options (--help-list-hidden for more)
+  --version         - Display the version of this program
+
+ICPP Interpretable Object Launch Pad Options:
+
+  --fire=<string>   - Fire the input source file to the connected remote icpp-gadget to execute it.
+  --incdir=<string> - Specify the include directory for compilation, can be multiple.
+  --ip=<string>     - Set the remote ip address of icpp-gadget.
+  --ndk=<string>    - Set the Android NDK root path, default to the parent directory of the ndk-build in PATH.
+  --port=<int>      - Set the connection port.
+  --repl            - Enter into a REPL interactive shell to fire the input snippet code to the connected remote icpp-gadget to execute it.
 ```
 
 ## Status

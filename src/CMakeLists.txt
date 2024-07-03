@@ -251,6 +251,7 @@ add_llvm_tool(iopad
   ${IOPAD_LLVM_SOURCES}
   arch.cpp
   icpp.cpp
+  platform.cpp
   utils.cpp
   icpppad.pb.cc
 
@@ -262,10 +263,12 @@ target_include_directories(iopad PRIVATE
   ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include
   ${CMAKE_CURRENT_BINARY_DIR}
   boost_asio
+  boost_process
   libprotobuf
 )
 target_link_libraries(iopad PRIVATE 
   boost_asio
+  boost_process
   libprotobuf
 )
 

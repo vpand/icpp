@@ -26,11 +26,6 @@ constexpr int dbgport = 24623; // defined on the date 2024.6.23
 
 struct InsnInfo;
 
-struct ProtocolHdr {
-  std::uint32_t cmd : 8, // command id
-      len : 24;          // protobuf length
-};
-
 enum DebugStatus {
   Running,
   Stepping,

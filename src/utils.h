@@ -29,6 +29,16 @@ struct CondMutex {
   void signal();
 };
 
+struct ProtocolHdr {
+  std::uint32_t cmd : 8, // command id
+      len : 24;          // protobuf length
+};
+
+enum IterateState {
+  IterContinue,
+  IterBreak,
+};
+
 bool is_cpp_source(std::string_view path);
 int rand_value();
 std::string rand_string(int length);
@@ -36,5 +46,8 @@ std::string rand_filename(int length, std::string_view ext = "");
 std::string home_directory();
 fs::path must_exist(const fs::path &path);
 fs::path convert_file(std::string_view path, std::string_view newext);
+int repl_entry(const std::function<void(std::string_view)> &exec);
+void iterate_pathenv(
+    const std::function<IterateState(std::string_view path)> &callback);
 
 } // namespace icpp

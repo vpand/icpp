@@ -24,6 +24,7 @@
 #include <dlfcn.h>
 #include <pthread.h>
 #if __APPLE__
+#include <TargetConditionals.h>
 #include <mach-o/dyld.h>
 #endif
 
@@ -47,6 +48,8 @@ typedef DWORD thread_return_t;
 
 constexpr const thread_create_t thread_create = CreateThread;
 constexpr const std::string_view env_home = "userprofile";
+constexpr const std::string_view path_split = ";";
+constexpr const std::string_view ndk_build = "ndk-build.bat";
 
 #else
 
@@ -56,6 +59,8 @@ typedef void *thread_return_t;
 
 constexpr const thread_create_t thread_create = pthread_create;
 constexpr const std::string_view env_home = "HOME";
+constexpr const std::string_view path_split = ":";
+constexpr const std::string_view ndk_build = "ndk-build";
 
 #endif
 
@@ -68,6 +73,6 @@ const void *find_symbol(const void *handle, std::string_view raw);
 void iterate_modules(
     const std::function<void(uint64_t base, std::string_view path)> &callback);
 
-std::vector<std::string_view> extra_cflags();
+std::vector<std::string> extra_cflags();
 
 } // namespace icpp

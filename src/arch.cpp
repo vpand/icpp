@@ -24,6 +24,24 @@ ArchType host_arch() {
 #endif
 }
 
+SystemType host_system() {
+#if __APPLE__
+#if TARGET_OS_MAC
+  return macOS;
+#else
+  return iOS;
+#endif
+#elif __linux__
+  return Linux;
+#elif ON_WINDOWS
+  return Windows;
+#elif ANDROID
+  return Android;
+#else
+#error Unsupported host system.
+#endif
+}
+
 const char *arch_name(ArchType arch) {
   switch (arch) {
   case AArch64:

@@ -8,6 +8,10 @@ syntax = "proto3";
 
 package com.vpand.icppiobj;
 
+/*
+The values of ArchType/ObjectType must be synchronized with arch.cpp
+*/
+
 enum ArchType {
   Unsupported = 0;
   X86_64 = 1;

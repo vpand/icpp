@@ -18,6 +18,8 @@ constexpr const std::uint8_t version_patch = 1;
 // release candidate version, 255 means the official release.
 constexpr const std::uint8_t version_extra = 255;
 
+constexpr int gadget_port = 24703; // defined on the date 2024.7.3
+
 union version_t {
   std::uint32_t value;
   struct {

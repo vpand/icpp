@@ -16,6 +16,23 @@ enum ArchType {
   AArch64,
 };
 
+enum ObjectType {
+  MachO_Reloc,
+  MachO_Exe,
+  ELF_Reloc,
+  ELF_Exe,
+  COFF_Reloc,
+  COFF_Exe,
+};
+
+enum SystemType {
+  Windows,
+  macOS,
+  Linux,
+  Android,
+  iOS,
+};
+
 enum InsnType {
   // common instruction
   INSN_ABORT = 0, // invalid opcode
@@ -155,6 +172,7 @@ struct ContextX64 {
 };
 
 ArchType host_arch();
+SystemType host_system();
 const char *arch_name(ArchType arch);
 
 // call a host function with specified register context,
