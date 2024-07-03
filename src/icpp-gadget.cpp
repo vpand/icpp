@@ -73,6 +73,7 @@ static void send_respose(ip::tcp::socket *s, iopad::CommandID id,
 }
 
 static int gadget_printf(const char *format, ...);
+static int gadget_puts(const char *text);
 
 template <typename... Args>
 int gadget::print(std::format_string<Args...> format, Args &&...args) {
@@ -88,6 +89,7 @@ gadget::gadget() {
   listen_ = std::make_unique<std::thread>(&gadget::listen, this);
   RunConfig::inst("")->memory = true;
   RunConfig::printf = gadget_printf;
+  RunConfig::puts = gadget_puts;
 }
 
 gadget::~gadget() {
@@ -232,6 +234,8 @@ int gadget_printf(const char *format, ...) {
 
   return icppsvr.print("{}", std::string(text, textsz));
 }
+
+int gadget_puts(const char *text) { return icppsvr.print("{}\n", text); }
 
 } // namespace icpp
 

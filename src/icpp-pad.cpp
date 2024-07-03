@@ -342,6 +342,7 @@ static void exec_code(std::string_view icpp, std::string_view code) {
     auto buff = expBuff.get().get();
     cmd.set_buff(std::string(buff->getBufferStart(), buff->getBufferSize()));
     launchpad.send(iopad::RUN, cmd.SerializeAsString());
+    // wait until the remote execution to be finished
     launchpad.wait();
   }
 
@@ -369,10 +370,6 @@ template <typename T> static void run_launch_pad(bool repl, T task) {
   if (launchpad.checkCompatible()) {
     // do the real work
     task();
-    if (!repl) {
-      // wait until the remote execution to be finished
-      launchpad.wait();
-    }
     launchpad.disconnect();
   }
   threcv.join();

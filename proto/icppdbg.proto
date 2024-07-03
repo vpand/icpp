@@ -49,7 +49,7 @@ message CommandSwitchThread {
 }
 
 //
-// common and speficied command response messge
+// common and speficied command response message
 //
 
 message Respond {

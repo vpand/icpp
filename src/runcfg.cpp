@@ -13,6 +13,7 @@ namespace icpp {
 bool RunConfig::repl = false;
 bool RunConfig::memory = false;
 int (*RunConfig::printf)(const char *, ...) = std::printf;
+int (*RunConfig::puts)(const char *) = std::puts;
 
 RunConfig *RunConfig::inst(const char *cfg) {
   static std::unique_ptr<RunConfig> runcfg;

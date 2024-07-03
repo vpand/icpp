@@ -31,8 +31,9 @@ public:
   // whether in memory resident mode
   static bool memory;
 
-  // printf pointer
+  // printf/puts pointer
   static int (*printf)(const char *, ...);
+  static int (*puts)(const char *);
 };
 
 } // namespace icpp
