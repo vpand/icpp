@@ -1,10 +1,17 @@
 #include <iostream>
 
+class ctor_t {
+public:
+  // const char * exception
+  ctor_t() { throw "This is a 'const char *' exception."; }
+} ctor;
+
 int main(int argc, const char *argv[]) {
   try {
     if (argc == 1) {
-      // when hit this line, icpp will stop interpreting.
-      throw std::invalid_argument("Threw this exception because of argc is 1.");
+      // std::exception
+      // when hit this line, icpp will stop interpreting current function.
+      throw std::invalid_argument("This is an 'std::exception' exception.");
     }
     std::cout << "The argv[1] is " << argv[1] << std::endl;
   } catch (...) {

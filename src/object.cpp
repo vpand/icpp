@@ -23,6 +23,9 @@ namespace icpp {
 
 Object::Object(std::string_view srcpath, std::string_view path)
     : srcpath_(srcpath), path_(path) {
+  // lazy initialization of the module/object loader
+  Loader::initialize();
+
   if (!srcpath_.length())
     srcpath_ = path_;
 
@@ -197,6 +200,27 @@ void Object::parseSections() {
     } else if (s.isBSS() || name.ends_with("bss") || name.ends_with("common")) {
       dynsects_.push_back({name.data(), static_cast<uint32_t>(s.getAddress()),
                            std::string(s.getSize(), 0)});
+    } else {
+      using SymbolRef = llvm::object::SymbolRef;
+      auto expContent = s.getContents();
+      if (!expContent)
+        continue;
+      // commit relocations for this data section
+      for (auto r : s.relocations()) {
+        auto sym = r.getSymbol();
+        auto expFlags = sym->getFlags();
+        if (!expFlags)
+          continue;
+        if (!(expFlags.get() & SymbolRef::SF_Undefined))
+          continue;
+        auto expName = sym->getName();
+        if (!expName)
+          continue;
+        auto relocsopt = expContent->data() + r.getOffset();
+        auto rtsym = Loader::locateSymbol(expName.get(), false);
+        *reinterpret_cast<uint64_t *>(const_cast<char *>(relocsopt)) =
+            reinterpret_cast<uint64_t>(rtsym);
+      }
     }
   }
 }

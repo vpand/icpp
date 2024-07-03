@@ -107,7 +107,10 @@ private:
 
   // iobject modules
   std::vector<std::shared_ptr<Object>> imods_;
-} symcache;
+};
+
+// the module/object loader
+static std::unique_ptr<ModuleLoader> moloader;
 
 const void *ModuleLoader::loadLibrary(std::string_view path) {
   LockGuard lock(this, mutex_);
@@ -223,7 +226,7 @@ std::string ModuleLoader::find(const void *addr, bool update) {
   if (mods_.size() == 0 || update) {
     LockGuard lock(this, mutex_);
     iterate_modules([](uint64_t base, std::string_view path) {
-      symcache.mods_.insert({base, path.data()});
+      moloader->mods_.insert({base, path.data()});
     });
     // reset module iterators
     modits_.clear();
@@ -270,40 +273,46 @@ void ModuleLoader::cacheObject(std::shared_ptr<Object> imod) {
   mhandles_.insert({imod->path().data(), reinterpret_cast<void *>(imod.get())});
 }
 
+void Loader::initialize() {
+  if (!moloader)
+    moloader = std::make_unique<ModuleLoader>();
+}
+
 Loader::Loader(Object *object, const std::vector<std::string> &deps)
     : object_(object) {
   for (auto &m : deps) {
-    symcache.loadLibrary(m);
+    moloader->loadLibrary(m);
   }
 }
 
-Loader::Loader(std::string_view module)
-    : handle_(symcache.loadLibrary(module)) {}
+Loader::Loader(std::string_view module) {
+  handle_ = moloader->loadLibrary(module);
+}
 
 Loader::~Loader() {}
 
 bool Loader::valid() { return object_ || handle_; }
 
 const void *Loader::locate(std::string_view name, bool data) {
-  return symcache.resolve(handle_, name, data);
+  return moloader->resolve(handle_, name, data);
 }
 
 const void *Loader::locateSymbol(std::string_view name, bool data) {
-  return symcache.resolve(name, data);
+  return moloader->resolve(name, data);
 }
 
 std::string Loader::locateModule(const void *addr, bool update) {
-  return symcache.find(addr, update);
+  return moloader->find(addr, update);
 }
 
 void Loader::cacheObject(std::shared_ptr<Object> imod) {
-  symcache.cacheObject(imod);
+  moloader->cacheObject(imod);
 }
 
 bool Loader::executable(uint64_t vm, Object **iobject) {
-  return symcache.executable(vm, iobject);
+  return moloader->executable(vm, iobject);
 }
 
-bool Loader::belong(uint64_t vm) { return symcache.belong(vm); }
+bool Loader::belong(uint64_t vm) { return moloader->belong(vm); }
 
 } // namespace icpp

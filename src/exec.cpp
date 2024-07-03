@@ -511,16 +511,26 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
     retaddr = reinterpret_cast<uint64_t>(topReturn());
   } else if (reinterpret_cast<uint64_t>(__cxa_throw) == target) {
     auto typeinfo = reinterpret_cast<std::type_info *>(args[1]);
+    // char * exception
     if (typeinfo == &typeid(const char *) || typeinfo == &typeid(char *)) {
       log_print(Runtime, "Exception thrown in script: {}",
                 *reinterpret_cast<const char **>(args[0]));
-    } else if (typeinfo == &typeid(std::invalid_argument) ||
-               typeinfo == &typeid(std::system_error) ||
-               typeinfo == &typeid(std::runtime_error)) {
+    }
+    // integer and float point exception
+    else if (typeinfo == &typeid(char) || typeinfo == &typeid(unsigned char) ||
+             typeinfo == &typeid(short) ||
+             typeinfo == &typeid(unsigned short) || typeinfo == &typeid(int) ||
+             typeinfo == &typeid(unsigned int) || typeinfo == &typeid(long) ||
+             typeinfo == &typeid(unsigned long) ||
+             typeinfo == &typeid(long long) ||
+             typeinfo == &typeid(unsigned long long) ||
+             typeinfo == &typeid(float) || typeinfo == &typeid(double)) {
+      log_print(Runtime, "Exception thrown in script: {:x}", args[0]);
+    }
+    // std::exception
+    else {
       log_print(Runtime, "Exception thrown in script: {}",
                 reinterpret_cast<std::exception *>(args[0])->what());
-    } else {
-      log_print(Runtime, "Exception thrown in script.");
     }
     exitcode_ = -1;
     target = reinterpret_cast<uint64_t>(nop_function);
