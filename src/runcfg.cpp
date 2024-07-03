@@ -5,11 +5,14 @@
 */
 
 #include "runcfg.h"
+#include <cstdio>
 #include <memory>
 
 namespace icpp {
 
 bool RunConfig::repl = false;
+bool RunConfig::memory = false;
+int (*RunConfig::printf)(const char *, ...) = std::printf;
 
 RunConfig *RunConfig::inst(const char *cfg) {
   static std::unique_ptr<RunConfig> runcfg;

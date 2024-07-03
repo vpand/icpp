@@ -1,0 +1,4 @@
+VERS_1.1 {
+    global: icpp_gadget;
+    local: *;
+};

@@ -27,6 +27,12 @@ public:
 
   // whether in repl mode
   static bool repl;
+
+  // whether in memory resident mode
+  static bool memory;
+
+  // printf pointer
+  static int (*printf)(const char *, ...);
 };
 
 } // namespace icpp

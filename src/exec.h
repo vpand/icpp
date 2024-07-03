@@ -25,6 +25,9 @@ void exec_string(const char *argv0, std::string_view snippet,
 // the Read-Evaluate-Print-Loop Implementation of ICPP
 int exec_repl(const char *argv0);
 
+// execute the memory loaded object
+void exec_object(std::shared_ptr<Object> object);
+
 // execute the dynamically loaded module's constructors
 void init_library(std::shared_ptr<Object> imod);
 

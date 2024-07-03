@@ -117,7 +117,7 @@ struct ExecEngine {
     ue.release(uc_);
   }
 
-  int run();
+  int run(bool lib = false);
   bool run(uint64_t vm, uint64_t arg0, uint64_t arg1);
   uint64_t returnValue(); // get x0/rax register value
   void dump();
@@ -525,6 +525,13 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
     exitcode_ = -1;
     target = reinterpret_cast<uint64_t>(nop_function);
     retaddr = reinterpret_cast<uint64_t>(topReturn());
+  }
+
+  // redirect printf to remote client
+  if (RunConfig::inst()->memory) {
+    if (reinterpret_cast<uint64_t>(printf) == target) {
+      target = reinterpret_cast<uint64_t>(RunConfig::inst()->printf);
+    }
   }
 
   // update changed arugments
@@ -1346,7 +1353,7 @@ static void llvm_signal_handler(void *) {
   std::exit(-1);
 }
 
-int ExecEngine::run() {
+int ExecEngine::run(bool lib) {
   if (!uc_ || !loader_.valid()) {
     return -1;
   }
@@ -1359,8 +1366,8 @@ int ExecEngine::run() {
   exec_engine = this;
 
   if (execCtor()) {
-    if (execMain()) {
-      if (!robject_->isCache() && !RunConfig::repl) {
+    if (!lib && execMain()) {
+      if (!robject_->isCache() && !RunConfig::repl && !RunConfig::memory) {
         // generate the interpretable object file if everthing went well
         robject_->generateCache();
       }
@@ -1388,10 +1395,16 @@ int exec_main(std::string_view path, const std::vector<std::string> &deps,
   return ExecEngine(object, deps, iargs).run();
 }
 
+void exec_object(std::shared_ptr<Object> object) {
+  std::vector<std::string> deps;
+  std::vector<const char *> iargs;
+  ExecEngine(object, deps, iargs).run();
+}
+
 void init_library(std::shared_ptr<Object> imod) {
   std::vector<std::string> deps;
   std::vector<const char *> iargs;
-  ExecEngine(imod, deps, iargs).run();
+  ExecEngine(imod, deps, iargs).run(true);
 }
 
 } // namespace icpp
