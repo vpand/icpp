@@ -69,7 +69,7 @@ static void send_respose(ip::tcp::socket *s, iopad::CommandID id,
   resp.set_result(result);
 
   auto respbuf = resp.SerializeAsString();
-  send_buffer(s, id, respbuf);
+  send_buffer(s, iopad::RESPONE, respbuf);
 }
 
 static int gadget_printf(const char *format, ...);
@@ -77,8 +77,10 @@ static int gadget_printf(const char *format, ...);
 template <typename... Args>
 int gadget::print(std::format_string<Args...> format, Args &&...args) {
   auto msg = std::vformat(format.get(), std::make_format_args(args...));
-  for (auto &s : clients_)
-    send_respose(s.get(), iopad::RESPONE, msg);
+  for (auto &s : clients_) {
+    if (s.get()->is_open())
+      send_respose(s.get(), iopad::RESPONE, msg);
+  }
   return static_cast<int>(msg.length());
 }
 
@@ -112,8 +114,16 @@ gadget::~gadget() {
 }
 
 void gadget::listen() {
-  acceptor_ = std::make_unique<ip::tcp::acceptor>(
-      ios_, ip::tcp::endpoint(ip::tcp::v4(), gadget_port));
+  try {
+    acceptor_ = std::make_unique<ip::tcp::acceptor>(
+        ios_, ip::tcp::endpoint(ip::tcp::v4(), gadget_port));
+    log_print(Develop, "Listening icpp-gadget server at {}...", gadget_port);
+  } catch (std::exception &error) {
+    log_print(Develop, "Create acceptor error: {}.", error.what());
+    running_ = false;
+    return;
+  }
+
   while (true) {
     try {
       auto socketptr = std::make_unique<ip::tcp::socket>(ios_);
@@ -186,40 +196,41 @@ void gadget::process(const ProtocolHdr *hdr, const void *body, size_t size) {
 }
 
 void gadget::procRun(std::string_view name, const std::string &obuff) {
-  llvm::file_magic magic;
-  auto err = llvm::identify_magic(obuff, magic);
-  if (err) {
-    log_print(Runtime, "Failed to identify the file type of '{}': {}.", name,
-              err.message());
-    return;
-  }
-
-  using fm = llvm::file_magic;
+  auto membuf = llvm::MemoryBuffer::getMemBuffer(obuff);
+  llvm::file_magic magic = llvm::identify_magic(membuf->getBuffer());
   std::shared_ptr<Object> object;
+  using fm = llvm::file_magic;
   switch (magic) {
   case fm::macho_object:
-    object = std::make_shared<MachORelocObject>(name, name);
+    object = std::make_shared<MachOMemoryObject>(name, std::move(membuf));
     break;
   case fm::elf_relocatable:
-    object = std::make_shared<ELFRelocObject>(name, name);
+    object = std::make_shared<ELFMemoryObject>(name, std::move(membuf));
     break;
   case fm::coff_object:
-    object = std::make_shared<COFFRelocObject>(name, name);
+    object = std::make_shared<COFFMemoryObject>(name, std::move(membuf));
     break;
   default:
+    log_print(Runtime, "Unknown object payload, magic: {:16x}.",
+              *reinterpret_cast<const uint64_t *>(obuff.data()));
     return;
   }
   exec_object(object);
+
+  // notify clients the execution finished
+  for (auto &s : clients_)
+    send_respose(s.get(), iopad::RUN, "");
 }
 
 int gadget_printf(const char *format, ...) {
   char text[4096];
   va_list ap;
   va_start(ap, format);
-  auto textsz = std::vsnprintf(text, sizeof(text), format, ap);
+  auto textsz = std::vsnprintf(text, sizeof(text) - 1, format, ap);
+  text[textsz] = 0;
   va_end(ap);
 
-  return icppsvr.print("{}", text);
+  return icppsvr.print("{}", std::string(text, textsz));
 }
 
 } // namespace icpp

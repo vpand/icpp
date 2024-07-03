@@ -130,7 +130,8 @@ public:
   void dump();
 
 protected:
-  void createObject(ObjectType type);
+  void createFromMemory(ObjectType type);
+  void createFromFile(ObjectType type);
   void parseSymbols();
   void parseSections();
   void decodeInsns(TextSection &text);
@@ -174,6 +175,13 @@ public:
   virtual ~MachORelocObject();
 };
 
+class MachOMemoryObject : public MachOObject {
+public:
+  MachOMemoryObject(std::string_view name,
+                    std::unique_ptr<::llvm::MemoryBuffer> memobj);
+  virtual ~MachOMemoryObject();
+};
+
 class MachOExeObject : public MachOObject {
 public:
   MachOExeObject(std::string_view srcpath, std::string_view path);
@@ -192,6 +200,13 @@ public:
   virtual ~ELFRelocObject();
 };
 
+class ELFMemoryObject : public ELFObject {
+public:
+  ELFMemoryObject(std::string_view name,
+                  std::unique_ptr<::llvm::MemoryBuffer> memobj);
+  virtual ~ELFMemoryObject();
+};
+
 class ELFExeObject : public ELFObject {
 public:
   ELFExeObject(std::string_view srcpath, std::string_view path);
@@ -208,6 +223,13 @@ class COFFRelocObject : public COFFObject {
 public:
   COFFRelocObject(std::string_view srcpath, std::string_view path);
   virtual ~COFFRelocObject();
+};
+
+class COFFMemoryObject : public COFFObject {
+public:
+  COFFMemoryObject(std::string_view name,
+                   std::unique_ptr<::llvm::MemoryBuffer> memobj);
+  virtual ~COFFMemoryObject();
 };
 
 class COFFExeObject : public COFFObject {

@@ -531,6 +531,11 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
   if (RunConfig::inst()->memory) {
     if (reinterpret_cast<uint64_t>(printf) == target) {
       target = reinterpret_cast<uint64_t>(RunConfig::inst()->printf);
+    } else if (reinterpret_cast<uint64_t>(puts) == target) {
+      // puts(str) ==> printf("%s\n", str)
+      args[1] = args[0];
+      args[0] = reinterpret_cast<uint64_t>("%s\n");
+      target = reinterpret_cast<uint64_t>(RunConfig::inst()->printf);
     }
   }
 

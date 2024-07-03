@@ -7,6 +7,7 @@
 #include "object.h"
 #include "icpp.h"
 #include "loader.h"
+#include "runcfg.h"
 #include "utils.h"
 #include <boost/beast.hpp>
 #include <fstream>
@@ -24,6 +25,9 @@ Object::Object(std::string_view srcpath, std::string_view path)
     : srcpath_(srcpath), path_(path) {
   if (!srcpath_.length())
     srcpath_ = path_;
+
+  if (RunConfig::inst()->memory)
+    return;
 
   srcpath_ = fs::absolute(srcpath_).string();
   path_ = fs::absolute(path_).string();
@@ -64,16 +68,7 @@ const char *Object::triple() {
   }
 }
 
-void Object::createObject(ObjectType type) {
-  // herein we pass IsVolatile as true to disable llvm to mmap this file
-  // because some data sections may be modified at runtime
-  auto errBuff = llvm::MemoryBuffer::getFile(path_, false, true, true);
-  if (!errBuff) {
-    std::cout << "Failed to read '" << path_
-              << "': " << errBuff.getError().message() << std::endl;
-    return;
-  }
-  fbuf_ = std::move(errBuff.get());
+void Object::createFromMemory(ObjectType type) {
   auto buffRef = llvm::MemoryBufferRef(*fbuf_);
   auto expObj = CObjectFile::createObjectFile(buffRef);
   if (expObj) {
@@ -98,6 +93,19 @@ void Object::createObject(ObjectType type) {
     std::cout << "Failed to create llvm object: "
               << llvm::toString(std::move(expObj.takeError())) << std::endl;
   }
+}
+
+void Object::createFromFile(ObjectType type) {
+  // herein we pass IsVolatile as true to disable llvm to mmap this file
+  // because some data sections may be modified at runtime
+  auto errBuff = llvm::MemoryBuffer::getFile(path_, false, true, true);
+  if (!errBuff) {
+    std::cout << "Failed to read '" << path_
+              << "': " << errBuff.getError().message() << std::endl;
+    return;
+  }
+  fbuf_ = std::move(errBuff.get());
+  createFromMemory(type);
 }
 
 void Object::parseSymbols() {
@@ -485,14 +493,23 @@ MachOObject::~MachOObject() {}
 MachORelocObject::MachORelocObject(std::string_view srcpath,
                                    std::string_view path)
     : MachOObject(srcpath, path) {
-  createObject(MachO_Reloc);
+  createFromFile(MachO_Reloc);
 }
 
 MachORelocObject::~MachORelocObject() {}
 
+MachOMemoryObject::MachOMemoryObject(
+    std::string_view name, std::unique_ptr<::llvm::MemoryBuffer> memobj)
+    : MachOObject(name, name) {
+  fbuf_ = std::move(memobj);
+  createFromMemory(MachO_Reloc);
+}
+
+MachOMemoryObject::~MachOMemoryObject() {}
+
 MachOExeObject::MachOExeObject(std::string_view srcpath, std::string_view path)
     : MachOObject(srcpath, path) {
-  createObject(MachO_Exe);
+  createFromFile(MachO_Exe);
 }
 
 MachOExeObject::~MachOExeObject() {}
@@ -504,14 +521,23 @@ ELFObject::~ELFObject() {}
 
 ELFRelocObject::ELFRelocObject(std::string_view srcpath, std::string_view path)
     : ELFObject(srcpath, path) {
-  createObject(ELF_Reloc);
+  createFromFile(ELF_Reloc);
 }
 
 ELFRelocObject::~ELFRelocObject() {}
 
+ELFMemoryObject::ELFMemoryObject(std::string_view name,
+                                 std::unique_ptr<::llvm::MemoryBuffer> memobj)
+    : ELFObject(name, name) {
+  fbuf_ = std::move(memobj);
+  createFromMemory(ELF_Reloc);
+}
+
+ELFMemoryObject::~ELFMemoryObject() {}
+
 ELFExeObject::ELFExeObject(std::string_view srcpath, std::string_view path)
     : ELFObject(srcpath, path) {
-  createObject(ELF_Exe);
+  createFromFile(ELF_Exe);
 }
 
 ELFExeObject::~ELFExeObject() {}
@@ -524,14 +550,23 @@ COFFObject::~COFFObject() {}
 COFFRelocObject::COFFRelocObject(std::string_view srcpath,
                                  std::string_view path)
     : COFFObject(srcpath, path) {
-  createObject(COFF_Reloc);
+  createFromFile(COFF_Reloc);
 }
 
 COFFRelocObject::~COFFRelocObject() {}
 
+COFFMemoryObject::COFFMemoryObject(std::string_view name,
+                                   std::unique_ptr<::llvm::MemoryBuffer> memobj)
+    : COFFObject(name, name) {
+  fbuf_ = std::move(memobj);
+  createFromMemory(COFF_Reloc);
+}
+
+COFFMemoryObject::~COFFMemoryObject() {}
+
 COFFExeObject::COFFExeObject(std::string_view srcpath, std::string_view path)
     : COFFObject(srcpath, path) {
-  createObject(COFF_Exe);
+  createFromFile(COFF_Exe);
 }
 
 COFFExeObject::~COFFExeObject() {}

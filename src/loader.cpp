@@ -31,7 +31,8 @@ struct ModuleLoader {
     syms_.insert({"___dso_handle", &__dso_handle});
 
     // initialize the symbol hashes for the third-party modules lazy loading
-    RuntimeLib::inst().initHashes();
+    if (fs::exists(RuntimeLib::inst().repo(false)))
+      RuntimeLib::inst().initHashes();
   }
 
   ~ModuleLoader() {

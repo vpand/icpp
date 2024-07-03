@@ -20,8 +20,9 @@ RuntimeLib::RuntimeLib() {}
 
 RuntimeLib::~RuntimeLib() {}
 
-fs::path RuntimeLib::repo() {
-  return must_exist(fs::path(home_directory()) / repoName);
+fs::path RuntimeLib::repo(bool force) {
+  auto home = fs::path(home_directory()) / repoName;
+  return force ? must_exist(home) : home;
 }
 
 fs::path RuntimeLib::includeFull() {

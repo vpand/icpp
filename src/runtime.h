@@ -27,7 +27,7 @@ class RuntimeLib {
 public:
   static RuntimeLib &inst();
 
-  fs::path repo();
+  fs::path repo(bool force = true);
   fs::path includeFull();
   fs::path libFull();
 

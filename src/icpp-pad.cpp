@@ -275,6 +275,15 @@ struct LaunchPad {
       }
       if (resp.result().length())
         std::cout << resp.result();
+
+      switch (resp.cmd()) {
+      case iopad::RUN:
+        // notify main thread to continue
+        itc_.signal();
+        break;
+      default:
+        break;
+      }
       break;
     }
     default:
@@ -332,8 +341,8 @@ static void exec_code(std::string_view icpp, std::string_view code) {
   if (expBuff) {
     auto buff = expBuff.get().get();
     cmd.set_buff(std::string(buff->getBufferStart(), buff->getBufferSize()));
-    auto payload = cmd.SerializeAsString();
-    launchpad.send(iopad::RUN, payload);
+    launchpad.send(iopad::RUN, cmd.SerializeAsString());
+    launchpad.wait();
   }
 
   if (snippet)
@@ -350,7 +359,7 @@ static int exec_repl(std::string_view icpp) {
       [&](std::string_view dyncode) { exec_code(icpp, dyncode); });
 }
 
-template <typename T> static void run_launch_pad(T task) {
+template <typename T> static void run_launch_pad(bool repl, T task) {
   if (!launchpad.connect())
     return;
   // create a new thread to interact with remote icpp-gadget server
@@ -360,6 +369,10 @@ template <typename T> static void run_launch_pad(T task) {
   if (launchpad.checkCompatible()) {
     // do the real work
     task();
+    if (!repl) {
+      // wait until the remote execution to be finished
+      launchpad.wait();
+    }
     launchpad.disconnect();
   }
   threcv.join();
@@ -382,14 +395,14 @@ int main(int argc, char **argv) {
                      .string();
   if (Fire.length()) {
     if (fs::exists(Fire.data())) {
-      run_launch_pad([&icppexe]() { exec_code(icppexe.c_str(), Fire); });
+      run_launch_pad(false, [&icppexe]() { exec_code(icppexe.c_str(), Fire); });
     } else {
       icpp::log_print(icpp::Runtime, "Input source {} doesn't exist.",
                       Fire.data());
     }
   }
   if (!Fire.length() || Repl) {
-    run_launch_pad([&icppexe]() { exec_repl(icppexe.c_str()); });
+    run_launch_pad(true, [&icppexe]() { exec_repl(icppexe.c_str()); });
   }
 
   return 0;

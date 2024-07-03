@@ -45,17 +45,26 @@ static int compile_source_clang(int argc, const char **argv) {
 
 int compile_source(int argc, const char **argv) {
   std::vector<const char *> args;
-  for (int i = 0; i < argc; i++)
+  bool crossbuild = false;
+  for (int i = 0; i < argc; i++) {
     args.push_back(argv[i]);
+    // check whether in cross build mode
+    if (!crossbuild && (std::string_view(argv[i]) == "-arch" ||
+                        std::string_view(argv[i]) == "-target"))
+      crossbuild = true;
+  }
 
   // make clang driver to use our fake clang path as the executable path
   args.push_back("-no-canonical-prefixes");
   // use C++23 standard
   args.push_back("-std=gnu++23");
 
-  // add some system level specific compiler flags
-  for (auto a : extra_cflags())
-    args.push_back(a.data());
+  // add some system level specific compiler flags for host target build
+  auto eflags = extra_cflags();
+  if (!crossbuild) {
+    for (auto &a : eflags)
+      args.push_back(a.data());
+  }
 
   // add icpp module include
   auto icppinc = std::format("-I{}", RuntimeLib::inst().includeFull().string());
