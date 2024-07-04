@@ -119,10 +119,10 @@ add_clang_tool(icpp
   GENERATE_DRIVER
 )
 
-set(DISABLE_RTTI -fno-rtti)
-if(WIN32 AND NOT CYGWIN)
+if(MSVC)
   set(DISABLE_RTTI /GR-)
 else()
+  set(DISABLE_RTTI -fno-rtti)
   set_target_properties(icpp PROPERTIES VERSION ${CLANG_EXECUTABLE_VERSION})
 endif()
 set_source_files_properties(${ICPP_LLVM_SOURCES} PROPERTIES COMPILE_FLAGS ${DISABLE_RTTI})

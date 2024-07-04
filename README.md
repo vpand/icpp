@@ -169,12 +169,39 @@ ICPP_SRC/script:
 | **Linux**    | &#10008;   | &#10008;      | &#10008;       | &#10008;          | &#10008;          |
 
 ## Build
-Make sure the cmake, python3 and make command are in your system PATH environment.
+Make sure all of the **prerequisites** are in your system PATH environment:
+ * **cmake** (version >= 3.20)
+ * **python** (Windows), python3 (macOS/Linux)
+ * **ninja** (Windows), **make** (macOS/Linux)
+### Clone
 ```sh
+# clone icpp
+git clone --depth=1 https://github.com/vpand/icpp.git
+cd icpp
+# clone llvm, unicorn engine, boost, etc.
+git submodule update --init --recursive --depth=1
 mkdir build
 cd build
+```
+### CMake
+#### Windows
+```sh
+# NOTE:
+# all the following steps must be done in "x64 Native Tools Command Prompt for VS"
+# or
+# run VS_ROOT/.../VC/Auxiliary/Build/vcvarsall.bat to initialize for 'x64'
+vcvarsall x64
+cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ..
+```
+#### macOS/Linux
+```sh
 cmake -DCMAKE_BUILD_TYPE=Release ..
+```
+### Make
+```sh
+# build the protoc compiler
 cmake --build . -- protoc -j8
+# build all the icpp components
 cmake --build . -- icpp icppcli imod iopad icpp-gadget -j8
 ```
 

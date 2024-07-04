@@ -6,6 +6,7 @@
 '''
 
 import os
+import platform
 import sys
 import subprocess
 
@@ -21,6 +22,9 @@ if not os.path.exists(clang_format):
     if not clang_format or not os.path.exists(clang_format):
         # CLANG_FORMAT env is missing, make sure clang-format is in your system PATH environment.
         clang_format = 'clang-format'
+elif platform.system() == 'Windows':
+    # construct the right full path of clang-format.exe
+    clang_format += '.exe'
 
 src_exts = ['.c', '.cc', '.cpp', '.h', '.hpp']
 
