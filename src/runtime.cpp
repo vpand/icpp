@@ -44,13 +44,13 @@ void RuntimeLib::initHashes() {
   for (auto &entry : fs::recursive_directory_iterator(libFull())) {
     if (entry.is_directory()) {
       auto hashfile = entry.path() / hashFile;
-      auto expBuff = llvm::MemoryBuffer::getFile(hashfile.c_str());
+      auto expBuff = llvm::MemoryBuffer::getFile(hashfile.string());
       if (!expBuff)
         continue; // symbol.hash file is missing, ignore this module
 
       auto buffer = expBuff.get().get();
       auto newit = hashes_
-                       .insert({entry.path().filename(),
+                       .insert({entry.path().filename().string(),
                                 std::make_unique<vpimod::SymbolHash>()})
                        .first;
       if (!newit->second->ParseFromArray(buffer->getBufferStart(),

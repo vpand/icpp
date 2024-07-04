@@ -5,6 +5,8 @@
 */
 
 #include "platform.h"
+#include "utils.h"
+#include <vector>
 
 #if __APPLE__
 // there's an extra underscore character in macho symbol, skip it
@@ -25,7 +27,37 @@ const void *load_library(std::string_view path) {
 
 static const void *find_symbol(std::string_view raw) {
 #ifdef ON_WINDOWS
-#error Un-implement symbol lookup on Windows.
+  static std::vector<HMODULE> sysmods;
+  if (!sysmods.size()) {
+    static std::vector<std::string_view> names{"api-ms-win"
+                                               "vcruntime",
+                                               "msvcp", "kernel", "msvcrt"};
+    iterate_modules([](uint64_t handle, std::string_view path) {
+      for (auto &n : names) {
+        if (path.find(n) != std::string_view::npos)
+          sysmods.push_back(reinterpret_cast<HMODULE>(handle));
+      }
+    });
+    if (sysmods.size() < names.size()) {
+      log_print(Develop,
+                "Warning, the count of the default system module handle should "
+                "be at least the same size with the names's.");
+    }
+  }
+  // search in the system modules
+  for (auto &mod : sysmods) {
+    auto addr = ::GetProcAddress(mod, raw.data());
+    if (addr)
+      return addr;
+  }
+  const void *addr = nullptr;
+  iterate_modules([&addr, &raw](uint64_t handle, std::string_view path) {
+    if (addr || path.find("Windows") != std::string_view::npos)
+      return;
+    // search in the user modules
+    addr = ::GetProcAddress(reinterpret_cast<HMODULE>(handle), raw.data());
+  });
+  return addr;
 #else
   return dlsym(RTLD_DEFAULT, symbol_name(raw));
 #endif
@@ -61,16 +93,15 @@ void iterate_modules(
   }
 #elif __linux__
   dl_iterate_phdr(iter_so_callback, &callback);
-#elif _WIN32
+#elif ON_WINDOWS
   HANDLE hProcess = ::GetCurrentProcess();
   HMODULE hMods[4096];
   DWORD cbNeeded;
   ::EnumProcessModules(hProcess, hMods, sizeof(hMods), &cbNeeded);
   for (unsigned i = 0; i < (cbNeeded / sizeof(HMODULE)); i++) {
     char szModName[MAX_PATH];
-    ::GetModuleFileNameEx(hProcess, hMods[i], szModName, sizeof(szModName));
-    callback(reinterpret_cast<uint64_t>(::GetModuleHandle(szModName)),
-             szModName);
+    ::GetModuleFileNameExA(hProcess, hMods[i], szModName, sizeof(szModName));
+    callback(reinterpret_cast<uint64_t>(hMods[i]), szModName);
   }
 #else
 #error Unsupported host os platform.
@@ -88,7 +119,6 @@ std::vector<std::string> extra_cflags() {
 #elif __linux__
 #error Un-implement the Linux platform currently.
 #elif ON_WINDOWS
-#error Un-implement the Windows platform currently.
 #else
 #error Unknown compiling platform.
 #endif

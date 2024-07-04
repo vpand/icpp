@@ -6,18 +6,28 @@
 
 #pragma once
 
-#include <functional>
-#include <string_view>
-
 #if defined(_WIN32) || defined(_WIN64)
 #define ON_WINDOWS 1
 #else
 #define ON_UNIX 1
 #endif
 
+#include <functional>
+#include <string_view>
+
 #if ON_WINDOWS
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN 1
+#endif
 #include <Windows.h>
+#include <psapi.h>
+
+#undef min
+#undef max
+
+#if _M_X64
+#define __x64__ 1
+#endif
 
 #define __ICPP_EXPORT__ __declspec(dllexport)
 #else
@@ -35,18 +45,15 @@ namespace icpp {
 
 #ifdef ON_WINDOWS
 
-#define WIN32_LEAN_AND_MEAN 1
-#include <Windows.h>
-
-typedef HANDLE (*thread_create_t)(
-    [ in, optional ] LPSECURITY_ATTRIBUTES lpThreadAttributes,
-    [in] SIZE_T dwStackSize, [in] LPTHREAD_START_ROUTINE lpStartAddress,
-    [ in, optional ] __drv_aliasesMem LPVOID lpParameter,
-    [in] DWORD dwCreationFlags, [ out, optional ] LPDWORD lpThreadId);
+typedef HANDLE (*thread_create_t)(LPSECURITY_ATTRIBUTES lpThreadAttributes,
+                                  SIZE_T dwStackSize,
+                                  LPTHREAD_START_ROUTINE lpStartAddress,
+                                  LPVOID lpParameter, DWORD dwCreationFlags,
+                                  LPDWORD lpThreadId);
 
 typedef DWORD thread_return_t;
 
-constexpr const thread_create_t thread_create = CreateThread;
+const thread_create_t thread_create = CreateThread;
 constexpr const std::string_view env_home = "userprofile";
 constexpr const std::string_view path_split = ";";
 constexpr const std::string_view ndk_build = "ndk-build.bat";
@@ -57,7 +64,7 @@ typedef int (*thread_create_t)(pthread_t *thread, const pthread_attr_t *attr,
                                void *(*start_routine)(void *), void *arg);
 typedef void *thread_return_t;
 
-constexpr const thread_create_t thread_create = pthread_create;
+const thread_create_t thread_create = pthread_create;
 constexpr const std::string_view env_home = "HOME";
 constexpr const std::string_view path_split = ":";
 constexpr const std::string_view ndk_build = "ndk-build";

@@ -20,10 +20,19 @@
 #include <unicorn/unicorn.h>
 
 extern "C" {
+#if ON_WINDOWS
+void _CxxThrowException(void);
+
+// rename to libc++abi's symbol name
+#define __cxa_throw _CxxThrowException
+#define __cxa_atexit atexit
+#define __stack_chk_fail abort
+#else
 int __cxa_atexit(void (*f)(void *), void *p, void *d);
 void __stack_chk_fail(void);
 void __cxa_throw(void *thrown_object, std::type_info *tinfo,
                  void (*dest)(void *));
+#endif
 }
 
 namespace icpp {
@@ -328,13 +337,8 @@ bool ExecEngine::run(uint64_t vm, uint64_t arg0, uint64_t arg1) {
     initMainRegister(reinterpret_cast<const void *>(arg0),
                      reinterpret_cast<const void *>(arg1));
     return execLoop(vm);
-  } catch (std::system_error &e) {
-    log_print(Runtime, "Exception ocurred, system error: {}.", e.what());
-  } catch (std::logic_error &e) {
-    log_print(Runtime, "Exception ocurred, logical error: {}.", e.what());
-  } catch (std::invalid_argument &e) {
-    log_print(Runtime, "Exception ocurred, invalid argument error: {}.",
-              e.what());
+  } catch (std::exception &e) {
+    log_print(Runtime, "Exception ocurred: {}.", e.what());
   } catch (...) {
     log_print(Runtime, "Exception ocurred, unknown type.");
   }

@@ -58,7 +58,7 @@ fs::path must_exist(const fs::path &path) {
   if (!fs::exists(path)) {
     if (!fs::create_directories(path)) {
       icpp::log_print(Runtime, "Fatal error, failed to create directory {}.",
-                      path.c_str());
+                      path.string());
       std::exit(-1);
     }
   }

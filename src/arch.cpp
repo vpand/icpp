@@ -429,7 +429,7 @@ void host_call(void *ctx, const void *func) {
   // process retn xx situation
   callctx.sp_before +=
       0x1000 + sizeof(void *); // 0x1000 temp stack + ptrsz context
-  context->rsp.q += (callctx.sp_after - callctx.sp_before);
+  context->rsp += (callctx.sp_after - callctx.sp_before);
 #endif
 }
 
@@ -442,7 +442,7 @@ void __NAKED__ host_naked_syscall() {
 #endif
   __ASM__("ret");
 #elif __x86_64__ || __x64__
-  __AMS__("syscall");
+  __ASM__("syscall");
   __ASM__("ret");
 #else
 #error Unsupported host architecture.

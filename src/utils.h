@@ -8,6 +8,8 @@
 
 #include "log.h"
 #include <filesystem>
+#include <functional>
+#include <mutex>
 #include <string_view>
 
 namespace fs = std::filesystem;

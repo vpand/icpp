@@ -880,6 +880,8 @@ static SymbolRef::Type convert_reloc_type(ArchType arch, ObjectType otype,
     case ELF::R_AARCH64_GOTREL64 | ELF_MAGIC_BIT:
     case ELF::R_AARCH64_GOT_LD_PREL19 | ELF_MAGIC_BIT:
     case ELF::R_AARCH64_ADR_GOT_PAGE | ELF_MAGIC_BIT:
+// undefine these macros from windows headers
+#undef IMAGE_REL_ARM64_PAGEBASE_REL21
     case COFF::RelocationTypesARM64::IMAGE_REL_ARM64_PAGEBASE_REL21 |
         COFF_MAGIC_BIT:
       return SymbolRef::ST_Data;
@@ -893,6 +895,8 @@ static SymbolRef::Type convert_reloc_type(ArchType arch, ObjectType otype,
     case MachO::X86_64_RELOC_GOT | MACHO_MAGIC_BIT:
     case MachO::X86_64_RELOC_GOT_LOAD | MACHO_MAGIC_BIT:
     case ELF::R_X86_64_GOTPCREL | ELF_MAGIC_BIT:
+// undefine these macros from windows headers
+#undef IMAGE_REL_AMD64_ADDR64
     case COFF::RelocationTypeAMD64::IMAGE_REL_AMD64_ADDR64 | COFF_MAGIC_BIT:
       return SymbolRef::ST_Data;
     default:
@@ -1009,8 +1013,9 @@ void Object::decodeInsns(TextSection &text) {
             // locate and insert a new extern relocation
             auto rtaddr =
                 Loader::locateSymbol(name, symtype == SymbolRef::ST_Data);
-            rit = irelocs_.insert(irelocs_.end(),
-                                  RelocInfo{name.data(), rtaddr, symtype});
+            rit = irelocs_.insert(
+                irelocs_.end(),
+                RelocInfo{name.data(), rtaddr, static_cast<uint32_t>(symtype)});
           } else {
             // insert a new local relocation
             auto expSect = sym->getSection();
@@ -1042,8 +1047,9 @@ void Object::decodeInsns(TextSection &text) {
 
                 auto rtaddr =
                     reinterpret_cast<const void *>(ds.buffer.data() + symoff);
-                rit = irelocs_.insert(irelocs_.end(),
-                                      RelocInfo{name.data(), rtaddr, symtype});
+                rit = irelocs_.insert(
+                    irelocs_.end(), RelocInfo{name.data(), rtaddr,
+                                              static_cast<uint32_t>(symtype)});
                 break;
               }
             }
@@ -1062,7 +1068,8 @@ void Object::decodeInsns(TextSection &text) {
               auto rtaddr =
                   reinterpret_cast<const void *>(expContent->data() + symoff);
               rit = irelocs_.insert(irelocs_.end(),
-                                    RelocInfo{name.data(), rtaddr, symtype});
+                                    RelocInfo{name.data(), rtaddr,
+                                              static_cast<uint32_t>(symtype)});
             }
           }
           if (0) {

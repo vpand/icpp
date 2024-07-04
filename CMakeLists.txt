@@ -7,21 +7,21 @@ if(APPLE)
   set(CMAKE_C_COMPILER "/usr/bin/clang" CACHE FILEPATH "" FORCE)
 endif()
 
-# workaround to process the different python command line name
+# workaround to process the different python/build command line name
 if(MSVC)
   # python3 on Windows should be invoked as python
   set(PYTHON python)
   set(BUILDCMD ninja)
-  # use the MultiThreaded static runtime mode for compiling and linking
+  # use the MultiThreadedDLL dynamical runtime mode for compiling and linking
   if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDebug")
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL")
   else()
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
   endif()
-  set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MT")
-  set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MTd")
-  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
-  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
+  set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MD")
+  set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MDd")
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD")
+  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
 else()
   set(PYTHON python3)
   set(BUILDCMD make)

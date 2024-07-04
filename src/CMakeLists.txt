@@ -4,6 +4,14 @@ message(STATUS "Configuring C++ interpreter icpp...")
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED)
 
+# enable exception for llvm
+set(LLVM_ENABLE_EH TRUE)
+
+# disable mscrt insecure warnings
+if(MSVC)
+add_compile_options(-D_CRT_SECURE_NO_WARNINGS=1)
+endif()
+
 set(LLVM_LINK_COMPONENTS
   ${LLVM_TARGETS_TO_BUILD}
   Analysis

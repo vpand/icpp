@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include <memory.h>
+#include <memory>
 #include <string_view>
 #include <vector>
 

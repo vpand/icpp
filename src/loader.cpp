@@ -199,8 +199,9 @@ const void *ModuleLoader::lookup(std::string_view name, bool data) {
              "lib" / "boost")) {
       auto libpath = entry.path();
       if (entry.is_regular_file() && libpath.extension() == LLVM_PLUGIN_EXT) {
-        if (!load_library(libpath.c_str()))
-          log_print(Runtime, "Failed load boost library: {}.", libpath.c_str());
+        if (!load_library(libpath.string()))
+          log_print(Runtime, "Failed load boost library: {}.",
+                    libpath.string());
       }
     }
   }
@@ -224,13 +225,13 @@ const void *ModuleLoader::lookup(std::string_view name, bool data) {
     // the final chance to resolve this symbol
     auto path = RuntimeLib::inst().find(name);
     if (!path.empty()) {
-      auto handle = loadLibrary(path.c_str());
+      auto handle = loadLibrary(path.string());
       target = resolve(handle, name, data);
     }
     // Oops...
     if (!target) {
       log_print(Runtime, "Fatal error, failed to resolve symbol: {}.",
-                dlerror());
+                name.data());
       std::exit(-1);
     }
   }

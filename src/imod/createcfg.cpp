@@ -14,7 +14,7 @@ namespace imod {
 
 CreateConfig::CreateConfig(std::string_view path)
     : json_(std::make_unique<json::value>()) {
-  std::ifstream inf(path);
+  std::ifstream inf(path.data());
   *json_ = std::move(json::parse(inf));
 }
 

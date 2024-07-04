@@ -336,7 +336,7 @@ static void exec_code(std::string_view icpp, std::string_view code) {
 
   // send to icpp-gadget to execute this object payload
   iopad::CommandRun cmd;
-  cmd.set_name(fs::path(srcpath).filename().c_str());
+  cmd.set_name(fs::path(srcpath).filename().string());
   auto expBuff = llvm::MemoryBuffer::getFile(objpath);
   if (expBuff) {
     auto buff = expBuff.get().get();

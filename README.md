@@ -191,7 +191,9 @@ cd build
 # or
 # run VS_ROOT/.../VC/Auxiliary/Build/vcvarsall.bat to initialize for 'x64'
 vcvarsall x64
-cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ..
+# we use clang-cl as our compiler, to make it working, you should:
+# installed the Visual Studio with LLVM Toolchain support.
+cmake -G Ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_BUILD_TYPE=Release ..
 ```
 #### macOS/Linux
 ```sh

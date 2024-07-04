@@ -68,7 +68,7 @@ static void print_version(llvm::raw_ostream &os) {
 
 // Don't need these implementations at all in imod tool
 namespace icpp {
-void init_library(std::__1::shared_ptr<icpp::Object>) {}
+void init_library(std::shared_ptr<icpp::Object>) {}
 ObjectDisassembler::~ObjectDisassembler() {}
 void ObjectDisassembler::init(CObjectFile *, std::string_view) {}
 void Object::decodeInsns(TextSection &) {}
@@ -79,12 +79,12 @@ void pack_recursively(std::string_view dstroot, std::string_view srcroot,
                       std::string_view title, FILTER filter, PACKER packer) {
   for (auto &entry : fs::recursive_directory_iterator(srcroot)) {
     if (entry.is_regular_file() && filter(entry.path())) {
-      packer(dstroot, entry.path().c_str(), title);
+      packer(dstroot, entry.path().string(), title);
     } else if (entry.is_directory()) {
       auto name = entry.path().filename();
       auto dst = fs::path(dstroot) / name;
       auto src = fs::path(srcroot) / name;
-      pack_recursively(dst.c_str(), src.c_str(), title, filter, packer);
+      pack_recursively(dst.string(), src.string(), title, filter, packer);
     }
   }
 };
@@ -219,7 +219,7 @@ static void create_package(const char *program, std::string_view cfgpath) {
     std::ofstream outf(pkgpath.c_str(), std::ios::binary);
     if (!outf.is_open()) {
       icpp::log_print(prefix_error, "Failed to create the package file {}.",
-                      pkgpath.c_str());
+                      pkgpath.string());
       return;
     }
     // write icpp module magic value
@@ -231,7 +231,7 @@ static void create_package(const char *program, std::string_view cfgpath) {
     icpp::log_print(prefix_prog,
                     "Successfully created {} with compressed size: "
                     "{}.",
-                    pkgpath.c_str(), compsz);
+                    pkgpath.string(), compsz);
   } catch (std::invalid_argument &e) {
     icpp::log_print(prefix_error, "{}", e.what());
   } catch (std::system_error &e) {
@@ -296,19 +296,18 @@ static void install_package(std::string_view pkgpath) {
     std::ofstream outf(fullpath, std::ios::binary);
     if (!outf.is_open()) {
       icpp::log_print(prefix_error, "Failed to write module file {}.",
-                      fullpath.c_str());
+                      fullpath.string());
       return;
     }
-    icpp::log_print(prefix_prog, "Installing {}...", file.path().c_str());
+    icpp::log_print(prefix_prog, "Installing {}...", file.path());
     outf.write(file.content().data(), file.content().size());
     outf.close(); // flush the file buffer
     if (!file.path().starts_with("lib"))
       continue;
 
-    icpp::log_print(prefix_prog, "Parsing the symbols of {}...",
-                    file.path().c_str());
+    icpp::log_print(prefix_prog, "Parsing the symbols of {}...", file.path());
     std::string message;
-    icpp::SymbolHash hasher(fullpath.c_str());
+    icpp::SymbolHash hasher(fullpath.string());
     // parse and calculate the symbol hash array
     auto hashes = hasher.hashes(message);
     if (!hashes.size()) {
@@ -361,7 +360,7 @@ static void list_module() {
   icpp::log_print(icpp::Raw, "Installed module:");
   for (auto &entry : fs::directory_iterator(Rtlib::inst().includeFull(""))) {
     if (entry.is_directory()) {
-      icpp::log_print(icpp::Raw, " * {}", entry.path().filename().c_str());
+      icpp::log_print(icpp::Raw, " * {}", entry.path().filename().string());
     }
   }
 }
