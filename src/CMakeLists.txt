@@ -37,9 +37,12 @@ execute_process(COMMAND ${CMAKE_COMMAND} -E copy
   ${CMAKE_CURRENT_SOURCE_DIR}/icpp-driver.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/icpp-driver.cpp)
 
-# generate debugger protocol and interpretable object source
+# generate the protocol sources with protoc
 add_custom_command(
-  OUTPUT icppdbg.pb.cc icppiobj.pb.cc isymhash.pb.cc
+  OUTPUT 
+    icppdbg.pb.cc icppiobj.pb.cc isymhash.pb.cc 
+    icppmod.pb.cc
+    icpppad.pb.cc
   COMMAND ${CMAKE_BINARY_DIR}/third/protobuf/protoc 
     -I=${CMAKE_SOURCE_DIR}/proto --cpp_out=${CMAKE_CURRENT_BINARY_DIR} 
        ${CMAKE_SOURCE_DIR}/proto/icppdbg.proto
@@ -49,9 +52,17 @@ add_custom_command(
   COMMAND ${CMAKE_BINARY_DIR}/third/protobuf/protoc 
     -I=${CMAKE_SOURCE_DIR}/proto --cpp_out=${CMAKE_CURRENT_BINARY_DIR} 
        ${CMAKE_SOURCE_DIR}/proto/isymhash.proto
+  COMMAND ${CMAKE_BINARY_DIR}/third/protobuf/protoc 
+    -I=${CMAKE_SOURCE_DIR}/proto --cpp_out=${CMAKE_CURRENT_BINARY_DIR} 
+       ${CMAKE_SOURCE_DIR}/proto/icppmod.proto
+  COMMAND ${CMAKE_BINARY_DIR}/third/protobuf/protoc 
+    -I=${CMAKE_SOURCE_DIR}/proto --cpp_out=${CMAKE_CURRENT_BINARY_DIR} 
+       ${CMAKE_SOURCE_DIR}/proto/icpppad.proto
   DEPENDS ${CMAKE_SOURCE_DIR}/proto/icppdbg.proto
           ${CMAKE_SOURCE_DIR}/proto/icppiobj.proto
           ${CMAKE_SOURCE_DIR}/proto/isymhash.proto
+          ${CMAKE_SOURCE_DIR}/proto/icppmod.proto
+          ${CMAKE_SOURCE_DIR}/proto/icpppad.proto
   VERBATIM)
 
 # llvm disabled rtti, so sources depend on them should also apply it
@@ -175,15 +186,6 @@ target_link_libraries(icppcli PRIVATE boost_dll)
 # icpp module manager command line
 message(STATUS "Configuring icpp module manager imod...")
 
-# generate symbol hash and icpp module source
-add_custom_command(
-  OUTPUT icppmod.pb.cc
-  COMMAND ${CMAKE_BINARY_DIR}/third/protobuf/protoc 
-    -I=${CMAKE_SOURCE_DIR}/proto --cpp_out=${CMAKE_CURRENT_BINARY_DIR} 
-       ${CMAKE_SOURCE_DIR}/proto/icppmod.proto
-          ${CMAKE_SOURCE_DIR}/proto/icppmod.proto
-  VERBATIM)
-
 set(LLVM_LINK_COMPONENTS
   Object
   Option
@@ -199,6 +201,7 @@ add_llvm_tool(imod
   icpp.cpp
   loader.cpp
   platform.cpp
+  runcfg.cpp
   runtime.cpp
   utils.cpp
   imod/createcfg.cpp
@@ -233,15 +236,6 @@ target_link_libraries(imod PRIVATE
 # iopad, sending the interpretable object to the remote 
 # icpp gadget to execute it through nework
 message(STATUS "Configuring interpretable object launch pad iopad...")
-
-# generate io launch pad payload source
-add_custom_command(
-  OUTPUT icpppad.pb.cc
-  COMMAND ${CMAKE_BINARY_DIR}/third/protobuf/protoc 
-    -I=${CMAKE_SOURCE_DIR}/proto --cpp_out=${CMAKE_CURRENT_BINARY_DIR} 
-    ${CMAKE_SOURCE_DIR}/proto/icpppad.proto
-  DEPENDS ${CMAKE_SOURCE_DIR}/proto/icpppad.proto
-  VERBATIM)
 
 set(LLVM_LINK_COMPONENTS
   Option

@@ -13,7 +13,8 @@ namespace icpp {
 // i.e.: interpreter's stack size, step count, step debugging, etc.
 class RunConfig {
 public:
-  static RunConfig *inst(const char *cfg = nullptr);
+  static RunConfig *inst(const char *argv0 = nullptr,
+                         const char *cfg = nullptr);
 
   RunConfig(const char *cfg);
   ~RunConfig();
@@ -24,6 +25,9 @@ public:
   int stepSize();
 
   bool hasDebugger();
+
+  // the main program
+  const char *program;
 
   // whether in repl mode
   static bool repl;

@@ -9,9 +9,11 @@
 #include "log.h"
 #include "object.h"
 #include "platform.h"
+#include "runcfg.h"
 #include "runtime.h"
 #include <cstdio>
 #include <iostream>
+#include <llvm/Config/config.h>
 #include <locale>
 #include <map>
 #include <mutex>
@@ -187,6 +189,22 @@ const void *ModuleLoader::resolve(std::string_view name, bool data) {
 }
 
 const void *ModuleLoader::lookup(std::string_view name, bool data) {
+  // load boost libraries lazily
+  static bool boost = false;
+  if (!boost && name.find("boost") != std::string_view::npos) {
+    boost = true;
+
+    for (auto &entry : fs::recursive_directory_iterator(
+             fs::absolute(RunConfig::inst()->program).parent_path() / ".." /
+             "lib" / "boost")) {
+      auto libpath = entry.path();
+      if (entry.is_regular_file() && libpath.extension() == LLVM_PLUGIN_EXT) {
+        if (!load_library(libpath.c_str()))
+          log_print(Runtime, "Failed load boost library: {}.", libpath.c_str());
+      }
+    }
+  }
+
   const void *target = nullptr;
 
   // check it in iobject modules

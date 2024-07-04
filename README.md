@@ -174,7 +174,8 @@ Make sure the cmake, python3 and make command are in your system PATH environmen
 mkdir build
 cd build
 cmake -DCMAKE_BUILD_TYPE=Release ..
-cmake --build . -- icpp imod iopad icpp-gadget -j8
+cmake --build . -- protoc -j8
+cmake --build . -- icpp icppcli imod iopad icpp-gadget -j8
 ```
 
 ## Contact

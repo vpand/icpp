@@ -20,11 +20,13 @@ extern std::string GetExecutablePath(const char *argv0, bool CanonicalPrefixes);
 
 namespace icpp {
 
+static bool echocc = false;
+
 static int compile_source_clang(int argc, const char **argv) {
   // just echo the compiling args
-  if (std::string_view(argv[0]) == "echo") {
-    std::string cmds("icpp ");
-    for (int i = 1; i < argc; i++)
+  if (echocc) {
+    std::string cmds;
+    for (int i = 0; i < argc; i++)
       cmds += std::string(argv[i]) + " ";
     log_print(Develop, "{}", cmds);
     return 0;
@@ -66,9 +68,16 @@ int compile_source(int argc, const char **argv) {
       args.push_back(a.data());
   }
 
-  // add icpp module include
-  auto icppinc = std::format("-I{}", RuntimeLib::inst().includeFull().string());
+  // add icpp include
+  auto icppinc = std::format(
+      "-I{}", (fs::absolute(fs::path(argv[0])).parent_path() / ".." / "include")
+                  .string());
   args.push_back(icppinc.data());
+
+  // add icpp module include
+  auto icppminc =
+      std::format("-I{}", RuntimeLib::inst().includeFull().string());
+  args.push_back(icppminc.data());
 
   return compile_source_clang(static_cast<int>(args.size()), &args[0]);
 }
@@ -108,7 +117,7 @@ fs::path compile_source(const char *argv0, std::string_view path,
     log_print(Develop, "Using iobject cache file when compiling: {}.",
               cache.string());
     // print the current compiling args
-    args[0] = "echo";
+    echocc = true;
   }
 
   compile_source(static_cast<int>(args.size()), &args[0]);

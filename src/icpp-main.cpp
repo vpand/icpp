@@ -188,7 +188,7 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
   }
 
   // initialize the running configuration
-  icpp::RunConfig::inst(icpp_option_procfg);
+  icpp::RunConfig::inst(argv[0], icpp_option_procfg);
 
   auto deps = get_dependencies(icpp_option_libdirs, icpp_option_libs,
                                icpp_option_framedirs, icpp_option_frameworks);

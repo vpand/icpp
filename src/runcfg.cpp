@@ -15,13 +15,14 @@ bool RunConfig::memory = false;
 int (*RunConfig::printf)(const char *, ...) = std::printf;
 int (*RunConfig::puts)(const char *) = std::puts;
 
-RunConfig *RunConfig::inst(const char *cfg) {
+RunConfig *RunConfig::inst(const char *argv0, const char *cfg) {
   static std::unique_ptr<RunConfig> runcfg;
   if (runcfg)
     return runcfg.get();
   if (!cfg)
     return nullptr;
   runcfg = std::make_unique<RunConfig>(cfg);
+  runcfg->program = argv0;
   return runcfg.get();
 }
 

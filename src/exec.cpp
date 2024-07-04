@@ -13,6 +13,7 @@
 #include "utils.h"
 
 #include "llvm/Support/Signals.h"
+#include <csetjmp>
 #include <llvm/ADT/Twine.h>
 #include <llvm/BinaryFormat/Magic.h>
 #include <mutex>
@@ -218,6 +219,8 @@ private:
 
   // vm stack
   std::string stack_;
+  // used to resume some fatal error, e.g.: segfault
+  std::jmp_buf jmpbuf_;
 
   // exit code
   int exitcode_ = 0;
@@ -318,6 +321,9 @@ bool ExecEngine::execMain() {
 }
 
 bool ExecEngine::run(uint64_t vm, uint64_t arg0, uint64_t arg1) {
+  if (::setjmp(jmpbuf_))
+    return false;
+
   try {
     initMainRegister(reinterpret_cast<const void *>(arg0),
                      reinterpret_cast<const void *>(arg1));
@@ -1354,6 +1360,7 @@ void ExecEngine::dump() {
   }
 
   log_print(Raw, "\n");
+  std::longjmp(jmpbuf_, true);
 }
 
 // current execution engine instance

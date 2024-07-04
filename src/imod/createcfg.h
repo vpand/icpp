@@ -34,13 +34,11 @@ manager's repository, their layout is as follows:
 
 .icpp
 ---include
-------boost
 ------icpp
 ---------name
 ------------headers.h
 ------------header-dirs
 ---lib
-------boost
 ------icpp
 ---------name
 ------------binary-objs.o
@@ -61,12 +59,10 @@ json {
 
 .icpp
 ---include
-------boost
 ------icpp
 ---------module-demo
 ------------module.h
 ---lib
-------boost
 ------icpp
 ---------module-demo
 ------------module.o
