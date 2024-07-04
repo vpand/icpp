@@ -90,7 +90,7 @@ get_dependencies(const std::vector<const char *> &libdirs,
     for (auto n : libs) {
       auto lib = fs::path(l) / n;
       if (fs::exists(lib)) {
-        deps.push_back(lib);
+        deps.push_back(lib.string());
         break;
       }
     }
@@ -99,7 +99,7 @@ get_dependencies(const std::vector<const char *> &libdirs,
     for (auto n : frameworks) {
       auto frame = fs::path(f) / std::format("{}.framework", n) / n;
       if (fs::exists(frame)) {
-        deps.push_back(frame);
+        deps.push_back(frame.string());
         break;
       }
     }
@@ -210,7 +210,7 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
       auto opath = icpp::compile_source(argv[0], sp, icpp_option_opt,
                                         icpp_option_incdirs);
       if (fs::exists(opath)) {
-        exitcode = icpp::exec_main(opath.c_str(), deps, sp, argc - idoubledash,
+        exitcode = icpp::exec_main(opath.string(), deps, sp, argc - idoubledash,
                                    &argv[idoubledash + 1]);
         if (opath.extension() != icpp::iobj_ext)
           fs::remove(opath);

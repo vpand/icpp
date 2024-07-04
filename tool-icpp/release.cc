@@ -45,9 +45,11 @@ usage: build/src/icpp release.cc /path/to/prefix
 #if _WIN32
 #define EXEEXT ".exe"
 #define VERSEP "-"
+#define ICPPRT "icpp" LIBEXT
 #else
 #define EXEEXT ""
 #define VERSEP "."
+#define ICPPRT std::format("icpp" VERSEP "{}" LIBEXT, LLVM_VERSION_MAJOR)
 #endif
 
 namespace fs = std::filesystem;
@@ -63,8 +65,8 @@ static auto create_dir(const fs::path &path) {
   if (fs::exists(path))
     return;
   if (!fs::create_directory(path))
-    log_exit(std::format("Failed to create directory: {}.", path.c_str()));
-  log(std::format("Created directory {}.", path.c_str()));
+    log_exit(std::format("Failed to create directory: {}.", path.string()));
+  log(std::format("Created directory {}.", path.string()));
 }
 
 static auto pack_file(const fs::path &srcfile, const fs::path &dstdir,
@@ -73,18 +75,18 @@ static auto pack_file(const fs::path &srcfile, const fs::path &dstdir,
   std::error_code err;
   fs::copy_file(srcfile, dstfile, fs::copy_options::overwrite_existing, err);
   if (err)
-    log_exit(std::format("Failed to copy file: {} ==> {}, {}.", srcfile.c_str(),
-                         dstfile.c_str(), err.message()));
+    log_exit(std::format("Failed to copy file: {} ==> {}, {}.",
+                         srcfile.string(), dstfile.string(), err.message()));
 
 #if __APPLE__ || __linux__
   if (strip) {
-    std::system(std::format(R"(strip -x "{}")", dstfile.c_str()).data());
-    log(std::format("Packed and stripped file {}.", dstfile.c_str()));
+    std::system(std::format(R"(strip -x "{}")", dstfile.string()).data());
+    log(std::format("Packed and stripped file {}.", dstfile.string()));
     return;
   }
 #endif
 
-  log(std::format("Packed file {}.", dstfile.c_str()));
+  log(std::format("Packed file {}.", dstfile.string()));
 }
 
 static auto pack_dir(const fs::path &srcdir, const fs::path &dstroot) {
@@ -96,10 +98,10 @@ static auto pack_dir(const fs::path &srcdir, const fs::path &dstroot) {
            err);
   if (err)
     log_exit(std::format("Failed to copy directory: {} ==> {}, {}.",
-                         srcdir.c_str(), dstdir.c_str(), err.message()));
+                         srcdir.string(), dstdir.string(), err.message()));
   else
-    log(std::format("Packed directory {} from {}.", dstdir.c_str(),
-                    srcdir.c_str()));
+    log(std::format("Packed directory {} from {}.", dstdir.string(),
+                    srcdir.string()));
 }
 
 int main(int argc, char **argv) {
@@ -125,10 +127,7 @@ int main(int argc, char **argv) {
 
   // copy icpp files
   std::vector<std::string> names = {
-      "icpp" EXEEXT,
-      std::format("icpp" VERSEP "{}" LIBEXT, LLVM_VERSION_MAJOR),
-      "imod" EXEEXT,
-      "iopad" EXEEXT,
+      "icpp" EXEEXT,        ICPPRT, "imod" EXEEXT, "iopad" EXEEXT,
       "icpp-gadget" LIBEXT,
   };
   for (auto &name : names)
@@ -146,7 +145,7 @@ int main(int argc, char **argv) {
     pack_dir(boostlib, pkgroot);
   } else {
     log(std::format("Can't find boost in {}, skipped packing boost.",
-                    boost.c_str()));
+                    boost.string()));
   }
 
   puts("Done.");

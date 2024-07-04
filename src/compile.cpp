@@ -38,7 +38,8 @@ static int compile_source_clang(int argc, const char **argv) {
   auto exepath = GetExecutablePath(argv[0], true);
   // this full path ends with "clang", it's exactly the format that clang driver
   // wants
-  auto program = fs::path(exepath).parent_path() / ".." / "lib" / "clang";
+  auto program =
+      (fs::path(exepath).parent_path() / ".." / "lib" / "clang").string();
   argv[0] = program.c_str();
   // iclang_main will invoke clang_main to generate the object file with the
   // default host triple
@@ -86,8 +87,9 @@ fs::path compile_source(const char *argv0, std::string_view path,
                         const char *opt,
                         const std::vector<const char *> &incdirs) {
   // construct a temporary output object file path
-  auto opath = fs::temp_directory_path() / icpp::rand_filename(8, obj_ext);
-  log_print(Develop, "Object path: {}", opath.c_str());
+  auto opath =
+      (fs::temp_directory_path() / icpp::rand_filename(8, obj_ext)).string();
+  log_print(Develop, "Object path: {}", opath);
 
   std::vector<const char *> args;
   args.push_back(argv0);

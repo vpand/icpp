@@ -4,12 +4,14 @@ message(STATUS "Configuring C++ interpreter icpp...")
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED)
 
-# enable exception for llvm
-set(LLVM_ENABLE_EH TRUE)
-
-# disable mscrt insecure warnings
 if(MSVC)
-add_compile_options(-D_CRT_SECURE_NO_WARNINGS=1)
+# enable exception for icpp relational projects
+set(LLVM_ENABLE_EH TRUE)
+set(LLVM_ENABLE_RTTI TRUE)
+# disable mscrt insecure warnings
+add_compile_definitions(-D_CRT_SECURE_NO_WARNINGS=1)
+# add boost config
+add_compile_definitions(-D_WIN32_WINNT=0x0601)
 endif()
 
 set(LLVM_LINK_COMPONENTS
@@ -189,7 +191,17 @@ target_include_directories(icppcli PRIVATE
   ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include
   boost_dll
 )
+if(MSVC)
+# on windows, use static link to load icpp.dll, the reason is as follows:
+# 1.the executable directory is the dll loading directory;
+# 2.only this way can have a better debugging experience in vscode;
+target_link_libraries(icppcli PRIVATE icpp)
+else()
+# on macOS/Linux, use dlopen to load icpp.so/dylib, the reason is as follows:
+# we don't need to set any extra runtime path to make dyld/linker working correctly,
+# e.g.: .so rpath, .dylib install name, etc.
 target_link_libraries(icppcli PRIVATE boost_dll)
+endif()
 
 # icpp module manager command line
 message(STATUS "Configuring icpp module manager imod...")

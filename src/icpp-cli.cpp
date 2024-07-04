@@ -4,6 +4,13 @@
    See LICENSE in root directory for more details
 */
 
+#if _WIN64
+
+extern "C" __declspec(dllimport) int icpp_main(int argc, char **argv);
+int main(int argc, char **argv) { return icpp_main(argc, argv); }
+
+#else
+
 #include <boost/dll.hpp>
 #include <filesystem>
 #include <format>
@@ -33,3 +40,5 @@ int main(int argc, const char **argv) {
   }
   return -1;
 }
+
+#endif

@@ -26,7 +26,7 @@ void exec_string(const char *argv0, std::string_view snippet, bool whole) {
   std::ofstream outf(srcpath);
   if (!outf.is_open()) {
     log_print(Runtime, "Failed to create a temporary source file {}.",
-              srcpath.c_str());
+              srcpath.string());
     return;
   }
   if (whole)
@@ -36,14 +36,14 @@ void exec_string(const char *argv0, std::string_view snippet, bool whole) {
   outf.close();
 
   std::vector<const char *> incs;
-  auto opath = compile_source(argv0, srcpath.c_str(), "-O1", incs);
+  auto opath = compile_source(argv0, srcpath.string(), "-O1", incs);
   if (!fs::exists(opath))
     return; // clang has printed the error message
 
   std::vector<std::string> deps;
   int iargc = 1;
   const char *iarg[] = {""};
-  exec_main(opath.c_str(), deps, srcpath.c_str(), iargc,
+  exec_main(opath.string(), deps, srcpath.string(), iargc,
             reinterpret_cast<char **>(&iarg));
   fs::remove(opath);
 }
