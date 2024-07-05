@@ -123,7 +123,7 @@ fs::path compile_source(const char *argv0, std::string_view path,
   }
 
   compile_source(static_cast<int>(args.size()), &args[0]);
-  return cache.has_filename() ? cache : opath;
+  return cache.has_filename() ? cache : fs::path(opath);
 }
 
 } // namespace icpp

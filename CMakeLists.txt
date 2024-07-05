@@ -112,6 +112,12 @@ message(STATUS "Configuring unicorn...")
 execute_process(COMMAND ${PYTHON}
   ${CMAKE_CURRENT_SOURCE_DIR}/tool/qemu_mmu_patcher.py
   ${CMAKE_CURRENT_SOURCE_DIR}/third/unicorn/qemu/accel/tcg/cputlb.c)
+if(MSVC)
+  # patch unicorn cmake to cmake correctly on Windows, otherwise it fails to cmake
+  execute_process(COMMAND ${PYTHON}
+    ${CMAKE_CURRENT_SOURCE_DIR}/tool/unicorn_cmake_patcher.py
+    ${CMAKE_CURRENT_SOURCE_DIR}/third/unicorn/CMakeLists.txt)
+endif()
 # icpp only supports x86_64/arm64 currently
 set(UNICORN_ARCH "x86;aarch64" CACHE STRING "" FORCE)
 # unicorn likes to check it from CFLAGS
