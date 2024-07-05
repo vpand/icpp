@@ -8,9 +8,9 @@ project(icpp)
 
 # build the host architecture target only
 if (${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "x86_64")
-set(LLVM_TARGETS_TO_BUILD "X86")
+    set(LLVM_TARGETS_TO_BUILD "X86"CACHE STRING "" FORCE)
 else()
-set(LLVM_TARGETS_TO_BUILD "AArch64")
+    set(LLVM_TARGETS_TO_BUILD "AArch64" CACHE STRING "" FORCE)
 endif()
 
 # enable clang

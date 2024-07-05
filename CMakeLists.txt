@@ -1,6 +1,6 @@
 # cmake
 cmake_minimum_required(VERSION 3.20)
-project(icpp)
+project(icpp CXX C ASM)
 
 # is there any kind of defined variable like APPLE/MSVC for Linux ?
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
@@ -35,10 +35,14 @@ if(LINUX)
   set(ICPPCLANG ${CMAKE_BINARY_DIR}/llvm)
   set(ICXXINCLUDE ${ICPPCLANG}/include)
   set(ICXXLIB ${ICPPCLANG}/lib/${CMAKE_HOST_SYSTEM_PROCESSOR}-unknown-linux-gnu)
-  # apply our custom build libc++ compile/link flags
+  # apply our custom built libc++ compile/link flags
   add_compile_options(-nostdinc++ -nostdlib++ -fPIC -I${ICXXINCLUDE}/c++/v1 
     -I${ICXXINCLUDE}/${CMAKE_HOST_SYSTEM_PROCESSOR}-unknown-linux-gnu/c++/v1)
   add_link_options(-L${ICXXLIB} -Wl,-rpath,${ICXXLIB} -lc -lm -lc++)
+  # as we're already using the latest clang, any further checks are redundant
+  set(LLVM_COMPILER_CHECKED TRUE)
+  # set this variable to disable llvm's cmake to do any more checks, it's really annoying...
+  set(LLVM_COMPILER_IS_GCC_COMPATIBLE FALSE)
 endif()
 
 # check the dependent commands whether in system PATH
@@ -59,6 +63,10 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 #
 # third-party projects
 #
+
+# boost
+message(STATUS "Configuring boost...")
+add_subdirectory(third/boost)
 
 # clang
 message(STATUS "Configuring llvm/clang...")
@@ -101,10 +109,6 @@ add_subdirectory(third/protobuf)
 # brotli
 message(STATUS "Configuring brotli...")
 add_subdirectory(third/brotli)
-
-# boost
-message(STATUS "Configuring boost...")
-add_subdirectory(third/boost)
 
 # unicorn
 message(STATUS "Configuring unicorn...")
