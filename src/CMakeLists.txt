@@ -5,13 +5,13 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED)
 
 if(MSVC)
-# enable exception for icpp relational projects
-set(LLVM_ENABLE_EH TRUE)
-set(LLVM_ENABLE_RTTI TRUE)
-# disable mscrt insecure warnings
-add_compile_definitions(-D_CRT_SECURE_NO_WARNINGS=1)
-# add boost config
-add_compile_definitions(-D_WIN32_WINNT=0x0601)
+  # enable exception for icpp relational projects
+  set(LLVM_ENABLE_EH TRUE)
+  set(LLVM_ENABLE_RTTI TRUE)
+  # disable mscrt insecure warnings
+  add_compile_definitions(-D_CRT_SECURE_NO_WARNINGS=1)
+  # add boost config
+  add_compile_definitions(-D_WIN32_WINNT=0x0601)
 endif()
 
 set(LLVM_LINK_COMPONENTS
@@ -192,15 +192,15 @@ target_include_directories(icppcli PRIVATE
   boost_dll
 )
 if(MSVC)
-# on windows, use static link to load icpp.dll, the reason is as follows:
-# 1.the executable directory is the dll loading directory;
-# 2.only this way can have a better debugging experience in vscode;
-target_link_libraries(icppcli PRIVATE icpp)
+  # on windows, use static link to load icpp.dll, the reason is as follows:
+  # 1.the executable directory is the dll loading directory;
+  # 2.only this way can have a better debugging experience in vscode;
+  target_link_libraries(icppcli PRIVATE icpp)
 else()
-# on macOS/Linux, use dlopen to load icpp.so/dylib, the reason is as follows:
-# we don't need to set any extra runtime path to make dyld/linker working correctly,
-# e.g.: .so rpath, .dylib install name, etc.
-target_link_libraries(icppcli PRIVATE boost_dll)
+  # on macOS/Linux, use dlopen to load icpp.so/dylib, the reason is as follows:
+  # we don't need to set any extra runtime path to make dyld/linker working correctly,
+  # e.g.: .so rpath, .dylib install name, etc.
+  target_link_libraries(icppcli PRIVATE boost_dll)
 endif()
 
 # icpp module manager command line
@@ -269,6 +269,7 @@ add_llvm_tool(iopad
   arch.cpp
   icpp.cpp
   platform.cpp
+  runcfg.cpp
   utils.cpp
   icpppad.pb.cc
 
@@ -336,10 +337,10 @@ target_link_libraries(icpp-gadget PRIVATE
   unicorn
 )
 if(APPLE)
-target_link_options(icpp-gadget PRIVATE -Wl,-exported_symbol -Wl,_icpp_gadget)
+  target_link_options(icpp-gadget PRIVATE -Wl,-exported_symbol -Wl,_icpp_gadget)
 endif()
 if(LINUX)
-target_link_options(icpp-gadget PRIVATE -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/ld-gadget.version)
+  target_link_options(icpp-gadget PRIVATE -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/ld-gadget.version)
 endif()
 
 message(STATUS "Configuring icpp done")

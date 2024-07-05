@@ -36,6 +36,8 @@
 #if __APPLE__
 #include <TargetConditionals.h>
 #include <mach-o/dyld.h>
+#else
+#include <link.h>
 #endif
 
 #define __ICPP_EXPORT__ __attribute__((visibility("default")))

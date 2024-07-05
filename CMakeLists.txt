@@ -2,11 +2,15 @@
 cmake_minimum_required(VERSION 3.20)
 project(icpp)
 
+# is there any kind of defined variable like APPLE/MSVC for Linux ?
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+  set(LINUX TRUE)
+endif()
+
 # workaround to fix wrong compiler on macOS
 if(APPLE)
   set(CMAKE_C_COMPILER "/usr/bin/clang" CACHE FILEPATH "" FORCE)
 endif()
-
 # workaround to process the different python/build command line name
 if(MSVC)
   # python3 on Windows should be invoked as python
@@ -26,6 +30,15 @@ if(MSVC)
 else()
   set(PYTHON python3)
   set(BUILDCMD make)
+endif()
+if(LINUX)
+  set(ICPPCLANG ${CMAKE_BINARY_DIR}/llvm)
+  set(ICXXINCLUDE ${ICPPCLANG}/include)
+  set(ICXXLIB ${ICPPCLANG}/lib/${CMAKE_HOST_SYSTEM_PROCESSOR}-unknown-linux-gnu)
+  # apply our custom build libc++ compile/link flags
+  add_compile_options(-nostdinc++ -nostdlib++ -fPIC -I${ICXXINCLUDE}/c++/v1 
+    -I${ICXXINCLUDE}/${CMAKE_HOST_SYSTEM_PROCESSOR}-unknown-linux-gnu/c++/v1)
+  add_link_options(-L${ICXXLIB} -Wl,-rpath,${ICXXLIB} -lc -lm -lc++)
 endif()
 
 # check the dependent commands whether in system PATH
@@ -107,6 +120,9 @@ unset(CMAKE_MSVC_RUNTIME_LIBRARY)
 add_subdirectory(third/unicorn)
 set(CMAKE_MSVC_RUNTIME_LIBRARY ${CMAKE_MSVC_RUNTIME_LIBRARY_backup})
 
-# icpp project
+#
+# icpp projects
+#
+
 add_subdirectory(vmpstudio)
 add_subdirectory(src)

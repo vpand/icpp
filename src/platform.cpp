@@ -5,6 +5,8 @@
 */
 
 #include "platform.h"
+#include "arch.h"
+#include "runcfg.h"
 #include "utils.h"
 #include <vector>
 
@@ -92,7 +94,11 @@ void iterate_modules(
              _dyld_get_image_name(i));
   }
 #elif __linux__
-  dl_iterate_phdr(iter_so_callback, &callback);
+  dl_iterate_phdr(
+      iter_so_callback,
+      reinterpret_cast<void *>(
+          const_cast<std::function<void(uint64_t base, std::string_view path)>
+                         *>(&callback)));
 #elif ON_WINDOWS
   HANDLE hProcess = ::GetCurrentProcess();
   HMODULE hMods[4096];
@@ -114,11 +120,21 @@ std::vector<std::string> extra_cflags() {
 #define MACOSX_SDK                                                             \
   "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/"      \
   "Developer/SDKs/MacOSX.sdk"
+  // add macosx sdk
   args.push_back("-isysroot");
   args.push_back(MACOSX_SDK);
 #elif __linux__
-#error Un-implement the Linux platform currently.
+  // add libc++ include
+  auto cxxinc = (fs::absolute(RunConfig::inst()->program).parent_path() / ".." /
+                 "include")
+                    .string();
+  args.push_back("-nostdinc++");
+  args.push_back("-nostdlib++");
+  args.push_back(std::format("-I{}/c++/v1", cxxinc));
+  args.push_back(std::format("-I{}/{}-unknown-linux-gnu/c++/v1", cxxinc,
+                             arch_name(host_arch())));
 #elif ON_WINDOWS
+  // nothing special on windows
 #else
 #error Unknown compiling platform.
 #endif
