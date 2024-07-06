@@ -169,10 +169,12 @@ ICPP_SRC/script:
 | **Linux**    | &#10008;   | &#10008;      | &#10008;       | &#10008;          | &#10008;          |
 
 ## Build
-Make sure all of the **prerequisites** are in your system PATH environment:
- * **cmake** (version >= 3.20)
- * **python** (Windows), python3 (macOS/Linux)
- * **ninja** (Windows), **make** (macOS/Linux)
+To build your own version of icpp, make sure all of the **prerequisites** are in your system PATH environment:
+ * **CMake** (version >= 3.20);
+ * **Python** (Windows), Python3 (macOS/Linux);
+ * **Ninja** (Windows), **Make** (macOS/Linux);
+ * Visual Studio with **LLVM Toolchain** (Windows);
+
 ### Clone
 ```sh
 # clone icpp
@@ -183,8 +185,9 @@ git submodule update --init --recursive --depth=1
 mkdir build
 cd build
 ```
+
 ### CMake
-#### Windows
+#### Windows X86_64
 ```sh
 # NOTE:
 # all the following steps must be done in "x64 Native Tools Command Prompt for VS"
@@ -195,11 +198,27 @@ vcvarsall x64
 # have installed the Visual Studio with LLVM Toolchain support.
 cmake -G Ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_BUILD_TYPE=Release ..
 ```
-#### macOS
+
+#### Windows ARM64
 ```sh
-cmake -DCMAKE_BUILD_TYPE=Release ..
+# NOTE:
+# all the following steps must be done in "ARM64 Native Tools Command Prompt for VS"
+# or
+# run VS_ROOT/.../VC/Auxiliary/Build/vcvarsall.bat to initialize for 'arm64'
+vcvarsall arm64
+# we use clang-cl as our compiler, to make it working, you should:
+# have installed the Visual Studio with LLVM Toolchain support.
+#
+# Because of the cmake script of boost and unicorn has kind of hardcode snippet for 
+# some paths, like the path of lib.exe, assembler search directory, so we have some 
+# extra steps to make this cmake command working:
+# 1.copy llvm-lib.exe as lib.exe in LLVM_ROOT/bin;
+# 2.copy VC_ROOT/bin/armasm64.exe to LLVM_ROOT/bin;
+#
+cmake -G Ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_MT=llvm-mt -DCMAKE_ASM_MASM_COMPILE_OBJECT=armasm64 -DCMAKE_BUILD_TYPE=Release ..
 ```
-#### Linux
+
+#### Linux AArch64/X86_64
 ```sh
 # create the clang to be customized building scripts
 cmake -B clangconf -DCMAKE_BUILD_TYPE=Release ../cmake/clangconf
@@ -208,6 +227,14 @@ cmake --build clangconf -- clang runtimes -j8
 # use the clang that we built before as our compiler
 cmake -DCMAKE_C_COMPILER=$PWD/llvm/bin/clang -DCMAKE_CXX_COMPILER=$PWD/llvm/bin/clang -DCMAKE_BUILD_TYPE=Release ..
 ```
+
+#### macOS ARM64/X86_64
+```sh
+# if your system default clang doesn't support C++20 before the version of macOS 11,
+# you should compile your own clang and apply it like on Linux
+cmake -DCMAKE_BUILD_TYPE=Release ..
+```
+
 ### Make
 ```sh
 # build the protoc compiler

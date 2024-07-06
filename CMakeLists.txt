@@ -11,8 +11,9 @@ endif()
 if(APPLE)
   set(CMAKE_C_COMPILER "/usr/bin/clang" CACHE FILEPATH "" FORCE)
 endif()
+
 # workaround to process the different python/build command line name
-if(MSVC)
+if(WIN32)
   # python3 on Windows should be invoked as python
   set(PYTHON python)
   set(BUILDCMD ninja)
@@ -66,6 +67,9 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
 # boost
 message(STATUS "Configuring boost...")
+if (WIN32)
+  set(BOOST_CONTEXT_IMPLEMENTATION winfib)
+endif()
 add_subdirectory(third/boost)
 
 # clang
