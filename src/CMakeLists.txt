@@ -174,9 +174,10 @@ target_include_directories(icpp PRIVATE
 
 if(APPLE)
   target_link_options(icpp PRIVATE -Wl,-exported_symbol -Wl,_icpp_main)
-endif()
-if(LINUX)
+elseif(LINUX)
   target_link_options(icpp PRIVATE -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/ld-icpp.version)
+elseif(WIN32)
+  target_link_directories(icpp PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 endif()
 
 # remove lib prefix on macOS/Linux
@@ -338,9 +339,10 @@ target_link_libraries(icpp-gadget PRIVATE
 )
 if(APPLE)
   target_link_options(icpp-gadget PRIVATE -Wl,-exported_symbol -Wl,_icpp_gadget)
-endif()
-if(LINUX)
+elseif(LINUX)
   target_link_options(icpp-gadget PRIVATE -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/ld-gadget.version)
+elseif(WIN32)
+  target_link_directories(icpp-gadget PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 endif()
 
 message(STATUS "Configuring icpp done")
