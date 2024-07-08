@@ -8,6 +8,14 @@
 
 #include <cstdint>
 
+#if __arm64__ || __aarch64__
+#define ARCH_ARM64 1
+#elif __x86_64__ || __x64__
+#define ARCH_X64 1
+#else
+#error Unsupported host architecture.
+#endif
+
 namespace icpp {
 
 enum ArchType {

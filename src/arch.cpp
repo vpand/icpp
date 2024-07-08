@@ -15,9 +15,9 @@
 namespace icpp {
 
 ArchType host_arch() {
-#if __arm64__ || __aarch64__
+#if ARCH_ARM64
   return AArch64;
-#elif __x86_64__ || __x64__
+#elif ARCH_X64
   return X86_64;
 #else
 #error Unsupported host architecture.
@@ -263,7 +263,7 @@ void load_vmp_stack(char *tmpsp, const char *vmsp) {
 } // end of extern "C"
 
 void __NAKED__ host_call_asm(void *ctx, const void *func) {
-#if __arm64__ || __aarch64__
+#if ARCH_ARM64
   __ASM__("sub sp, sp, #0x400");
   save_gpr_a64(); /*save orig host context*/
   save_neon_a64();
@@ -326,7 +326,7 @@ void __NAKED__ host_call_asm(void *ctx, const void *func) {
 
   __ASM__("add sp, sp, #0x400");
   __ASM__("ret");
-#elif __x86_64__ || __x64__
+#elif ARCH_X64
   /*
    save host context
    load vm context
@@ -398,7 +398,7 @@ void __NAKED__ host_call_asm(void *ctx, const void *func) {
 }
 
 void host_call(void *ctx, const void *func) {
-#if __arm64__ || __aarch64__
+#if ARCH_ARM64
   auto context = reinterpret_cast<ContextA64 *>(ctx);
   auto savedX17 = context->r[17];
   auto savedX29 = context->r[29];
@@ -434,14 +434,14 @@ void host_call(void *ctx, const void *func) {
 }
 
 void __NAKED__ host_naked_syscall() {
-#if __arm64__ || __aarch64__
+#if ARCH_ARM64
 #if __APPLE__
   __ASM__("svc #0x80");
 #else
   __ASM__("svc #0x0");
 #endif
   __ASM__("ret");
-#elif __x86_64__ || __x64__
+#elif ARCH_X64
   __ASM__("syscall");
   __ASM__("ret");
 #else
@@ -450,9 +450,9 @@ void __NAKED__ host_naked_syscall() {
 }
 
 uint64_t __NAKED__ host_naked_compare(uint64_t left, uint64_t right) {
-#if __arm64__ || __aarch64__
+#if ARCH_ARM64
   __ASM__("brk #0");
-#elif __x86_64__ || __x64__
+#elif ARCH_X64
 #if ON_WINDOWS
   __ASM__("cmpq %rdx, %rcx");
 #else
@@ -467,9 +467,9 @@ uint64_t __NAKED__ host_naked_compare(uint64_t left, uint64_t right) {
 }
 
 uint64_t __NAKED__ host_naked_test(uint64_t left, uint64_t right) {
-#if __arm64__ || __aarch64__
+#if ARCH_ARM64
   __ASM__("brk #0");
-#elif __x86_64__ || __x64__
+#elif ARCH_X64
 #if ON_WINDOWS
   __ASM__("testq %rdx, %rcx");
 #else
@@ -485,7 +485,7 @@ uint64_t __NAKED__ host_naked_test(uint64_t left, uint64_t right) {
 
 #if ON_WINDOWS
 // re-implement the symbols on Windows ARM64 which are dependent by unicorn/qemu
-#if __aarch64__
+#if ARCH_ARM64
 extern "C" {
 void __cpuidex(int vec[4], int, int) { std::memset(vec, 0, sizeof(vec)); }
 

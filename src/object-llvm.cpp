@@ -24,6 +24,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "SourcePrinter.h"
+#include "arch.h"
 #include "llvm-objdump.h"
 #include "loader.h"
 #include "log.h"
@@ -985,8 +986,30 @@ void Object::decodeInsns(TextSection &text) {
     default: {
       iinfo.len = static_cast<uint32_t>(size);
       // check and resolve the relocation symbol
+#if ARCH_ARM64
       auto found = relocs.find(iinfo.rva);
+#else
+      auto found = relocs.end();
+      for (int i = 1; i <= iinfo.len - 4; i++) {
+        found = relocs.find(iinfo.rva + i);
+        if (found != relocs.end())
+          break;
+      }
+#endif
+      StringRef symname;
       if (found != relocs.end()) {
+        auto sym = found->second.getSymbol();
+        auto expName = sym->getName();
+        if (expName)
+          symname = expName.get();
+        else {
+          auto err = expName.takeError();
+          log_print(Develop, "Relocation error: {}.", toString(std::move(err)));
+        }
+      }
+      // if a symbol referenced by a relocation doesn't have a name,
+      // it'll be directly accessed by pc-related instruction.
+      if (symname.size()) {
         // apple arm64-adrp relocation may hit this situation
         int addend = 0;
         auto addendit = addends.find(iinfo.rva);
@@ -995,23 +1018,21 @@ void Object::decodeInsns(TextSection &text) {
 
         auto cureloc = found->second;
         auto sym = cureloc.getSymbol();
-        auto expName = sym->getName();
         auto expFlags = sym->getFlags();
-        if (!expName || !expFlags) {
+        if (!expFlags) {
           // never be here
           log_print(Runtime,
-                    "Fatal error, the symbol name/type/flags of '{:x}' is "
+                    "Fatal error, the symbol flags of '{:x}' is "
                     "missing for "
                     "relocation.",
                     vm2rva(opc));
           abort();
         }
-        auto name = expName.get();
         // check the existed relocation
         auto rit = irelocs_.end();
         for (auto it = irelocs_.begin(), end = irelocs_.end(); it != end;
              it++) {
-          if (name == it->name) {
+          if (symname == it->name) {
             rit = it;
             break;
           }
@@ -1021,10 +1042,10 @@ void Object::decodeInsns(TextSection &text) {
           if (expFlags.get() & SymbolRef::SF_Undefined) {
             // locate and insert a new extern relocation
             auto rtaddr =
-                Loader::locateSymbol(name, symtype == SymbolRef::ST_Data);
-            rit = irelocs_.insert(
-                irelocs_.end(),
-                RelocInfo{name.data(), rtaddr, static_cast<uint32_t>(symtype)});
+                Loader::locateSymbol(symname, symtype == SymbolRef::ST_Data);
+            rit = irelocs_.insert(irelocs_.end(),
+                                  RelocInfo{symname.data(), rtaddr,
+                                            static_cast<uint32_t>(symtype)});
           } else {
             // insert a new local relocation
             auto expSect = sym->getSection();
@@ -1036,7 +1057,7 @@ void Object::decodeInsns(TextSection &text) {
                   "Fatal error, the symbol section/address of '{}'.'{:x}' is "
                   "missing for "
                   "relocation.",
-                  name.data(), vm2rva(opc));
+                  symname.data(), vm2rva(opc));
               abort();
             }
             bool dyn = false;
@@ -1057,7 +1078,7 @@ void Object::decodeInsns(TextSection &text) {
                 auto rtaddr =
                     reinterpret_cast<const void *>(ds.buffer.data() + symoff);
                 rit = irelocs_.insert(
-                    irelocs_.end(), RelocInfo{name.data(), rtaddr,
+                    irelocs_.end(), RelocInfo{symname.data(), rtaddr,
                                               static_cast<uint32_t>(symtype)});
                 break;
               }
@@ -1077,7 +1098,7 @@ void Object::decodeInsns(TextSection &text) {
               auto rtaddr =
                   reinterpret_cast<const void *>(expContent->data() + symoff);
               rit = irelocs_.insert(irelocs_.end(),
-                                    RelocInfo{name.data(), rtaddr,
+                                    RelocInfo{symname.data(), rtaddr,
                                               static_cast<uint32_t>(symtype)});
             }
           }
