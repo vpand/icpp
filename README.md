@@ -4,7 +4,7 @@
  * Writing hot-loading C++ script code in running process;
  * Based on [Unicorn Engine](https://github.com/unicorn-engine/unicorn.git) qemu virtual cpu and [Clang/LLVM](https://github.com/llvm/llvm-project.git) C++ compiler;
  * Integrated [Boost](https://github.com/boostorg/boost.git) internally with [Standard C++23](https://en.cppreference.com/w/cpp/23) supported;
- * To reuse the existing C/C++ library as icpp module extension is extremely simple.
+ * To reuse the existing C/C++ library as an icpp module extension is extremely simple.
 
 Copyright (c) vpand.com 2024.
 
@@ -158,7 +158,7 @@ ICPP Interpretable Object Launch Pad Options:
 ```
 
 ## Status
-ICPP_SRC/script:
+ICPP_ROOT/snippet:
  * macOS ARM64 &#10004;
  * Under developing...
 

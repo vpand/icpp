@@ -55,7 +55,7 @@ def do_format(path, modifiedfs):
 
 def main(argv):
     # make sure git is in your system PATH environment to run this script.
-    gits = subprocess.Popen(['git', 'status'], stdout=subprocess.PIPE)
+    gits = subprocess.Popen(['git', 'status', '--ignore-submodules'], stdout=subprocess.PIPE)
     gits.wait()
     lines = gits.stdout.readlines()
     modifiedfs = []

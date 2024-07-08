@@ -64,7 +64,7 @@ def full_make():
     print('Finished building.')
     
 def increment_make():
-    gits = subprocess.Popen(['git', 'status'], stdout=subprocess.PIPE)
+    gits = subprocess.Popen(['git', 'status', '--ignore-submodules'], stdout=subprocess.PIPE)
     gits.wait()
     lines = gits.stdout.readlines()
     modifiedfs = []

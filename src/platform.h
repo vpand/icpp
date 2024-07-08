@@ -34,6 +34,7 @@
 #include <dlfcn.h>
 #include <pthread.h>
 #if __APPLE__
+#include <AvailabilityVersions.h>
 #include <TargetConditionals.h>
 #include <mach-o/dyld.h>
 #else

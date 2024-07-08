@@ -13,6 +13,14 @@
 #if __APPLE__
 // there's an extra underscore character in macho symbol, skip it
 #define symbol_name(raw) (raw.data() + 1)
+
+#ifndef __MAC_11_2
+// qemu's tcg engine references this api, but:
+// pthread_jit_write_protect_np is only available on macOS 11.0 or newer, and:
+// qemu's configure script can't detect this situation properly, so:
+// we implement it as a nop function to make it working.
+extern "C" void pthread_jit_write_protect_np(int enable) {}
+#endif
 #else
 #define symbol_name(raw) (raw.data() + 0)
 #endif

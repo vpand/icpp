@@ -54,6 +54,13 @@ struct UnicornEngine {
                   << uc_strerror(err) << std::endl;
         std::exit(-1);
       }
+#if __x86_64__
+      // make sure the dr7 contains 0, as we'll reuse it as a zero register,
+      // this situation will occur when the llvm MCInst contains an EIZ/RIZ
+      // register
+      uint64_t zero = 0;
+      uc_reg_write(uc, UC_X86_REG_DR7, &zero);
+#endif
     }
     busy.insert(uc);
     return uc;

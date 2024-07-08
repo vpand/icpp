@@ -633,6 +633,15 @@ static uint16_t llvm2ucRegisterX64(unsigned reg) {
     return UC_X86_REG_R15W;
   if (INSN::EFLAGS == reg)
     return UC_X86_REG_RFLAGS;
+  switch (reg) {
+  case INSN::NoRegister:
+  case INSN::EIZ:
+  case INSN::RIZ:
+    // reuse dr7 as a zero register converted from llvm register
+    return UC_X86_REG_DR7;
+  default:
+    break;
+  }
 
   log_print(Runtime, "Unknown llvm instruction register operand type: {}.",
             reg);
