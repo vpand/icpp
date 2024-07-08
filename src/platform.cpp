@@ -125,12 +125,13 @@ void iterate_modules(
 std::vector<std::string> extra_cflags() {
   std::vector<std::string> args;
 #if __APPLE__
-#define MACOSX_SDK                                                             \
-  "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/"      \
-  "Developer/SDKs/MacOSX.sdk"
   // add macosx sdk
   args.push_back("-isysroot");
-  args.push_back(MACOSX_SDK);
+  args.push_back("/Applications/Xcode.app/Contents/Developer/Platforms/"
+                 "MacOSX.platform/Developer/SDKs/MacOSX.sdk");
+  // add Xcode c++ include directory
+  args.push_back("-I/Applications/Xcode.app/Contents/Developer/Toolchains/"
+                 "XcodeDefault.xctoolchain/usr/include/c++/v1");
 #elif __linux__
   // add libc++ include
   auto cxxinc = (fs::absolute(RunConfig::inst()->program).parent_path() / ".." /

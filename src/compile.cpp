@@ -22,13 +22,17 @@ namespace icpp {
 
 static bool echocc = false;
 
+static std::string argv_string(int argc, const char **argv) {
+  std::string cmds;
+  for (int i = 0; i < argc; i++)
+    cmds += std::string(argv[i]) + " ";
+  return cmds;
+}
+
 static int compile_source_clang(int argc, const char **argv) {
   // just echo the compiling args
   if (echocc) {
-    std::string cmds;
-    for (int i = 0; i < argc; i++)
-      cmds += std::string(argv[i]) + " ";
-    log_print(Develop, "{}", cmds);
+    log_print(Develop, "{}", argv_string(argc, argv));
     return 0;
   }
 
@@ -40,10 +44,16 @@ static int compile_source_clang(int argc, const char **argv) {
   // wants
   auto program =
       (fs::path(exepath).parent_path() / ".." / "lib" / "clang").string();
+  auto argv0 = argv[0];
   argv[0] = program.c_str();
   // iclang_main will invoke clang_main to generate the object file with the
   // default host triple
-  return iclang_main(argc, argv);
+  auto result = iclang_main(argc, argv);
+  if (result) {
+    argv[0] = argv0;
+    log_print(Runtime, "Failed to compile: {}", argv_string(argc, argv));
+  }
+  return result;
 }
 
 int compile_source(int argc, const char **argv) {

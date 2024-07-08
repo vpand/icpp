@@ -668,6 +668,7 @@ bool ExecEngine::interpretCallX64(const InsnInfo *&inst, uint64_t &pc,
     // push return address
     rsp -= 8;
     *reinterpret_cast<uint64_t *>(rsp) = retaddr;
+    uc_reg_write(uc_, UC_X86_REG_RSP, &rsp);
     // call internal function
     pc = target;
     inst = robject_->insnInfo(pc); // update current inst
@@ -769,9 +770,17 @@ void ExecEngine::interpretMovX64(const InsnInfo *&inst, uint64_t &pc, int regop,
     uc_reg_write(uc_, ops[regop], reinterpret_cast<const void *>(target));
   } else {
     // mov mem, reg
-    uint64_t value;
-    uc_reg_read(uc_, ops[regop], &value);
-    *reinterpret_cast<T *>(target) = static_cast<T>(value);
+    uint64_t value[4];
+    auto regid = ops[regop];
+    uc_reg_read(uc_, ops[regop], value);
+    if (UC_X86_REG_YMM0 <= regid && regid <= UC_X86_REG_ZMM31) {
+      log_print(Runtime, "YMM/ZMM register moving isn't supported now.");
+      abort();
+    } else if (UC_X86_REG_XMM0 <= regid && regid <= UC_X86_REG_XMM31) {
+      memcpy(reinterpret_cast<void *>(target), value, 16);
+    } else {
+      *reinterpret_cast<T *>(target) = static_cast<T>(value[0]);
+    }
   }
 }
 
@@ -780,8 +789,8 @@ void ExecEngine::interpretMovMRX64(const InsnInfo *&inst, uint64_t &pc,
   const uint16_t *ops;
   auto target = interpretCalcMemX64(inst, pc, 0, &ops);
 
-  uint64_t value[2];
-  uc_reg_read(uc_, ops[11], &value);
+  uint64_t value[4];
+  uc_reg_read(uc_, ops[11], value);
   // mov mem, gpr/mmx/xmm
   std::memcpy(reinterpret_cast<void *>(target), value, bytes);
 }
@@ -973,17 +982,17 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       uint64_t retaddr, rsp;
       uc_reg_read(uc_, UC_X86_REG_RSP, &rsp);
       retaddr = *reinterpret_cast<uint64_t *>(rsp);
+      // pop return address
+      rsp += 8;
+      // instruction: retn bytes
+      rsp += *robject_->metaInfo<uint64_t>(inst, pc);
+      uc_reg_write(uc_, UC_X86_REG_RSP, &rsp);
+      pc = retaddr;
       if (executable(retaddr)) {
-        // instruction: retn bytes
-        rsp += *robject_->metaInfo<uint32_t>(inst, pc);
-        uc_reg_write(uc_, UC_X86_REG_RSP, &rsp);
-        pc = retaddr;
         inst = robject_->insnInfo(pc);
         jump = true;
       } else if (reinterpret_cast<const void *>(retaddr) == topReturn()) {
-        rsp += *robject_->metaInfo<uint32_t>(inst, pc);
-        uc_reg_write(uc_, UC_X86_REG_RSP, &rsp);
-        pc = retaddr; // finished interpreting
+        // finished interpreting
         return true;
       } else {
         UNIMPL_ABORT();

@@ -578,10 +578,14 @@ static uint16_t llvm2ucRegisterX64(unsigned reg) {
     return UC_X86_REG_R8 + reg - INSN::R8;
   if (INSN::ST0 <= reg && reg <= INSN::ST7)
     return UC_X86_REG_ST0 + reg - INSN::ST0;
-  if (INSN::XMM0 <= reg && reg <= INSN::XMM31)
+  if (INSN::XMM0 <= reg && reg <= INSN::XMM15)
     return UC_X86_REG_XMM0 + reg - INSN::XMM0;
-  if (INSN::YMM0 <= reg && reg <= INSN::YMM31)
+  if (INSN::XMM16 <= reg && reg <= INSN::XMM31)
+    return UC_X86_REG_XMM16 + reg - INSN::XMM16;
+  if (INSN::YMM0 <= reg && reg <= INSN::YMM15)
     return UC_X86_REG_YMM0 + reg - INSN::YMM0;
+  if (INSN::YMM16 <= reg && reg <= INSN::YMM31)
+    return UC_X86_REG_YMM16 + reg - INSN::YMM16;
   if (INSN::ZMM0 <= reg && reg <= INSN::ZMM31)
     return UC_X86_REG_ZMM0 + reg - INSN::ZMM0;
   if (INSN::R8B == reg)
@@ -903,7 +907,6 @@ static SymbolRef::Type convert_reloc_type(ArchType arch, ObjectType otype,
   case X86_64: {
     switch (rtype) {
     case MachO::X86_64_RELOC_GOT | MACHO_MAGIC_BIT:
-    case MachO::X86_64_RELOC_GOT_LOAD | MACHO_MAGIC_BIT:
     case ELF::R_X86_64_GOTPCREL | ELF_MAGIC_BIT:
 // undefine these macros from windows headers
 #undef IMAGE_REL_AMD64_ADDR64
