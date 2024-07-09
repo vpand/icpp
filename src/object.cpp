@@ -685,6 +685,11 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
       continue;
     }
     Loader loader(module);
+    if (!loader.valid()) {
+      // reset to invalid architecture
+      arch_ = Unsupported;
+      return;
+    }
     auto data = r.type() == CSymbolRef::ST_Data;
     if (loader.valid()) {
       // resolve this symbol in the current module

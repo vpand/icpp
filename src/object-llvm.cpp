@@ -907,6 +907,7 @@ static SymbolRef::Type convert_reloc_type(ArchType arch, ObjectType otype,
   case X86_64: {
     switch (rtype) {
     case MachO::X86_64_RELOC_GOT | MACHO_MAGIC_BIT:
+    case MachO::X86_64_RELOC_GOT_LOAD | MACHO_MAGIC_BIT:
     case ELF::R_X86_64_GOTPCREL | ELF_MAGIC_BIT:
 // undefine these macros from windows headers
 #undef IMAGE_REL_AMD64_ADDR64
@@ -1007,7 +1008,10 @@ void Object::decodeInsns(TextSection &text) {
           symname = expName.get();
         else {
           auto err = expName.takeError();
-          log_print(Develop, "Relocation error: {}.", toString(std::move(err)));
+          auto errstr = toString(std::move(err));
+          // it's very common on x86_64 macOS and not kind of real error,
+          // so comment out it.
+          // log_print(Develop, "Relocation error: {}.", errstr);
         }
       }
       // if a symbol referenced by a relocation doesn't have a name,

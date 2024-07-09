@@ -37,13 +37,18 @@ struct ModuleLoader {
       RuntimeLib::inst().initHashes();
   }
 
-  ~ModuleLoader() {
-    // generate the iobject module cache
-    for (auto io : imods_) {
-      if (io->isCache())
-        continue;
-      io->generateCache();
+  ~ModuleLoader() {}
+
+  void cacheAndClean(int exitcode) {
+    // generate the iobject module cache if everything went well
+    if (!exitcode) {
+      for (auto io : imods_) {
+        if (io->isCache())
+          continue;
+        io->generateCache();
+      }
     }
+    imods_.clear();
   }
 
   bool isMain() { return mainid_ == std::this_thread::get_id(); }
@@ -137,7 +142,7 @@ const void *ModuleLoader::loadLibrary(std::string_view path) {
       }
       if (!addr) {
         log_print(Runtime, "Failed to load library: {}", path.data());
-        exit(-1);
+        return nullptr;
       }
     }
     if (addr)
@@ -295,6 +300,12 @@ void ModuleLoader::cacheObject(std::shared_ptr<Object> imod) {
 void Loader::initialize() {
   if (!moloader)
     moloader = std::make_unique<ModuleLoader>();
+}
+
+void Loader::deinitialize(int exitcode) {
+  if (!moloader)
+    return;
+  moloader->cacheAndClean(exitcode);
 }
 
 Loader::Loader(Object *object, const std::vector<std::string> &deps)

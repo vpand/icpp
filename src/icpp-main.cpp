@@ -7,6 +7,7 @@
 #include "compile.h"
 #include "exec.h"
 #include "icpp.h"
+#include "loader.h"
 #include "object.h"
 #include "platform.h"
 #include "runcfg.h"
@@ -224,5 +225,6 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
                                  &argv[idoubledash + 1]);
     }
   }
+  icpp::Loader::deinitialize(exitcode);
   return exitcode;
 }

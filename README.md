@@ -159,7 +159,7 @@ ICPP Interpretable Object Launch Pad Options:
 
 ## Status
 ICPP_ROOT/snippet:
- * macOS ARM64 &#10004;
+ * macOS ARM64/X86_64 &#10004;
  * Under developing...
 
 | OS           | C++ Source | X86_64 Binary | AArch64 Binary | X86_64 on AArch64 | AArch64 on X86_64 |

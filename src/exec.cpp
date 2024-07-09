@@ -19,6 +19,8 @@
 #include <mutex>
 #include <unicorn/unicorn.h>
 
+#define LOG_EXECUTION 0
+
 extern "C" {
 #if ON_WINDOWS
 void _CxxThrowException(void);
@@ -845,6 +847,33 @@ void ExecEngine::interpretSignExtendRegMem(const InsnInfo *&inst,
   uc_reg_write(uc_, ops[0], &result);
 }
 
+static bool can_emulate(const InsnInfo *inst) {
+  switch (inst->type) {
+  case INSN_CONDJUMP:
+  case INSN_ARM64_RETURN:
+  case INSN_ARM64_SYSCALL:
+  case INSN_ARM64_CALL:
+  case INSN_ARM64_CALLREG:
+  case INSN_ARM64_JUMP:
+  case INSN_ARM64_JUMPREG:
+  case INSN_X64_RETURN:
+  case INSN_X64_SYSCALL:
+  case INSN_X64_CALL:
+  case INSN_X64_CALLREG:
+  case INSN_X64_CALLMEM:
+  case INSN_X64_JUMP:
+  case INSN_X64_JUMPREG:
+  case INSN_X64_JUMPMEM:
+    return false;
+  case INSN_HARDWARE:
+    return true;
+  default:
+    // if the current instruction contains relocation, then it must
+    // be interpreted otherwise emulated.
+    return inst->rflag == 0;
+  }
+}
+
 bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
   // we should interpret the relocation, branch, jump, call and syscall
   // instructions manually, the unicorn engine can just execute those simple
@@ -854,13 +883,13 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
   auto curi = inst;
   if (step <= 0) {
     // calculate the maximized steps that can be passed to uc_emu_start
-    for (step = 0; curi->type == INSN_HARDWARE; curi++, step++)
+    for (step = 0; can_emulate(curi); curi++, step++)
       ;
   } else {
     // check whether the step-count instructions have relocation/jump-operation
     // or not if so, the step size should be re-adjusted
     int tmpstep = 0;
-    for (; curi->type == INSN_HARDWARE; curi++, tmpstep++)
+    for (; can_emulate(curi); curi++, tmpstep++)
       ;
     step = std::min(step, tmpstep);
   }
@@ -871,7 +900,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
   }
   // interpret the pre-decoded instructions
   for (unsigned i = 0; i < origstep && inst->type != INSN_HARDWARE; i++) {
-#if 0
+#if LOG_EXECUTION
     log_print(Develop, "Interpret {:x} I{}", robject_->vm2rva(pc), inst->type);
 #endif
 
@@ -1026,7 +1055,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     // encoded meta data layout:[[uint16_t-memory_items]]
     case INSN_X64_CALLMEM: {
       auto target = interpretCalcMemX64(inst, pc, 0);
-      jump = interpretCallX64(inst, pc, target);
+      jump = interpretCallX64(inst, pc, *reinterpret_cast<uint64_t *>(target));
       break;
     }
     // encoded meta data layout:[uint64_t]
@@ -1052,7 +1081,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     // encoded meta data layout:[[uint16_t-memory_items]]
     case INSN_X64_JUMPMEM: {
       auto target = interpretCalcMemX64(inst, pc, 0);
-      jump = interpretJumpX64(inst, pc, target);
+      jump = interpretJumpX64(inst, pc, *reinterpret_cast<uint64_t *>(target));
       break;
     }
     // encoded meta data layout:[uint16_t, [uint16_t-memory_items]]
@@ -1251,6 +1280,10 @@ bool ExecEngine::execLoop(uint64_t pc) {
   }
   // instruction information related to pc
   auto inst = robject_->insnInfo(pc);
+  // cache the last jump destination, it can make loop running faster
+  // because of avoiding dynamic searching for the target instruction
+  auto lastjpc = pc;
+  auto lastjinst = inst;
   // executing loop, break when hitting the initialized return address
   while (pc != reinterpret_cast<uint64_t>(topReturn())) {
     // debugging
@@ -1268,7 +1301,7 @@ bool ExecEngine::execLoop(uint64_t pc) {
       continue;
     }
 
-#if 0
+#if LOG_EXECUTION
     log_print(Develop, "Emulation {:x}", robject_->vm2rva(pc));
 #endif
 
@@ -1284,9 +1317,18 @@ bool ExecEngine::execLoop(uint64_t pc) {
     uc_reg_read(uc_, pcreg, &pc);
     // update inst with step
     inst += step;
+    // check whether the last instruction is jump type
     if (inst->rva != robject_->vm2rva(pc)) {
-      // last instruction is jump type
-      inst = robject_->insnInfo(pc);
+      if (pc == lastjpc) {
+        // use the cached instruction
+        inst = lastjinst;
+      } else {
+        // dynamically search the destination instruction
+        inst = robject_->insnInfo(pc);
+        // cache the jump destination instruction
+        lastjinst = inst;
+        lastjpc = pc;
+      }
     }
   }
   if (debugger_)

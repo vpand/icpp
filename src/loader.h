@@ -26,6 +26,9 @@ public:
   // initialize the module/object loader
   static void initialize();
 
+  // deinitialize the module loader and cache the iobject modules
+  static void deinitialize(int exticode);
+
   // locate the symbol runtime address in this loader
   const void *locate(std::string_view name, bool data);
 
