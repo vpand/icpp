@@ -1318,7 +1318,7 @@ bool ExecEngine::execLoop(uint64_t pc) {
     // update inst with step
     inst += step;
     // check whether the last instruction is jump type
-    if (inst->rva != robject_->vm2rva(pc)) {
+    if (inst->rva != robject_->vm2rvaSimple(pc)) {
       if (pc == lastjpc) {
         // use the cached instruction
         inst = lastjinst;

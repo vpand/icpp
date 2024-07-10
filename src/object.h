@@ -101,6 +101,9 @@ public:
 
   constexpr std::string_view path() { return path_; }
   constexpr bool isCache() { return path_.ends_with(iobj_ext); }
+  constexpr uint64_t vm2rvaSimple(uint64_t vm) {
+    return vm - textsects_[0].vm;
+  };
 
   uint64_t vm2rva(uint64_t vm, size_t *ti = nullptr);
 

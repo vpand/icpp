@@ -25,7 +25,11 @@ namespace fs = std::filesystem;
 int main(int argc, const char **argv) {
   try {
     // i.e.: icpp.19.dylib, icpp.19.so, icpp.19.dll
+#if __linux__
+    auto icpp = std::format("icpp{}.{}", LLVM_PLUGIN_EXT, LLVM_VERSION_MAJOR);
+#else
     auto icpp = std::format("icpp.{}{}", LLVM_VERSION_MAJOR, LLVM_PLUGIN_EXT);
+#endif
     // cli and lib must be in the same directory
     auto libicpp = fs::path(argv[0]).parent_path() / icpp;
 

@@ -937,34 +937,118 @@ static int reloc_addend(const CObjectFile *object,
     if (r_type == MachO::ARM64_RELOC_ADDEND)
       return r_symbolnum;
   } else if (object->isELF()) {
-
   } else if (object->isCOFF()) {
   }
   return 0;
 }
 
-void Object::decodeInsns(TextSection &text) {
-  // load text relocations
-  std::map<uint64_t, object::RelocationRef> relocs;
-  std::map<uint64_t, int> addends;
-  for (auto &s : ofile_->sections()) {
-    if (s.getIndex() != text.index) {
+struct RelocSymbol {
+  SymbolRef sym;
+  StringRef name;
+  SymbolRef::Type type;
+  unsigned int flags;
+  int addend;
+};
+
+static RelocSymbol get_symbol(uint64_t addr, const SymbolRef &sym) {
+  RelocSymbol rsym;
+  auto expName = sym.getName();
+  auto expType = sym.getType();
+  auto expFlags = sym.getFlags();
+  auto checker = [addr]<typename T>(std::string_view name, T &exp) {
+    if (exp)
+      return true;
+    auto strerr = toString(exp.takeError());
+    log_print(Runtime, "Bad symbol {}: {:x}, {}.", name, addr, strerr);
+    return false;
+  };
+  if (checker("name", expName) && checker("type", expType) &&
+      checker("flags", expFlags)) {
+    rsym.sym = sym;
+    rsym.name = expName.get();
+    rsym.type = expType.get();
+    rsym.flags = expFlags.get();
+  }
+  return rsym;
+}
+
+static void reloc_symbols(ObjectFile *ofile, TextSection &text,
+                          std::map<uint64_t, RelocSymbol> &rsyms) {
+  for (auto &texts : ofile->sections()) {
+    if (texts.getIndex() != text.index) {
       continue;
     }
-    for (auto r : s.relocations()) {
+    if (ofile->isELF()) {
+      LLVM_ELF_IMPORT_TYPES_ELFT(object::ELF64LE);
+
+      auto expName = texts.getName();
+      if (!expName) {
+        auto err = expName.takeError();
+        auto strerr = toString(std::move(err));
+        log_print(Runtime, "Bad symbol name: {}.", strerr);
+        return;
+      }
+      // all of our supported platforms are 64-bit little endian Linux/Android
+      // system
+      auto textname = expName.get();
+      auto oelf = static_cast<ELF64LEObjectFile *>(ofile);
+      auto elf = oelf->getELFFile();
+      auto checker = [&textname, &elf](const Elf_Shdr &Sec) -> bool {
+        StringRef name;
+        if (auto expName = elf.getSectionName(Sec))
+          name = *expName;
+        else
+          log_print(Runtime, "Bad section name: {}.",
+                    toString(expName.takeError()));
+        return name == textname;
+      };
+      Expected<MapVector<const Elf_Shdr *, const Elf_Shdr *>> expTextReloc =
+          elf.getSectionAndRelocations(checker);
+      if (!expTextReloc) {
+        log_print(Runtime, "Unable to get {} map section: {}.", textname.data(),
+                  toString(expTextReloc.takeError()));
+        return;
+      }
+      auto relocsect = expTextReloc->begin()->second;
+      auto expSymtab = elf.getSection(relocsect->sh_link);
+      if (!expSymtab) {
+        log_print(Runtime, "Unable to locate a symbol table: {}.",
+                  toString(expSymtab.takeError()));
+        return;
+      }
+      if (Expected<Elf_Rela_Range> expRelas = elf.relas(*relocsect)) {
+        for (const Elf_Rela &r : *expRelas) {
+          auto sym = oelf->toSymbolRef(*expSymtab, r.getSymbol(false));
+          auto addr = text.rva + r.r_offset;
+          auto rsym = get_symbol(addr, sym);
+          if (rsym.name.size()) {
+            rsym.addend = r.r_addend;
+            rsyms.insert({addr, rsym});
+          }
+        }
+      } else {
+        log_print(Runtime, "Unable to get rela list: {}.",
+                  toString(expRelas.takeError()));
+      }
+      break;
+    }
+    for (auto &r : texts.relocations()) {
+      auto addr = text.rva + r.getOffset();
       auto sym = r.getSymbol();
-      auto expType = sym->getType();
-      if (!expType)
-        continue;
-      auto addr = s.getAddress() + r.getOffset();
-      auto addend = reloc_addend(ofile_.get(), r);
-      if (addend)
-        addends.insert({addr, addend});
-      else
-        relocs.insert({addr, r});
+      auto rsym = get_symbol(addr, *sym);
+      if (rsym.name.size()) {
+        rsym.addend = reloc_addend(ofile, r);
+        rsyms.insert({addr, rsym});
+      }
     }
     break;
   }
+}
+
+void Object::decodeInsns(TextSection &text) {
+  // load text relocation symbols
+  std::map<uint64_t, RelocSymbol> rsyms;
+  reloc_symbols(ofile_.get(), text, rsyms);
 
   int skipsz = arch_ == AArch64 ? 4 : 1;
   // decode instructions in text section
@@ -991,72 +1075,39 @@ void Object::decodeInsns(TextSection &text) {
       iinfo.len = static_cast<uint32_t>(size);
       // check and resolve the relocation symbol
 #if ARCH_ARM64
-      auto found = relocs.find(iinfo.rva);
+      auto found = rsyms.find(iinfo.rva);
 #else
-      auto found = relocs.end();
+      auto found = rsyms.end();
       for (int i = 1; i <= iinfo.len - 4; i++) {
-        found = relocs.find(iinfo.rva + i);
-        if (found != relocs.end())
+        found = rsyms.find(iinfo.rva + i);
+        if (found != rsyms.end())
           break;
       }
 #endif
-      StringRef symname;
-      if (found != relocs.end()) {
-        auto sym = found->second.getSymbol();
-        auto expName = sym->getName();
-        if (expName)
-          symname = expName.get();
-        else {
-          auto err = expName.takeError();
-          auto errstr = toString(std::move(err));
-          // it's very common on x86_64 macOS and not kind of real error,
-          // so comment out it.
-          // log_print(Develop, "Relocation error: {}.", errstr);
-        }
-      }
-      // if a symbol referenced by a relocation doesn't have a name,
-      // it'll be directly accessed by pc-related instruction.
-      if (symname.size()) {
-        // apple arm64-adrp relocation may hit this situation
-        int addend = 0;
-        auto addendit = addends.find(iinfo.rva);
-        if (addendit != addends.end())
-          addend = addendit->second;
-
-        auto cureloc = found->second;
-        auto sym = cureloc.getSymbol();
-        auto expFlags = sym->getFlags();
-        if (!expFlags) {
-          // never be here
-          log_print(Runtime,
-                    "Fatal error, the symbol flags of '{:x}' is "
-                    "missing for "
-                    "relocation.",
-                    vm2rva(opc));
-          abort();
-        }
+      if (found != rsyms.end()) {
+        auto &rsym = found->second;
         // check the existed relocation
         auto rit = irelocs_.end();
         for (auto it = irelocs_.begin(), end = irelocs_.end(); it != end;
              it++) {
-          if (symname == it->name) {
+          if (rsym.name == it->name) {
             rit = it;
             break;
           }
         }
-        auto symtype = convert_reloc_type(arch(), type(), cureloc.getType());
-        if (addend || rit == irelocs_.end()) {
-          if (expFlags.get() & SymbolRef::SF_Undefined) {
+        auto symtype = convert_reloc_type(arch(), type(), rsym.type);
+        if (rsym.addend || rit == irelocs_.end()) {
+          if (rsym.flags & SymbolRef::SF_Undefined) {
             // locate and insert a new extern relocation
             auto rtaddr =
-                Loader::locateSymbol(symname, symtype == SymbolRef::ST_Data);
+                Loader::locateSymbol(rsym.name, symtype == SymbolRef::ST_Data);
             rit = irelocs_.insert(irelocs_.end(),
-                                  RelocInfo{symname.data(), rtaddr,
+                                  RelocInfo{rsym.name.data(), rtaddr,
                                             static_cast<uint32_t>(symtype)});
           } else {
             // insert a new local relocation
-            auto expSect = sym->getSection();
-            auto expAddr = sym->getAddress();
+            auto expSect = rsym.sym.getSection();
+            auto expAddr = rsym.sym.getAddress();
             if (!expSect || !expAddr) {
               // never be here
               log_print(
@@ -1064,7 +1115,7 @@ void Object::decodeInsns(TextSection &text) {
                   "Fatal error, the symbol section/address of '{}'.'{:x}' is "
                   "missing for "
                   "relocation.",
-                  symname.data(), vm2rva(opc));
+                  rsym.name.data(), vm2rva(opc));
               abort();
             }
             bool dyn = false;
@@ -1076,7 +1127,8 @@ void Object::decodeInsns(TextSection &text) {
                   "Fatal error, the section name is missing for relocation.");
               abort();
             }
-            auto symoff = expAddr.get() - expSect.get()->getAddress() + addend;
+            auto symoff =
+                expAddr.get() - expSect.get()->getAddress() + rsym.addend;
             for (auto &ds : dynsects_) {
               if (sectname.get() == ds.name) {
                 // dynamically allocated section
@@ -1085,7 +1137,7 @@ void Object::decodeInsns(TextSection &text) {
                 auto rtaddr =
                     reinterpret_cast<const void *>(ds.buffer.data() + symoff);
                 rit = irelocs_.insert(
-                    irelocs_.end(), RelocInfo{symname.data(), rtaddr,
+                    irelocs_.end(), RelocInfo{rsym.name.data(), rtaddr,
                                               static_cast<uint32_t>(symtype)});
                 break;
               }
@@ -1104,14 +1156,14 @@ void Object::decodeInsns(TextSection &text) {
               }
               auto rtaddr =
                   reinterpret_cast<const void *>(expContent->data() + symoff);
-              rit = irelocs_.insert(irelocs_.end(),
-                                    RelocInfo{symname.data(), rtaddr,
-                                              static_cast<uint32_t>(symtype)});
+              rit = irelocs_.insert(
+                  irelocs_.end(), RelocInfo{rsym.name.data(), rtaddr,
+                                            static_cast<uint32_t>(rsym.type)});
             }
           }
           if (0) {
             log_print(Develop, "Relocated {} symbol {} at {}.",
-                      symtype == SymbolRef::ST_Data ? "data" : "func",
+                      rsym.type == SymbolRef::ST_Data ? "data" : "func",
                       rit->name, rit->target);
           }
         }
@@ -1164,6 +1216,169 @@ void Object::decodeInsns(TextSection &text) {
     } // end of switch
     text.iinfs.push_back(iinfo);
     opc += iinfo.len;
+  }
+}
+
+static void relocate_data(StringRef content, uint64_t offset,
+                          const RelocSymbol &rsym,
+                          const std::vector<DynSection> &dynsects) {
+  uint64_t target;
+  if (rsym.flags & SymbolRef::SF_Undefined) {
+    // extern relocation
+    target = reinterpret_cast<uint64_t>(Loader::locateSymbol(rsym.name, false));
+  } else {
+    // insert a new local relocation
+    auto expSect = rsym.sym.getSection();
+    auto expAddr = rsym.sym.getAddress();
+    if (!expSect || !expAddr) {
+      // never be here
+      log_print(Runtime,
+                "Fatal error, the symbol section/address of '{}' is "
+                "missing for "
+                "relocation.",
+                rsym.name.data());
+      abort();
+    }
+    bool dyn = false;
+    auto sectname = expSect.get()->getName();
+    if (!sectname) {
+      // never be here
+      log_print(Runtime,
+                "Fatal error, the section name is missing for relocation.");
+      abort();
+    }
+    auto symoff = expAddr.get() - expSect.get()->getAddress() + rsym.addend;
+    for (auto &ds : dynsects) {
+      if (sectname.get() == ds.name) {
+        // dynamically allocated section
+        dyn = true;
+
+        target = reinterpret_cast<uint64_t>(ds.buffer.data() + symoff);
+        break;
+      }
+    }
+    if (!dyn) {
+      // inner section from file
+      auto expContent = expSect.get()->getContents();
+      if (!expContent) {
+        // never be here
+        log_print(Runtime,
+                  "Fatal error, the section content of '{}' is missing for "
+                  "relocation.",
+                  sectname->data());
+        abort();
+      }
+      target = reinterpret_cast<uint64_t>(expContent->data() + symoff);
+    }
+  }
+  if (0) {
+    log_print(Develop, "Relocated data symbol {} at 0x{:x}.", rsym.name.data(),
+              target);
+  }
+
+  *reinterpret_cast<uint64_t *>(const_cast<char *>(content.data() + offset)) =
+      reinterpret_cast<uint64_t>(target);
+}
+
+void Object::parseSections() {
+  for (auto &s : ofile_->sections()) {
+    auto expName = s.getName();
+    if (!expName) {
+      continue;
+    }
+
+    auto name = expName.get();
+    if (s.isText()) {
+      auto expContent = s.getContents();
+      if (!expContent) {
+        log_print(Develop,
+                  "Empty object file, there's no content of {} section.",
+                  name.data());
+        break;
+      }
+      auto news = textsects_.emplace_back(
+          TextSection{static_cast<uint32_t>(s.getIndex()),
+                      static_cast<uint32_t>(s.getSize()),
+                      static_cast<uint32_t>(s.getAddress()),
+                      reinterpret_cast<uint64_t>(expContent->data())});
+      if (textsects_.size() > 1) {
+        // elf/coff may place each function in its own section, in this
+        // kind of situation, all the independent section's address may be 0.
+        // herein we fix their rva to the first text section's vm address.
+        news.rva = static_cast<uint32_t>(news.vm - textsects_[0].vm);
+      }
+      log_print(Develop, "Section {} rva={:x}, vm={:x} size={}.", name.data(),
+                news.rva, news.vm, news.size);
+    } else if (s.isBSS() || name.ends_with("bss") || name.ends_with("common")) {
+      dynsects_.push_back({name.data(), static_cast<uint32_t>(s.getAddress()),
+                           std::string(s.getSize(), 0)});
+    } else {
+      auto expContent = s.getContents();
+      if (!expContent)
+        continue;
+      // commit relocations for this data section
+      if (type() == ELF_Reloc) {
+        LLVM_ELF_IMPORT_TYPES_ELFT(object::ELF64LE);
+
+        auto oelf = static_cast<ELF64LEObjectFile *>(ofile_.get());
+        auto elf = oelf->getELFFile();
+        auto checker = [&name, &elf](const Elf_Shdr &Sec) -> bool {
+          StringRef sname;
+          if (auto expName = elf.getSectionName(Sec))
+            sname = *expName;
+          else
+            log_print(Runtime, "Bad section name: {}.",
+                      toString(expName.takeError()));
+          return sname == name;
+        };
+        Expected<MapVector<const Elf_Shdr *, const Elf_Shdr *>> expDataReloc =
+            elf.getSectionAndRelocations(checker);
+        if (!expDataReloc) {
+          log_print(Runtime, "Unable to get {} map section: {}.", name.data(),
+                    toString(expDataReloc.takeError()));
+          return;
+        }
+        auto relocsect = expDataReloc->begin()->second;
+        auto expSymtab = elf.getSection(relocsect->sh_link);
+        if (!expSymtab) {
+          log_print(Runtime, "Unable to locate a symbol table: {}.",
+                    toString(expSymtab.takeError()));
+          return;
+        }
+        if (Expected<Elf_Rela_Range> expRelas = elf.relas(*relocsect)) {
+          for (const Elf_Rela &r : *expRelas) {
+            auto sym = oelf->toSymbolRef(*expSymtab, r.getSymbol(false));
+            auto addr = s.getAddress() + r.r_offset;
+            auto rsym = get_symbol(addr, sym);
+            if (rsym.name.size()) {
+              relocate_data(expContent.get(), r.r_offset, rsym, dynsects_);
+            }
+          }
+        } else {
+          log_print(Runtime, "Unable to get rela list: {}.",
+                    toString(expRelas.takeError()));
+        }
+        continue;
+      }
+      for (auto r : s.relocations()) {
+        auto sym = r.getSymbol();
+        auto expFlags = sym->getFlags();
+        if (!expFlags) {
+          auto err = expFlags.takeError();
+          auto strerr = toString(std::move(err));
+          log_print(Develop, "Bad symbol flags: {}.", strerr);
+          continue;
+        }
+        if (!(expFlags.get() & SymbolRef::SF_Undefined))
+          continue;
+        auto expName = sym->getName();
+        if (!expName)
+          continue;
+        RelocSymbol rsym{*sym, expName.get(), SymbolRef::ST_Data,
+                         expFlags.get(), 0};
+        relocate_data(expContent.get(), r.getOffset(), rsym, dynsects_);
+      }
+    }
   }
 }
 

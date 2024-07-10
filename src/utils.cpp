@@ -113,7 +113,8 @@ int repl_entry(const std::function<void(std::string_view)> &exec) {
 
     if (snippet.starts_with("#") || snippet.starts_with("typedef ") ||
         snippet.starts_with("using ") || snippet.starts_with("namespace ") ||
-        snippet.starts_with(R"(extern "C")")) {
+        snippet.starts_with(R"(extern "C")") ||
+        snippet.starts_with("import ")) {
       // accumulated compiler directives, like #include, #define, etc.
       directives.insert(snippet);
       continue;
