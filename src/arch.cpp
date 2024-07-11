@@ -53,8 +53,6 @@ const char *arch_name(ArchType arch) {
   }
 }
 
-#define switch_stack_strsize "0x1000"
-
 #define save_gpr_a64()                                                         \
   __ASM__("stp  x0, x1, [sp, #0x0]");                                          \
   __ASM__("stp  x2, x3, [sp, #0x10]");                                         \
@@ -256,8 +254,7 @@ uint64_t pickup_sp_arm64(ContextA64 *ctx) { return ctx->r[A64_SP]; }
 uint64_t pickup_rsp(ContextX64 *context) { return context->rsp; }
 
 void load_vmp_stack(char *tmpsp, const char *vmsp) {
-  constexpr size_t size = 0x1000;
-  memcpy(tmpsp, vmsp, size);
+  memcpy(tmpsp, vmsp, switch_stack_size);
 }
 
 } // end of extern "C"
@@ -428,7 +425,8 @@ void host_call(void *ctx, const void *func) {
   context->r11 = r11;
   // process retn xx situation
   callctx.sp_before +=
-      0x1000 + sizeof(void *); // 0x1000 temp stack + ptrsz context
+      switch_stack_size +
+      sizeof(void *); // switch_stack_size temp stack + ptrsz context
   context->rsp += (callctx.sp_after - callctx.sp_before);
 #endif
 }

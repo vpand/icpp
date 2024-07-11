@@ -869,8 +869,8 @@ static void parseInstX64(const MCInst &inst, uint64_t opcptr,
 
 using SymbolRef = object::SymbolRef;
 
-static SymbolRef::Type convert_reloc_type(ArchType arch, ObjectType otype,
-                                          uint64_t rtype) {
+static SymbolRef::Type reloc_symtype(ArchType arch, ObjectType otype,
+                                     uint64_t rtype) {
 #define MACHO_MAGIC_BIT 0x10000
 #define ELF_MAGIC_BIT 0x20000
 #define COFF_MAGIC_BIT 0x40000
@@ -909,6 +909,7 @@ static SymbolRef::Type convert_reloc_type(ArchType arch, ObjectType otype,
     case MachO::X86_64_RELOC_GOT | MACHO_MAGIC_BIT:
     case MachO::X86_64_RELOC_GOT_LOAD | MACHO_MAGIC_BIT:
     case ELF::R_X86_64_GOTPCREL | ELF_MAGIC_BIT:
+    case ELF::R_X86_64_REX_GOTPCRELX | ELF_MAGIC_BIT:
 // undefine these macros from windows headers
 #undef IMAGE_REL_AMD64_ADDR64
     case COFF::RelocationTypeAMD64::IMAGE_REL_AMD64_ADDR64 | COFF_MAGIC_BIT:
@@ -943,14 +944,22 @@ static int reloc_addend(const CObjectFile *object,
 }
 
 struct RelocSymbol {
+  /*
+  symbol detail
+  */
   SymbolRef sym;
   StringRef name;
-  SymbolRef::Type type;
-  unsigned int flags;
-  int addend;
+  SymbolRef::Type stype;
+  unsigned int sflags = 0;
+  /*
+  relocation detail
+  */
+  uint32_t rtype = 0;
+  int addend = 0;
 };
 
-static RelocSymbol get_symbol(uint64_t addr, const SymbolRef &sym) {
+static RelocSymbol get_symbol(uint64_t addr, const SymbolRef &sym,
+                              uint32_t rtype) {
   RelocSymbol rsym;
   auto expName = sym.getName();
   auto expType = sym.getType();
@@ -966,8 +975,9 @@ static RelocSymbol get_symbol(uint64_t addr, const SymbolRef &sym) {
       checker("flags", expFlags)) {
     rsym.sym = sym;
     rsym.name = expName.get();
-    rsym.type = expType.get();
-    rsym.flags = expFlags.get();
+    rsym.stype = expType.get();
+    rsym.sflags = expFlags.get();
+    rsym.rtype = rtype;
   }
   return rsym;
 }
@@ -988,9 +998,11 @@ static void reloc_symbols(ObjectFile *ofile, TextSection &text,
         log_print(Runtime, "Bad symbol name: {}.", strerr);
         return;
       }
+      auto textname = expName.get();
+      if (textname.size() == 0)
+        continue;
       // all of our supported platforms are 64-bit little endian Linux/Android
       // system
-      auto textname = expName.get();
       auto oelf = static_cast<ELF64LEObjectFile *>(ofile);
       auto elf = oelf->getELFFile();
       auto checker = [&textname, &elf](const Elf_Shdr &Sec) -> bool {
@@ -1009,7 +1021,11 @@ static void reloc_symbols(ObjectFile *ofile, TextSection &text,
                   toString(expTextReloc.takeError()));
         return;
       }
+      if (!expTextReloc->size())
+        continue;
       auto relocsect = expTextReloc->begin()->second;
+      if (!relocsect)
+        continue;
       auto expSymtab = elf.getSection(relocsect->sh_link);
       if (!expSymtab) {
         log_print(Runtime, "Unable to locate a symbol table: {}.",
@@ -1020,9 +1036,15 @@ static void reloc_symbols(ObjectFile *ofile, TextSection &text,
         for (const Elf_Rela &r : *expRelas) {
           auto sym = oelf->toSymbolRef(*expSymtab, r.getSymbol(false));
           auto addr = text.rva + r.r_offset;
-          auto rsym = get_symbol(addr, sym);
+          auto rsym = get_symbol(addr, sym, r.getType(false));
           if (rsym.name.size()) {
             rsym.addend = r.r_addend;
+            /*
+            I don't know why there's always a -4 addend on x86_64 linux,
+            and it doesn't make any sense in icpp, so reset to 0.
+            */
+            if (rsym.addend < 0)
+              rsym.addend = 0;
             rsyms.insert({addr, rsym});
           }
         }
@@ -1035,7 +1057,7 @@ static void reloc_symbols(ObjectFile *ofile, TextSection &text,
     for (auto &r : texts.relocations()) {
       auto addr = text.rva + r.getOffset();
       auto sym = r.getSymbol();
-      auto rsym = get_symbol(addr, *sym);
+      auto rsym = get_symbol(addr, *sym, r.getType());
       if (rsym.name.size()) {
         rsym.addend = reloc_addend(ofile, r);
         rsyms.insert({addr, rsym});
@@ -1095,9 +1117,9 @@ void Object::decodeInsns(TextSection &text) {
             break;
           }
         }
-        auto symtype = convert_reloc_type(arch(), type(), rsym.type);
+        auto symtype = reloc_symtype(arch(), type(), rsym.rtype);
         if (rsym.addend || rit == irelocs_.end()) {
-          if (rsym.flags & SymbolRef::SF_Undefined) {
+          if (rsym.sflags & SymbolRef::SF_Undefined) {
             // locate and insert a new extern relocation
             auto rtaddr =
                 Loader::locateSymbol(rsym.name, symtype == SymbolRef::ST_Data);
@@ -1156,14 +1178,15 @@ void Object::decodeInsns(TextSection &text) {
               }
               auto rtaddr =
                   reinterpret_cast<const void *>(expContent->data() + symoff);
-              rit = irelocs_.insert(
-                  irelocs_.end(), RelocInfo{rsym.name.data(), rtaddr,
-                                            static_cast<uint32_t>(rsym.type)});
+              rit = irelocs_.insert(irelocs_.end(),
+                                    RelocInfo{rsym.name.data(), rtaddr,
+                                              static_cast<uint32_t>(symtype)});
             }
           }
           if (0) {
-            log_print(Develop, "Relocated {} symbol {} at {}.",
-                      rsym.type == SymbolRef::ST_Data ? "data" : "func",
+            log_print(Develop, "Relocated {:06x}.{} symbol {} at {}.",
+                      iinfo.rva,
+                      symtype == SymbolRef::ST_Data ? "data" : "func",
                       rit->name, rit->target);
           }
         }
@@ -1223,10 +1246,12 @@ static void relocate_data(StringRef content, uint64_t offset,
                           const RelocSymbol &rsym,
                           const std::vector<DynSection> &dynsects) {
   uint64_t target;
-  if (rsym.flags & SymbolRef::SF_Undefined) {
+  if (rsym.sflags & SymbolRef::SF_Undefined) {
     // extern relocation
     target = reinterpret_cast<uint64_t>(Loader::locateSymbol(rsym.name, false));
   } else {
+    if (rsym.stype == SymbolRef::ST_Debug)
+      return;
     // insert a new local relocation
     auto expSect = rsym.sym.getSection();
     auto expAddr = rsym.sym.getAddress();
@@ -1296,7 +1321,7 @@ void Object::parseSections() {
                   name.data());
         break;
       }
-      auto news = textsects_.emplace_back(
+      auto &news = textsects_.emplace_back(
           TextSection{static_cast<uint32_t>(s.getIndex()),
                       static_cast<uint32_t>(s.getSize()),
                       static_cast<uint32_t>(s.getAddress()),
@@ -1314,7 +1339,7 @@ void Object::parseSections() {
                            std::string(s.getSize(), 0)});
     } else {
       auto expContent = s.getContents();
-      if (!expContent)
+      if (!expContent || !expContent->size())
         continue;
       // commit relocations for this data section
       if (type() == ELF_Reloc) {
@@ -1338,7 +1363,11 @@ void Object::parseSections() {
                     toString(expDataReloc.takeError()));
           return;
         }
+        if (!expDataReloc->size())
+          continue;
         auto relocsect = expDataReloc->begin()->second;
+        if (!relocsect)
+          continue;
         auto expSymtab = elf.getSection(relocsect->sh_link);
         if (!expSymtab) {
           log_print(Runtime, "Unable to locate a symbol table: {}.",
@@ -1349,7 +1378,7 @@ void Object::parseSections() {
           for (const Elf_Rela &r : *expRelas) {
             auto sym = oelf->toSymbolRef(*expSymtab, r.getSymbol(false));
             auto addr = s.getAddress() + r.r_offset;
-            auto rsym = get_symbol(addr, sym);
+            auto rsym = get_symbol(addr, sym, r.getType(false));
             if (rsym.name.size()) {
               relocate_data(expContent.get(), r.r_offset, rsym, dynsects_);
             }
@@ -1374,8 +1403,7 @@ void Object::parseSections() {
         auto expName = sym->getName();
         if (!expName)
           continue;
-        RelocSymbol rsym{*sym, expName.get(), SymbolRef::ST_Data,
-                         expFlags.get(), 0};
+        auto rsym = get_symbol(0, *sym, r.getType());
         relocate_data(expContent.get(), r.getOffset(), rsym, dynsects_);
       }
     }

@@ -18,6 +18,7 @@
 #include <llvm/Object/ObjectFile.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/InitLLVM.h>
+#include <mutex>
 #include <unicorn/unicorn.h>
 
 namespace cl = llvm::cl;
@@ -53,6 +54,7 @@ private:
   std::unique_ptr<std::thread> listen_;
   std::vector<std::unique_ptr<ip::tcp::socket>> clients_;
   std::vector<std::thread> clirecvs_;
+  std::mutex mutex_;
   bool running_ = true;
 } icppsvr;
 
@@ -87,6 +89,7 @@ static int gadget_puts(const char *text);
 
 template <typename... Args>
 int gadget::print(std::format_string<Args...> format, Args &&...args) {
+  std::lock_guard lock(mutex_);
   auto msg = std::vformat(format.get(), std::make_format_args(args...));
   for (auto &s : clients_) {
     if (s.get()->is_open())

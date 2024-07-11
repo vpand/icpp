@@ -26,11 +26,26 @@ namespace icpp {
 // some simulated system global variables
 static uint64_t __dso_handle = 0;
 
+#if __linux__ && __x86_64__
+extern "C" {
+void __divti3(void);
+void __modti3(void);
+void __udivti3(void);
+void __umodti3(void);
+}
+#endif
+
 struct ModuleLoader {
   ModuleLoader() : mainid_(std::this_thread::get_id()) {
     // these symbols are extern in object but finally linked in exe/lib,
     // herein simulates this behaviour
     syms_.insert({"___dso_handle", &__dso_handle});
+#if __linux__ && __x86_64__
+    syms_.insert({"__divti3", reinterpret_cast<const void *>(&__divti3)});
+    syms_.insert({"__modti3", reinterpret_cast<const void *>(&__modti3)});
+    syms_.insert({"__udivti3", reinterpret_cast<const void *>(&__udivti3)});
+    syms_.insert({"__umodti3", reinterpret_cast<const void *>(&__umodti3)});
+#endif
 
     // initialize the symbol hashes for the third-party modules lazy loading
     if (fs::exists(RuntimeLib::inst().repo(false)))
@@ -235,9 +250,10 @@ const void *ModuleLoader::lookup(std::string_view name, bool data) {
     }
     // Oops...
     if (!target) {
-      log_print(Runtime, "Fatal error, failed to resolve symbol: {}.",
+      log_print(Runtime,
+                "Fatal error, failed to resolve symbol {}, redirect to abort.",
                 name.data());
-      std::exit(-1);
+      target = reinterpret_cast<const void *>(&abort);
     }
   }
 

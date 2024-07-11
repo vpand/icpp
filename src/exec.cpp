@@ -213,7 +213,7 @@ private:
 
   char *topStack() {
     return reinterpret_cast<char *>(stack_.data()) +
-           RunConfig::inst()->stackSize();
+           RunConfig::inst()->stackSize() - switch_stack_size;
   }
 
   constexpr void *topReturn() { return static_cast<void *>(this); }
