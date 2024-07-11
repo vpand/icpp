@@ -9,12 +9,12 @@
 Copyright (c) vpand.com 2024.
 
 ## Comparison
-|*|Source|Executable|Package|Memory Resident|
-|-|-|-|-|-|
-| **ICPP** | C++ | **ARM64/X86_64** Object | **imod** for *.icpp | **iopad**/**icpp-gadget** |
-| **LLI** | C++ | **LLVM-IR** Bitcode |  N/A | N/A | 
-| **Python** | Python | Bytecode | pip for *.wheel | N/A |
-| **Frida** | JavaScript | Bytecode | N/A | frida/frida-gadget |
+|*|Source|Executable|Package|Memory Resident|Remote|
+|-|-|-|-|-|-|
+| **ICPP** | **C++** | **ARM64/X86_64** Object | **imod** for *.icpp | **iopad**/**icpp-gadget** | **icpp-server** |
+| **LLI** | C++ | **LLVM-IR** Bitcode |  N/A | N/A | N/A | 
+| **Python** | Python | Bytecode | pip for *.wheel | N/A | N/A | 
+| **Frida** | JavaScript | Bytecode | N/A | frida/frida-gadget | frida-server |
 
 ## Scenarios
 **Using ICPP to write C++ code just as a script.** Write and then run directly, no creating project, no configuring build, no compiling, no linking...
@@ -60,6 +60,7 @@ graph LR
  * **imod**: an icpp module package manager tool used to install, uninstall and show the third-party modules;
  * **iopad**: a local C++ source compiler driver, object launch pad and REPL for the remote icpp-gadget;
  * **icpp-gadget**: a remote memory resident daemon which may run inside an Android/iOS process, waiting for iopad to send the interpretable object to execute.
+ * **icpp-server**: a remote icpp-gadget server daemon, waiting for iopad to send the interpretable object to execute.
 
 ### ICPP CLI
 
@@ -119,12 +120,6 @@ USAGE: imod [options]
 
 OPTIONS:
 
-Generic Options:
-
-  --help               - Display available options (--help-hidden for more)
-  --help-list          - Display list of available options (--help-list-hidden for more)
-  --version            - Display the version of this program
-
 ICPP Module Manager Options:
 
   --create=<string>    - Create an icpp package from a json configuration file.
@@ -141,12 +136,6 @@ USAGE: iopad [options]
 
 OPTIONS:
 
-Generic Options:
-
-  --help            - Display available options (--help-hidden for more)
-  --help-list       - Display list of available options (--help-list-hidden for more)
-  --version         - Display the version of this program
-
 ICPP Interpretable Object Launch Pad Options:
 
   --fire=<string>   - Fire the input source file to the connected remote icpp-gadget to execute it.
@@ -155,6 +144,19 @@ ICPP Interpretable Object Launch Pad Options:
   --ndk=<string>    - Set the Android NDK root path, default to the parent directory of the ndk-build in PATH.
   --port=<int>      - Set the connection port.
   --repl            - Enter into a REPL interactive shell to fire the input snippet code to the connected remote icpp-gadget to execute it.
+```
+### ICPP-SERVER
+```sh
+vpand@MacBook-Pro icpp % icpp-server -h
+OVERVIEW: ICPP, Interpreting C++, running C++ in anywhere like a script.
+  Remote icpp-gadget server built with ICPP v0.0.1.255
+USAGE: icpp-server [options]
+
+OPTIONS:
+
+ICPP Remote Gadget Server Options:
+
+  --port=<int> - Set the listening port.
 ```
 
 ## Status
@@ -240,7 +242,7 @@ cmake -DCMAKE_BUILD_TYPE=Release ..
 # build the protoc compiler
 cmake --build . -- protoc -j8
 # build all the icpp components
-cmake --build . -- icpp icppcli imod iopad icpp-gadget -j8
+cmake --build . -- icpp icppcli imod iopad icpp-gadget icpp-server -j8
 ```
 
 ## Contact

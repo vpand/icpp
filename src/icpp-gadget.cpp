@@ -16,24 +16,34 @@
 #include <icppdbg.pb.h>
 #include <icpppad.pb.h>
 #include <llvm/Object/ObjectFile.h>
+#include <llvm/Support/CommandLine.h>
+#include <llvm/Support/InitLLVM.h>
 #include <unicorn/unicorn.h>
 
+namespace cl = llvm::cl;
 namespace asio = boost::asio;
 namespace ip = asio::ip;
 namespace iopad = com::vpand::iopad;
 
 namespace icpp {
 
+cl::OptionCategory ISERVER("ICPP Remote Gadget Server Options");
+
+static cl::opt<int> Port("port", cl::desc("Set the listening port."),
+                         cl::init(0), cl::cat(ISERVER));
+
 class gadget {
 public:
   gadget();
   ~gadget();
 
+  int startup();
+
   template <typename... Args>
   int print(std::format_string<Args...> format, Args &&...args);
 
 private:
-  void listen();
+  int listen();
   void recv(ip::tcp::socket *socket);
   void process(const ProtocolHdr *hdr, const void *body, size_t size);
   void procRun(std::string_view name, const std::string &obuff);
@@ -85,16 +95,29 @@ int gadget::print(std::format_string<Args...> format, Args &&...args) {
   return static_cast<int>(msg.length());
 }
 
+static bool is_icpp_server() {
+  constexpr const char *server = "icpp-server";
+  if (std::getenv(server))
+    return true;
+#if ON_WINDOWS
+  char exe[1024];
+  ::GetModuleFileNameA(nullptr, exe, sizeof(exe));
+  return std::string_view(exe).find(server) != std::string_view::npos;
+#else
+  return false;
+#endif
+}
+
 gadget::gadget() {
-  listen_ = std::make_unique<std::thread>(&gadget::listen, this);
+  if (!is_icpp_server()) {
+    listen_ = std::make_unique<std::thread>(&gadget::listen, this);
+  }
   RunConfig::inst("")->memory = true;
   RunConfig::printf = gadget_printf;
   RunConfig::puts = gadget_puts;
 }
 
 gadget::~gadget() {
-  if (!listen_)
-    return;
   running_ = false;
 
   try {
@@ -109,21 +132,31 @@ gadget::~gadget() {
       t.join();
     }
     // close acceptor
-    acceptor_->close();
-    listen_->join();
+    if (acceptor_)
+      acceptor_->close();
   } catch (...) {
   }
+
+  if (listen_)
+    listen_->join();
 }
 
-void gadget::listen() {
+int gadget::startup() {
+  auto port = Port ? Port : gadget_port;
+  log_print(Raw, "Running icpp-server at port {}...", port);
+  return listen();
+}
+
+int gadget::listen() {
   try {
+    auto port = Port ? Port : gadget_port;
     acceptor_ = std::make_unique<ip::tcp::acceptor>(
-        ios_, ip::tcp::endpoint(ip::tcp::v4(), gadget_port));
-    log_print(Develop, "Listening icpp-gadget server at {}...", gadget_port);
+        ios_, ip::tcp::endpoint(ip::tcp::v4(), port));
+    log_print(Develop, "Listening icpp-gadget server at {}...", port);
   } catch (std::exception &error) {
     log_print(Develop, "Create acceptor error: {}.", error.what());
     running_ = false;
-    return;
+    return -1;
   }
 
   while (true) {
@@ -141,6 +174,8 @@ void gadget::listen() {
       break;
     }
   }
+
+  return 0;
 }
 
 void gadget::recv(ip::tcp::socket *socket) {
@@ -237,6 +272,25 @@ int gadget_printf(const char *format, ...) {
 
 int gadget_puts(const char *text) { return icppsvr.print("{}\n", text); }
 
+static void print_version(llvm::raw_ostream &os) {
+  os << "ICPP (https://vpand.com/):\n  Remote icpp-gadget server built with "
+        "ICPP "
+     << icpp::version_string() << "\n";
+}
+
 } // namespace icpp
 
-__ICPP_EXPORT__ extern "C" void icpp_gadget(void) {}
+__ICPP_EXPORT__ extern "C" int icpp_gadget(int argc, char **argv) {
+  llvm::InitLLVM X(argc, argv);
+  cl::HideUnrelatedOptions(icpp::ISERVER);
+  cl::AddExtraVersionPrinter(icpp::print_version);
+  cl::ParseCommandLineOptions(
+      argc, argv,
+      std::format(
+          "ICPP, Interpreting C++, running C++ in anywhere like a script.\n"
+          "  Remote icpp-gadget server built with ICPP {}",
+          icpp::version_string()));
+  if (argc == 1 || icpp::Port)
+    return icpp::icppsvr.startup();
+  return 0;
+}

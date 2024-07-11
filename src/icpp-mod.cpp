@@ -72,6 +72,7 @@ void init_library(std::shared_ptr<icpp::Object>) {}
 ObjectDisassembler::~ObjectDisassembler() {}
 void ObjectDisassembler::init(CObjectFile *, std::string_view) {}
 void Object::decodeInsns(TextSection &) {}
+void Object::parseSections(void) {}
 } // namespace icpp
 
 template <typename FILTER, typename PACKER>

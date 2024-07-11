@@ -297,6 +297,7 @@ message(STATUS "Configuring memory resident interpreter icpp-gadget...")
 set(LLVM_LINK_COMPONENTS
   ${LLVM_TARGETS_TO_BUILD}
   Object
+  Option
   Support
 )
 file(GLOB IGADGET_LLVM_SOURCES
@@ -343,6 +344,25 @@ elseif(LINUX)
   target_link_options(icpp-gadget PRIVATE -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/ld-gadget.version)
 elseif(WIN32)
   target_link_directories(icpp-gadget PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+endif()
+
+# icpp-server command line
+message(STATUS "Configuring icpp-server remote daemon...")
+add_executable(icpp-server icpp-server.cpp)
+target_include_directories(icpp-server PRIVATE 
+  ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include
+  boost_dll
+)
+if(MSVC)
+  # on windows, use static link to load icpp-gadget.dll, the reason is as follows:
+  # 1.the executable directory is the dll loading directory;
+  # 2.only this way can have a better debugging experience in vscode;
+  target_link_libraries(icpp-server PRIVATE icpp-gadget)
+else()
+  # on macOS/Linux, use dlopen to load icpp-gadget.so/dylib, the reason is as follows:
+  # we don't need to set any extra runtime path to make dyld/linker working correctly,
+  # e.g.: .so rpath, .dylib install name, etc.
+  target_link_libraries(icpp-server PRIVATE boost_dll)
 endif()
 
 message(STATUS "Configuring icpp done")
