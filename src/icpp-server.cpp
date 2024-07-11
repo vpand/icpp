@@ -26,7 +26,7 @@ namespace fs = std::filesystem;
 int main(int argc, const char **argv) {
   try {
     // set icpp-server mode flag
-    std::setenv("icpp-server", "1", true);
+    setenv("icpp-server", "1", true);
 
     // i.e.: icpp-gadget.dylib, icpp-gadget.so, icpp-gadget.dll
     auto icpp = std::format("icpp-gadget{}", LLVM_PLUGIN_EXT);
