@@ -169,6 +169,7 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
       return 1; // continuing let clang print its help list
     }
     if (sp == "-c" || sp == "-o") {
+      icpp::RunConfig::inst(argv[0], "");
       // let clang do the compilation task directly
       return icpp::compile_source(argc, const_cast<const char **>(argv));
     }

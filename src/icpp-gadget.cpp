@@ -134,6 +134,7 @@ gadget::~gadget() {
     // close acceptor
     if (acceptor_)
       acceptor_->close();
+    ios_.stop();
   } catch (...) {
   }
 
@@ -192,7 +193,7 @@ void gadget::recv(ip::tcp::socket *socket) {
     asio::streambuf hdrbuffer;
     asio::read(*socket, hdrbuffer,
                asio::transfer_exactly(sizeof(icpp::ProtocolHdr)), error);
-    if (error && error != asio::error::eof) {
+    if (error) {
       log_print(Develop,
                 "Failed to read header buffer: {}.\nClosed connection.",
                 error.message());
@@ -290,6 +291,9 @@ __ICPP_EXPORT__ extern "C" int icpp_gadget(int argc, char **argv) {
           "ICPP, Interpreting C++, running C++ in anywhere like a script.\n"
           "  Remote icpp-gadget server built with ICPP {}",
           icpp::version_string()));
+
+  icpp::RunConfig::inst(argv[0], "");
+
   if (argc == 1 || icpp::Port)
     return icpp::icppsvr.startup();
   return 0;

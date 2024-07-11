@@ -8,6 +8,7 @@
 #include "imod/createcfg.h"
 #include "object.h"
 #include "platform.h"
+#include "runcfg.h"
 #include "runtime.h"
 #include "utils.h"
 #include "llvm/Support/CommandLine.h"
@@ -376,6 +377,8 @@ int main(int argc, char **argv) {
           "ICPP, Interpreting C++, running C++ in anywhere like a script.\n"
           "  IObject Module Manager Tool built with ICPP {}",
           icpp::version_string()));
+
+  icpp::RunConfig::inst(argv[0], "");
 
   if (CreatePackage.length())
     create_package(argv[0], CreatePackage);

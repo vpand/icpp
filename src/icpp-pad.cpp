@@ -7,6 +7,7 @@
 #include "arch.h"
 #include "icpp.h"
 #include "platform.h"
+#include "runcfg.h"
 #include "utils.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
@@ -68,7 +69,7 @@ static void print_version(llvm::raw_ostream &os) {
 
 struct LaunchPad {
   icpp::CondMutex itc_;
-  icpp::ArchType remote_arch_;
+  icpp::ArchType remote_arch_ = icpp::Unsupported;
   icpp::SystemType remote_system_;
   asio::io_service ios_;
   ip::tcp::socket socket_;
@@ -152,6 +153,7 @@ struct LaunchPad {
   void disconnect() {
     running_ = false;
     socket_.close();
+    ios_.stop();
   }
 
   void send(iopad::CommandID id, const std::string &cmd) {
@@ -177,7 +179,7 @@ struct LaunchPad {
       asio::streambuf hdrbuffer;
       asio::read(socket_, hdrbuffer,
                  asio::transfer_exactly(sizeof(icpp::ProtocolHdr)), error);
-      if (error && error != asio::error::eof) {
+      if (error) {
         if (running_) {
           disconnect();
           icpp::log_print(
@@ -199,8 +201,12 @@ struct LaunchPad {
                         error.message());
         continue;
       }
+
+      bool syncing = remote_arch_ == icpp::Unsupported;
       process(hdr, asio::buffer_cast<const void *>(probuffer.data()),
               probuffer.size());
+      if (syncing)
+        return;
     }
   }
 
@@ -218,7 +224,7 @@ struct LaunchPad {
     return ndk_;
   }
 
-  bool checkCompatible() {
+  bool compatible() {
     if (!running_)
       return false;
 
@@ -247,6 +253,20 @@ struct LaunchPad {
     }
   }
 
+  bool sync() {
+    // wait to receive the SYNCENV payload
+    recv();
+
+    if (compatible())
+      return true;
+
+    log_print(
+        icpp::Runtime,
+        "Your running host is not compatible with the remote icpp-gadget.");
+    disconnect();
+    return false;
+  }
+
   void process(const icpp::ProtocolHdr *hdr, const void *body, size_t size) {
     switch (hdr->cmd) {
     case iopad::SYNCENV: {
@@ -259,10 +279,6 @@ struct LaunchPad {
       }
       remote_arch_ = static_cast<icpp::ArchType>(resp.arch());
       remote_system_ = static_cast<icpp::SystemType>(resp.ostype());
-      if (checkCompatible())
-        signal();
-      else
-        disconnect();
       break;
     }
     case iopad::RESPONE: {
@@ -363,16 +379,15 @@ static int exec_repl(std::string_view icpp) {
 template <typename T> static void run_launch_pad(bool repl, T task) {
   if (!launchpad.connect())
     return;
-  // create a new thread to interact with remote icpp-gadget server
-  std::thread threcv(&LaunchPad::recv, &launchpad);
-  // wait to synchronize the execution environment
-  launchpad.wait();
-  if (launchpad.checkCompatible()) {
+
+  // synchronize the execution environment
+  if (launchpad.sync()) {
+    // create a new thread to interact with remote icpp-gadget server
+    std::thread(&LaunchPad::recv, &launchpad).detach();
     // do the real work
     task();
     launchpad.disconnect();
   }
-  threcv.join();
 }
 
 int main(int argc, char **argv) {
@@ -385,6 +400,8 @@ int main(int argc, char **argv) {
           "ICPP, Interpreting C++, running C++ in anywhere like a script.\n"
           "  IObject Launch Pad Tool built with ICPP {}",
           icpp::version_string()));
+
+  icpp::RunConfig::inst(argv[0], "");
 
   auto imodexe = fs::path(argv[0]);
   auto icppexe = (imodexe.parent_path() /

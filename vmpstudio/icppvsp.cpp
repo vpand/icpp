@@ -134,7 +134,7 @@ void vsp_icpp_t::recv() {
     asio::streambuf hdrbuffer;
     asio::read(socket_, hdrbuffer,
                asio::transfer_exactly(sizeof(icpp::ProtocolHdr)), error);
-    if (error && error != asio::error::eof) {
+    if (error) {
       if (startup_) {
         startup_ = false;
         stop();
