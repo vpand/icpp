@@ -32,8 +32,8 @@ public:
   // whether in repl mode
   static bool repl;
 
-  // whether in memory resident mode
-  static bool memory;
+  // whether in gadget mode
+  static bool gadget;
 
   // printf/puts pointer
   static int (*printf)(const char *, ...);

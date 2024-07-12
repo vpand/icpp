@@ -7,6 +7,7 @@
 #include "arch.h"
 #include "exec.h"
 #include "icpp.h"
+#include "loader.h"
 #include "object.h"
 #include "platform.h"
 #include "runcfg.h"
@@ -115,9 +116,12 @@ gadget::gadget() {
   if (!is_icpp_server()) {
     listen_ = std::make_unique<std::thread>(&gadget::listen, this);
   }
-  RunConfig::inst("")->memory = true;
+  RunConfig::inst("gadget", "")->gadget = true;
   RunConfig::printf = gadget_printf;
   RunConfig::puts = gadget_puts;
+  Loader::initialize();
+  Loader::cacheSymbol("printf", gadget_printf);
+  Loader::cacheSymbol("puts", gadget_puts);
 }
 
 gadget::~gadget() {

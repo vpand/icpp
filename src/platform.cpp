@@ -39,16 +39,18 @@ static const void *find_symbol(std::string_view raw) {
 #ifdef ON_WINDOWS
   static std::vector<HMODULE> sysmods;
   if (!sysmods.size()) {
-    static std::vector<std::string_view> names{"api-ms-win"
-                                               "vcruntime",
-                                               "msvcp", "kernel", "msvcrt"};
+    static std::vector<std::string_view> names{
+        "api-ms-win", "vcruntime", "vcp", "kernel", "crt",
+        "API-MS-WIN", "VCRUNTIME", "VCP", "KERNEL", "CRT"};
     iterate_modules([](uint64_t handle, std::string_view path) {
       for (auto &n : names) {
-        if (path.find(n) != std::string_view::npos)
+        if (path.find(n) != std::string_view::npos) {
           sysmods.push_back(reinterpret_cast<HMODULE>(handle));
+          break;
+        }
       }
     });
-    if (sysmods.size() < names.size()) {
+    if (sysmods.size() < names.size() / 2) {
       log_print(Develop,
                 "Warning, the count of the default system module handle should "
                 "be at least the same size with the names's.");

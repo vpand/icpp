@@ -29,7 +29,7 @@ Object::Object(std::string_view srcpath, std::string_view path)
   if (!srcpath_.length())
     srcpath_ = path_;
 
-  if (RunConfig::inst()->memory)
+  if (RunConfig::gadget)
     return;
 
   srcpath_ = fs::absolute(srcpath_).string();
@@ -261,10 +261,14 @@ uint64_t Object::vm2rva(uint64_t vm, size_t *ti) {
     }
   }
   for (auto &s : ofile_->sections()) {
+    if (s.isBSS())
+      continue;
     auto expContent = s.getContents();
     if (!expContent)
       continue;
     auto start = reinterpret_cast<uint64_t>(expContent->data());
+    if (!start)
+      continue;
     if (start <= vm && vm < start + s.getSize()) {
       if (ti) {
         log_print(Runtime, "Logical error, if vm belongs to some data section, "

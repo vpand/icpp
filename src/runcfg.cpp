@@ -11,7 +11,7 @@
 namespace icpp {
 
 bool RunConfig::repl = false;
-bool RunConfig::memory = false;
+bool RunConfig::gadget = false;
 int (*RunConfig::printf)(const char *, ...) = std::printf;
 int (*RunConfig::puts)(const char *) = std::puts;
 

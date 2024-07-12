@@ -29,6 +29,7 @@
 #include "loader.h"
 #include "log.h"
 #include "object.h"
+#include "runcfg.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/StringExtras.h"
@@ -978,6 +979,14 @@ static RelocSymbol get_symbol(uint64_t addr, const SymbolRef &sym,
     rsym.stype = expType.get();
     rsym.sflags = expFlags.get();
     rsym.rtype = rtype;
+#if _WIN32
+    // on windows, the printf is a local function in object file, in order
+    // to redirect it easily in icpp-gadget, change it to an extern symbol.
+    if (RunConfig::gadget) {
+      if (rsym.name == "printf")
+        rsym.sflags |= SymbolRef::SF_Undefined;
+    }
+#endif
   }
   return rsym;
 }

@@ -66,6 +66,10 @@ struct ModuleLoader {
     imods_.clear();
   }
 
+  void cacheSymbol(std::string_view name, const void *impl) {
+    syms_.insert({name.data(), impl});
+  }
+
   bool isMain() { return mainid_ == std::this_thread::get_id(); }
 
   struct LockGuard {
@@ -353,6 +357,10 @@ std::string Loader::locateModule(const void *addr, bool update) {
 
 void Loader::cacheObject(std::shared_ptr<Object> imod) {
   moloader->cacheObject(imod);
+}
+
+void Loader::cacheSymbol(std::string_view name, const void *impl) {
+  moloader->cacheSymbol(name, impl);
 }
 
 bool Loader::executable(uint64_t vm, Object **iobject) {

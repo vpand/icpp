@@ -41,6 +41,9 @@ public:
   // cache the iobject module
   static void cacheObject(std::shared_ptr<Object> imod);
 
+  // cache the symbol with specified implementation
+  static void cacheSymbol(std::string_view name, const void *impl);
+
   // check whether the vm address belongs to a iobject text section
   static bool executable(uint64_t vm, Object **iobject);
 

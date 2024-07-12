@@ -557,7 +557,7 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
   }
 
   // redirect printf to remote client
-  if (RunConfig::inst()->memory) {
+  if (RunConfig::gadget) {
     if (reinterpret_cast<uint64_t>(printf) == target) {
       target = reinterpret_cast<uint64_t>(RunConfig::inst()->printf);
     } else if (reinterpret_cast<uint64_t>(puts) == target) {
@@ -1380,18 +1380,17 @@ void ExecEngine::initMainRegisterWinX64(const void *argc, const void *argv) {
 void ExecEngine::dump() {
   // load registers
   uint64_t regs[32], regsz, pc;
-  int pcrid;
   switch (robject_->arch()) {
   case AArch64: {
     auto ctx = loadRegisterAArch64();
-    regsz = 32;
+    regsz = 31;
     uc_reg_read(uc_, UC_ARM64_REG_PC, &pc);
     std::memcpy(regs, &ctx, sizeof(regs[0]) * regsz);
     break;
   }
   case X86_64: {
     auto ctx = loadRegisterX64();
-    regsz = 16;
+    regsz = 15;
     uc_reg_read(uc_, UC_X86_REG_RIP, &pc);
     std::memcpy(regs, &ctx, sizeof(regs[0]) * regsz);
     break;
@@ -1448,7 +1447,7 @@ int ExecEngine::run(bool lib) {
 
   if (execCtor()) {
     if (!lib && execMain()) {
-      if (!robject_->isCache() && !RunConfig::repl && !RunConfig::memory) {
+      if (!robject_->isCache() && !RunConfig::repl && !RunConfig::gadget) {
         // generate the interpretable object file if everthing went well
         robject_->generateCache();
       }
