@@ -187,12 +187,21 @@ const void *Object::mainEntry() {
 
 static std::vector<const void *>
 cdtor_entries(CObjectFile *ofile, const std::span<std::string_view> &names,
-              const std::unordered_map<std::string, const void *> &funcs) {
+              const std::unordered_map<std::string, const void *> &funcs,
+              bool ctor) {
   std::vector<const void *> results;
   for (auto &s : ofile->sections()) {
     auto expName = s.getName();
     if (!expName)
       continue;
+    // elf startup section on object file
+    if (ctor && *expName == ".text.startup") {
+      auto expContent = s.getContents();
+      if (expContent) {
+        results.push_back(expContent->data());
+      }
+      continue;
+    }
     for (auto sn : names) {
       if (expName->contains(sn)) {
         for (auto &r : s.relocations()) {
@@ -217,13 +226,13 @@ cdtor_entries(CObjectFile *ofile, const std::span<std::string_view> &names,
 std::vector<const void *> Object::ctorEntries() {
   std::string_view names[] = {"init_func"};
   std::span sns{names, std::size(names)};
-  return cdtor_entries(ofile_.get(), sns, funcs_);
+  return cdtor_entries(ofile_.get(), sns, funcs_, true);
 }
 
 std::vector<const void *> Object::dtorEntries() {
   std::string_view names[] = {"term_func"};
   std::span sns{names, std::size(names)};
-  return cdtor_entries(ofile_.get(), sns, funcs_);
+  return cdtor_entries(ofile_.get(), sns, funcs_, false);
 }
 
 const InsnInfo *Object::insnInfo(uint64_t vm) {

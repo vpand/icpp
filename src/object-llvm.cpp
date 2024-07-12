@@ -867,14 +867,14 @@ static void parseInstX64(const MCInst &inst, uint64_t opcptr,
   }
 }
 
-using SymbolRef = object::SymbolRef;
-
-static SymbolRef::Type reloc_symtype(ArchType arch, ObjectType otype,
-                                     uint64_t rtype) {
 #define MACHO_MAGIC_BIT 0x10000
 #define ELF_MAGIC_BIT 0x20000
 #define COFF_MAGIC_BIT 0x40000
 
+using SymbolRef = object::SymbolRef;
+
+static SymbolRef::Type reloc_symtype(ArchType arch, ObjectType otype,
+                                     uint64_t rtype) {
   switch (otype) {
   case MachO_Reloc:
     rtype |= MACHO_MAGIC_BIT;
@@ -1244,15 +1244,14 @@ void Object::decodeInsns(TextSection &text) {
 
 static void relocate_data(StringRef content, uint64_t offset,
                           const RelocSymbol &rsym,
-                          const std::vector<DynSection> &dynsects) {
+                          const std::vector<DynSection> &dynsects,
+                          ObjectType otype, ArchType arch) {
   uint64_t target;
   if (rsym.sflags & SymbolRef::SF_Undefined) {
     // extern relocation
     target = reinterpret_cast<uint64_t>(Loader::locateSymbol(rsym.name, false));
   } else {
-    if (rsym.stype == SymbolRef::ST_Debug)
-      return;
-    // insert a new local relocation
+    // local relocation
     auto expSect = rsym.sym.getSection();
     auto expAddr = rsym.sym.getAddress();
     if (!expSect || !expAddr) {
@@ -1296,11 +1295,58 @@ static void relocate_data(StringRef content, uint64_t offset,
       target = reinterpret_cast<uint64_t>(expContent->data() + symoff);
     }
   }
+
+  auto rtype = rsym.rtype;
+  switch (otype) {
+  case MachO_Reloc:
+    rtype |= MACHO_MAGIC_BIT;
+    break;
+  case ELF_Reloc:
+    rtype |= ELF_MAGIC_BIT;
+    break;
+  default:
+    rtype |= COFF_MAGIC_BIT;
+    break;
+  }
+  switch (arch) {
+  case X86_64: {
+    switch (rtype) {
+    case ELF::R_X86_64_PC32 | ELF_MAGIC_BIT: {
+      /*
+      the following instruction sequence refers this kind of relocation:
+        leaq (content), %rcx
+        movslq (%rcx,%rax,4), %rax
+        addq %rcx, %rax
+        jmpq *%rax
+      in object file:
+        ref-address = target_symbol + addend
+      at runtime:
+        ref-address = reloc_section + offset + relpc32
+      so, the relocating 32-bit value should be:
+        relpc32 = target_symbol + addend - (reloc_section + offset)
+      */
+      uint32_t rel32 = static_cast<uint32_t>(
+          target - reinterpret_cast<uint64_t>(content.data() + offset));
+      if (0) {
+        log_print(Develop, "Relocated data symbol {} at 0x{:x}.",
+                  rsym.name.data(), rel32);
+      }
+      *reinterpret_cast<uint32_t *>(
+          const_cast<char *>(content.data() + offset)) = rel32;
+      return;
+    }
+    default:
+      break;
+    }
+    break;
+  }
+  default:
+    break;
+  }
   if (0) {
     log_print(Develop, "Relocated data symbol {} at 0x{:x}.", rsym.name.data(),
               target);
   }
-
   *reinterpret_cast<uint64_t *>(const_cast<char *>(content.data() + offset)) =
       reinterpret_cast<uint64_t>(target);
 }
@@ -1332,8 +1378,10 @@ void Object::parseSections() {
         // herein we fix their rva to the first text section's vm address.
         news.rva = static_cast<uint32_t>(news.vm - textsects_[0].vm);
       }
-      log_print(Develop, "Section {} rva={:x}, vm={:x} size={}.", name.data(),
-                news.rva, news.vm, news.size);
+      if (0) {
+        log_print(Develop, "Section {} rva={:x}, vm={:x} size={}.", name.data(),
+                  news.rva, news.vm, news.size);
+      }
     } else if (s.isBSS() || name.ends_with("bss") || name.ends_with("common")) {
       dynsects_.push_back({name.data(), static_cast<uint32_t>(s.getAddress()),
                            std::string(s.getSize(), 0)});
@@ -1380,7 +1428,9 @@ void Object::parseSections() {
             auto addr = s.getAddress() + r.r_offset;
             auto rsym = get_symbol(addr, sym, r.getType(false));
             if (rsym.name.size()) {
-              relocate_data(expContent.get(), r.r_offset, rsym, dynsects_);
+              rsym.addend = r.r_addend;
+              relocate_data(expContent.get(), r.r_offset, rsym, dynsects_,
+                            type(), arch());
             }
           }
         } else {
@@ -1404,7 +1454,8 @@ void Object::parseSections() {
         if (!expName)
           continue;
         auto rsym = get_symbol(0, *sym, r.getType());
-        relocate_data(expContent.get(), r.getOffset(), rsym, dynsects_);
+        relocate_data(expContent.get(), r.getOffset(), rsym, dynsects_, type(),
+                      arch());
       }
     }
   }

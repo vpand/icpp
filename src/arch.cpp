@@ -12,6 +12,8 @@
 #define __ASM__ __asm__ __volatile__
 #define __NAKED__ __attribute__((naked))
 
+#define ENABLE_SWITCH_X86_FLOAT_REGISTERS 0
+
 namespace icpp {
 
 ArchType host_arch() {
@@ -334,9 +336,11 @@ void __NAKED__ host_call_asm(void *ctx, const void *func) {
   __ASM__("subq $768, %rsp"); // gpr+xmm+st+rflags=8*16+16*16+10*8+8=472==>768
   save_gpr(% rsp);
   save_xmm_after_gpr(% rsp);
+#if ENABLE_SWITCH_X86_FLOAT_REGISTERS
   // save rflags/float-stack
   __ASM__("fnsave 0x280(%rsp)");
   __ASM__("frstor 0x280(%rsp)");
+#endif
 
   // convert Win64 ABI to System-V ABI
 #if ON_WINDOWS
@@ -375,7 +379,9 @@ void __NAKED__ host_call_asm(void *ctx, const void *func) {
   __ASM__("popq %r11"); // load context
   load_gpr_r11();
   load_xmm_after_gpr(% r11);
-  __ASM__("frstor 0x280(%r11)");     // load float stack
+#if ENABLE_SWITCH_X86_FLOAT_REGISTERS
+  __ASM__("frstor 0x280(%r11)"); // load float stack
+#endif
   __ASM__("movq %rsp, -0x10(%r11)"); // save stack before call
   __ASM__("callq *-0x8(%r11)");      // call the target
   __ASM__("addq $0x1000, %rsp");     // free stack 4kb
@@ -383,8 +389,9 @@ void __NAKED__ host_call_asm(void *ctx, const void *func) {
   __ASM__("movq %rsp, -0x18(%r11)"); // save stack after call
   save_gpr(% r11);
   save_xmm_after_gpr(% r11);
+#if ENABLE_SWITCH_X86_FLOAT_REGISTERS
   __ASM__("fnsave 0x280(%r11)");
-
+#endif
   load_gpr(% rsp);
   load_xmm_after_gpr(% rsp);
   __ASM__("addq $768, %rsp");

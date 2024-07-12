@@ -1479,12 +1479,14 @@ int exec_main(std::string_view path, const std::vector<std::string> &deps,
 void exec_object(std::shared_ptr<Object> object) {
   std::vector<std::string> deps;
   std::vector<const char *> iargs;
+  iargs.push_back(object->path().data());
   ExecEngine(object, deps, iargs).run();
 }
 
 void init_library(std::shared_ptr<Object> imod) {
   std::vector<std::string> deps;
   std::vector<const char *> iargs;
+  iargs.push_back(imod->path().data());
   ExecEngine(imod, deps, iargs).run(true);
 }
 
