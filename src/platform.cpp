@@ -21,6 +21,10 @@
 // we implement it as a nop function to make it working.
 extern "C" void pthread_jit_write_protect_np(int enable) {}
 #endif
+#elif ON_WINDOWS
+static constexpr const char *symbol_name(std::string_view raw) {
+  return raw.data() + (raw.starts_with("__imp_") ? 6 : 0);
+}
 #else
 #define symbol_name(raw) (raw.data() + 0)
 #endif
@@ -49,6 +53,7 @@ static const void *find_symbol(std::string_view raw) {
           break;
         }
       }
+      return false;
     });
     if (sysmods.size() < names.size() / 2) {
       log_print(Develop,
@@ -65,9 +70,10 @@ static const void *find_symbol(std::string_view raw) {
   const void *addr = nullptr;
   iterate_modules([&addr, &raw](uint64_t handle, std::string_view path) {
     if (addr || path.find("Windows") != std::string_view::npos)
-      return;
+      return false;
     // search in the user modules
     addr = ::GetProcAddress(reinterpret_cast<HMODULE>(handle), raw.data());
+    return false;
   });
   return addr;
 #else
@@ -90,24 +96,24 @@ const void *find_symbol(const void *handle, std::string_view raw) {
 #if __linux__
 static int iter_so_callback(dl_phdr_info *info, size_t size, void *data) {
   auto callback = *reinterpret_cast<
-      std::function<void(uint64_t base, std::string_view path)> *>(data);
-  callback(reinterpret_cast<uint64_t>(info->dlpi_addr), info->dlpi_name);
-  return 0;
+      std::function<bool(uint64_t base, std::string_view path)> *>(data);
+  return callback(reinterpret_cast<uint64_t>(info->dlpi_addr), info->dlpi_name);
 }
 #endif
 
 void iterate_modules(
-    const std::function<void(uint64_t base, std::string_view path)> &callback) {
+    const std::function<bool(uint64_t base, std::string_view path)> &callback) {
 #if __APPLE__
   for (uint32_t i = 0; i < _dyld_image_count(); i++) {
-    callback(reinterpret_cast<uint64_t>(_dyld_get_image_header(i)),
-             _dyld_get_image_name(i));
+    if (callback(reinterpret_cast<uint64_t>(_dyld_get_image_header(i)),
+                 _dyld_get_image_name(i)))
+      return;
   }
 #elif __linux__
   dl_iterate_phdr(
       iter_so_callback,
       reinterpret_cast<void *>(
-          const_cast<std::function<void(uint64_t base, std::string_view path)>
+          const_cast<std::function<bool(uint64_t base, std::string_view path)>
                          *>(&callback)));
 #elif ON_WINDOWS
   HANDLE hProcess = ::GetCurrentProcess();
@@ -117,7 +123,8 @@ void iterate_modules(
   for (unsigned i = 0; i < (cbNeeded / sizeof(HMODULE)); i++) {
     char szModName[MAX_PATH];
     ::GetModuleFileNameExA(hProcess, hMods[i], szModName, sizeof(szModName));
-    callback(reinterpret_cast<uint64_t>(hMods[i]), szModName);
+    if (callback(reinterpret_cast<uint64_t>(hMods[i]), szModName))
+      return;
   }
 #else
 #error Unsupported host os platform.
@@ -126,15 +133,6 @@ void iterate_modules(
 
 std::vector<std::string> extra_cflags() {
   std::vector<std::string> args;
-#if __APPLE__
-  // add macosx sdk
-  args.push_back("-isysroot");
-  args.push_back("/Applications/Xcode.app/Contents/Developer/Platforms/"
-                 "MacOSX.platform/Developer/SDKs/MacOSX.sdk");
-  // add Xcode c++ include directory
-  args.push_back("-I/Applications/Xcode.app/Contents/Developer/Toolchains/"
-                 "XcodeDefault.xctoolchain/usr/include/c++/v1");
-#elif __linux__
   // add libc++ include
   auto cxxinc = (fs::absolute(RunConfig::inst()->program).parent_path() / ".." /
                  "include")
@@ -142,12 +140,9 @@ std::vector<std::string> extra_cflags() {
   args.push_back("-nostdinc++");
   args.push_back("-nostdlib++");
   args.push_back(std::format("-I{}/c++/v1", cxxinc));
+#if __linux__
   args.push_back(std::format("-I{}/{}-unknown-linux-gnu/c++/v1", cxxinc,
                              arch_name(host_arch())));
-#elif ON_WINDOWS
-  // nothing special on windows
-#else
-#error Unknown compiling platform.
 #endif
   return args;
 }

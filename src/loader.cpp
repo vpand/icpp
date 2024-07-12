@@ -47,6 +47,11 @@ struct ModuleLoader {
     syms_.insert({"__umodti3", reinterpret_cast<const void *>(&__umodti3)});
 #endif
 
+    // load c++ runtime library
+    auto libcxx = fs::absolute(RunConfig::inst()->program).parent_path() /
+                  "libc++" LLVM_PLUGIN_EXT;
+    loadLibrary(libcxx.string());
+
     // initialize the symbol hashes for the third-party modules lazy loading
     if (fs::exists(RuntimeLib::inst().repo(false)))
       RuntimeLib::inst().initHashes();
@@ -241,6 +246,12 @@ const void *ModuleLoader::lookup(std::string_view name, bool data) {
     }
   }
 
+  // check it in loaded modules
+  for (auto &m : mhandles_) {
+    if ((target = find_symbol(m.second, name)))
+      break;
+  }
+
   // check it in native system modules
   if (!target)
     target = find_symbol(nullptr, name);
@@ -271,6 +282,7 @@ std::string ModuleLoader::find(const void *addr, bool update) {
     LockGuard lock(this, mutex_);
     iterate_modules([](uint64_t base, std::string_view path) {
       moloader->mods_.insert({base, path.data()});
+      return false;
     });
     // reset module iterators
     modits_.clear();

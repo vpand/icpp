@@ -116,7 +116,13 @@ gadget::gadget() {
   if (!is_icpp_server()) {
     listen_ = std::make_unique<std::thread>(&gadget::listen, this);
   }
-  RunConfig::inst("gadget", "")->gadget = true;
+  iterate_modules([](uint64_t handle, std::string_view path) {
+    if (path.find("icpp-gadget") != std::string_view::npos) {
+      RunConfig::inst(path.data(), "")->gadget = true;
+      return true;
+    }
+    return false;
+  });
   RunConfig::printf = gadget_printf;
   RunConfig::puts = gadget_puts;
   Loader::initialize();

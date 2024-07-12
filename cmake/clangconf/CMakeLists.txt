@@ -1,5 +1,5 @@
 #
-# This file is only used on Linux host to build a clang with libc++ support.
+# This file is used to build a local clang with C++23/libc++ support.
 #
 
 # cmake
@@ -7,8 +7,9 @@ cmake_minimum_required(VERSION 3.20)
 project(icpp)
 
 # build the host architecture target only
-if (${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "x86_64")
-    set(LLVM_TARGETS_TO_BUILD "X86"CACHE STRING "" FORCE)
+if (${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "x86_64" OR
+    ${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "AMD64")
+    set(LLVM_TARGETS_TO_BUILD "X86" CACHE STRING "" FORCE)
 else()
     set(LLVM_TARGETS_TO_BUILD "AArch64" CACHE STRING "" FORCE)
 endif()
@@ -16,7 +17,7 @@ endif()
 # enable clang
 set(LLVM_ENABLE_PROJECTS "clang" CACHE STRING "" FORCE)
 
-# enable cxx,cxxabi,unbind C++ runtime library
+# enable cxx,cxxabi,unwind C++ runtime library
 set(LLVM_ENABLE_RUNTIMES "all" CACHE STRING "" FORCE)
 set(LLVM_INCLUDE_RUNTIMES ON CACHE BOOL "" FORCE)
 
