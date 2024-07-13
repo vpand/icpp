@@ -3,7 +3,7 @@
  * Writing powerful script using C++ just as easy as Python;
  * Writing hot-loading C++ script code in running process;
  * Based on [Unicorn Engine](https://github.com/unicorn-engine/unicorn.git) qemu virtual cpu and [Clang/LLVM](https://github.com/llvm/llvm-project.git) C++ compiler;
- * Integrated [Boost](https://github.com/boostorg/boost.git) internally with [Standard C++23](https://en.cppreference.com/w/cpp/23) supported;
+ * Integrated [Boost](https://github.com/boostorg/boost.git) internally with [Standard C/C++23](https://en.cppreference.com/w/cpp/23) supported;
  * To reuse the existing C/C++ library as an icpp module extension is extremely simple.
 
 Copyright (c) vpand.com 2024.
@@ -141,7 +141,6 @@ ICPP Interpretable Object Launch Pad Options:
   --fire=<string>   - Fire the input source file to the connected remote icpp-gadget to execute it.
   --incdir=<string> - Specify the include directory for compilation, can be multiple.
   --ip=<string>     - Set the remote ip address of icpp-gadget.
-  --ndk=<string>    - Set the Android NDK root path, default to the parent directory of the ndk-build in PATH.
   --port=<int>      - Set the connection port.
   --repl            - Enter into a REPL interactive shell to fire the input snippet code to the connected remote icpp-gadget to execute it.
 ```

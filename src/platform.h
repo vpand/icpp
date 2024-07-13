@@ -83,6 +83,4 @@ const void *find_symbol(const void *handle, std::string_view raw);
 void iterate_modules(
     const std::function<bool(uint64_t base, std::string_view path)> &callback);
 
-std::vector<std::string> extra_cflags();
-
 } // namespace icpp

@@ -57,14 +57,11 @@ static int compile_source_clang(int argc, const char **argv) {
 }
 
 int compile_source(int argc, const char **argv) {
+  auto rtinc = fs::absolute(fs::path(argv[0])).parent_path() / ".." / "include")
+                  .string();
   std::vector<const char *> args;
-  bool crossbuild = false;
   for (int i = 0; i < argc; i++) {
     args.push_back(argv[i]);
-    // check whether in cross build mode
-    if (!crossbuild && (std::string_view(argv[i]) == "-arch" ||
-                        std::string_view(argv[i]) == "-target"))
-      crossbuild = true;
   }
 
   // make clang driver to use our fake clang path as the executable path
@@ -72,17 +69,15 @@ int compile_source(int argc, const char **argv) {
   // use C++23 standard
   args.push_back("-std=gnu++23");
 
-  // add some system level specific compiler flags for host target build
-  auto eflags = extra_cflags();
-  if (!crossbuild) {
-    for (auto &a : eflags)
-      args.push_back(a.data());
-  }
+  // add libc++ include
+  auto cxxinc = std::format("-I{}/c++/v1", rtinc));
+  args.push_back(cxxinc.data());
+  // force to use the icpp integrated C/C++ runtime header
+  args.push_back("-nostdinc++");
+  args.push_back("-nostdlib++");
 
-  // add icpp include
-  auto icppinc = std::format(
-      "-I{}", (fs::absolute(fs::path(argv[0])).parent_path() / ".." / "include")
-                  .string());
+  // add libc include
+  auto icppinc = std::format("-I{}", rtinc);
   args.push_back(icppinc.data());
 
   // add icpp module include

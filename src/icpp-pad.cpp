@@ -50,11 +50,6 @@ static cl::list<std::string> Incdirs(
     "incdir", cl::ZeroOrMore,
     cl::desc("Specify the include directory for compilation, can be multiple."),
     cl::cat(IOPad));
-static cl::opt<std::string>
-    NDK("ndk",
-        cl::desc("Set the Android NDK root path, default to the parent "
-                 "directory of the ndk-build in PATH."),
-        cl::cat(IOPad));
 static cl::opt<bool> Repl(
     "repl",
     cl::desc("Enter into a REPL interactive shell to fire the input snippet "
@@ -82,56 +77,50 @@ struct LaunchPad {
   void signal() { itc_.signal(); }
 
   std::vector<std::string> cflags() {
-    std::vector<std::string> args;
+    std::string_view arch, name, env;
+    switch (remote_arch_) {
+    case icpp::X86_64:
+      arch = "x86_64";
+      break;
+    default:
+      switch (remote_system_) {
+      case icpp::Linux:
+      case icpp::Android:
+        arch = "aarch64";
+        break;
+      default:
+        arch = "arm64";
+        break;
+      }
+      break;
+    }
+
     switch (remote_system_) {
     case icpp::Windows:
+      name = "windows";
+      env = "msvc";
+      break;
     case icpp::macOS:
+      name = "apple";
+      env = "macosx10.0.0";
+      break;
     case icpp::Linux:
-      for (auto f : icpp::extra_cflags())
-        args.push_back(f.data());
+      name = "unknown-linux";
+      env = "gnu";
       break;
     case icpp::iOS:
-      args.push_back("-arch");
-      args.push_back("-arm64");
-      args.push_back("-isysroot");
-      args.push_back("/Applications/Xcode.app/Contents/Developer/Platforms/"
-                     "iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk");
+      name = "apple";
+      env = "ios10.0.0";
       break;
-    default: {
-      const char *osname, *osarch;
-      switch (icpp::host_system()) {
-      case icpp::Windows:
-        osname = "windows";
-        break;
-      case icpp::macOS:
-        osname = "darwin";
-        break;
-      default:
-        osname = "linux";
-        break;
-      }
-      switch (icpp::host_arch()) {
-      case icpp::X86_64:
-        osarch = "x86_64";
-        break;
-      default:
-        if (icpp::host_system() == icpp::Linux)
-          osarch = "aarch64";
-        else
-          osarch = "arm64";
-        break;
-      }
-      args.push_back("-target");
-      if (remote_arch_ == icpp::X86_64)
-        args.push_back("x86_64-none-linux-android24");
-      else
-        args.push_back("aarch64-none-linux-android24");
-      args.push_back("--sysroot");
-      args.push_back(std::format("{}/toolchains/llvm/prebuilt/{}-{}/sysroot",
-                                 ndk_.data(), osname, osarch));
+    default:
+      name = "none-linux";
+      env = "android24";
       break;
     }
-    }
+
+    std::vector<std::string> args;
+    args.push_back("-target");
+    args.push_back(std::format("{}-{}-{}", arch, name, env));
     return args;
   }
 
@@ -172,7 +161,7 @@ struct LaunchPad {
     }
   }
 
-  void recv() {
+  bool recv() {
     while (running_) {
       boost::system::error_code error;
       // protocol header
@@ -187,7 +176,7 @@ struct LaunchPad {
               "Failed to read header buffer: {}.\nClosed connection.\n",
               error.message());
         }
-        break;
+        return false;
       }
       auto hdr = asio::buffer_cast<const icpp::ProtocolHdr *>(hdrbuffer.data());
       if (!hdr->len) {
@@ -206,63 +195,15 @@ struct LaunchPad {
       process(hdr, asio::buffer_cast<const void *>(probuffer.data()),
               probuffer.size());
       if (syncing)
-        return;
+        return true;
     }
-  }
-
-  std::string_view ndk() {
-    if (NDK.length())
-      return NDK.data();
-    icpp::iterate_pathenv([this](std::string_view path) {
-      auto ndkbuild = fs::path(path) / icpp::ndk_build;
-      if (fs::exists(ndkbuild)) {
-        ndk_ = ndkbuild.string();
-        return icpp::IterBreak;
-      }
-      return icpp::IterContinue;
-    });
-    return ndk_;
-  }
-
-  bool compatible() {
-    if (!running_)
-      return false;
-
-    auto hostsys = icpp::host_system();
-    switch (remote_system_) {
-    case icpp::Android: {
-      // android needs the NDK root path to cross compile the interpretable
-      // object
-      if (!ndk_.length()) {
-        icpp::log_print(icpp::Runtime,
-                        "NDK is missing, even tried to parse from PATH, rerun "
-                        "with --ndk=</path/to/ndk>.");
-        return false;
-      }
-      return true;
-    }
-    case icpp::Windows:
-      // windows needs Windows system
-      return hostsys == icpp::Windows;
-    case icpp::Linux:
-      // linux needs Linux system
-      return hostsys == icpp::Linux;
-    default:
-      // macOS/iOS needs macOS system
-      return hostsys == icpp::macOS;
-    }
+    return true;
   }
 
   bool sync() {
     // wait to receive the SYNCENV payload
-    recv();
-
-    if (compatible())
+    if (recv())
       return true;
-
-    log_print(
-        icpp::Runtime,
-        "Your running host is not compatible with the remote icpp-gadget.");
     disconnect();
     return false;
   }

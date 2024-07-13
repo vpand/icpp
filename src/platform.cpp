@@ -131,20 +131,4 @@ void iterate_modules(
 #endif
 }
 
-std::vector<std::string> extra_cflags() {
-  std::vector<std::string> args;
-  // add libc++ include
-  auto cxxinc = (fs::absolute(RunConfig::inst()->program).parent_path() / ".." /
-                 "include")
-                    .string();
-  args.push_back("-nostdinc++");
-  args.push_back("-nostdlib++");
-  args.push_back(std::format("-I{}/c++/v1", cxxinc));
-#if __linux__
-  args.push_back(std::format("-I{}/{}-unknown-linux-gnu/c++/v1", cxxinc,
-                             arch_name(host_arch())));
-#endif
-  return args;
-}
-
 } // namespace icpp
