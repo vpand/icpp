@@ -26,25 +26,43 @@ namespace icpp {
 // some simulated system global variables
 static uint64_t __dso_handle = 0;
 
-#if __linux__ && __x86_64__
 extern "C" {
+#if __linux__ && __x86_64__
 void __divti3(void);
 void __modti3(void);
 void __udivti3(void);
 void __umodti3(void);
-}
+#elif ON_WINDOWS
+void _CxxThrowException(void);
 #endif
+}
 
 struct ModuleLoader {
   ModuleLoader() : mainid_(std::this_thread::get_id()) {
     // these symbols are extern in object but finally linked in exe/lib,
-    // herein simulates this behaviour
+    // or
+    // they have a different signature between the host and clang libc++.
+    //
+    // herein simulates this behaviour or redirects it to the pre-cached
+    // implementation
     syms_.insert({"___dso_handle", &__dso_handle});
 #if __linux__ && __x86_64__
     syms_.insert({"__divti3", reinterpret_cast<const void *>(&__divti3)});
     syms_.insert({"__modti3", reinterpret_cast<const void *>(&__modti3)});
     syms_.insert({"__udivti3", reinterpret_cast<const void *>(&__udivti3)});
     syms_.insert({"__umodti3", reinterpret_cast<const void *>(&__umodti3)});
+#elif ON_WINDOWS
+    // clang libc++: operator delete(void *,unsigned __int64)
+    // msvc: operator delete(void *)
+    // redirect new/delete to malloc/free
+    syms_.insert({"??2@YAPEAX_K@Z", reinterpret_cast<const void *>(&malloc)});
+    syms_.insert({"??3@YAXPEAX_K@Z", reinterpret_cast<const void *>(&free)});
+    // rtti type info vtable
+    auto rtti = &typeid(char *);
+    syms_.insert({"??_7type_info@@6B@", *(const void **)(rtti)});
+    // throw exception
+    syms_.insert({"_CxxThrowException",
+                  reinterpret_cast<const void *>(&_CxxThrowException)});
 #endif
 
     // load c++ runtime library

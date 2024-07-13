@@ -4,11 +4,14 @@ class ctor_t {
 public:
   // const char * exception
   ctor_t() { throw "This is a 'const char *' exception."; }
+
+  void hello() { puts("Hello, world."); }
 } ctor;
 
 int main(int argc, const char *argv[]) {
   try {
     if (argc == 1) {
+      ctor.hello();
       // std::exception
       // when hit this line, icpp will stop interpreting current function.
       throw std::invalid_argument("This is an 'std::exception' exception.");

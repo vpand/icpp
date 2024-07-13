@@ -224,7 +224,7 @@ cdtor_entries(CObjectFile *ofile, const std::span<std::string_view> &names,
 }
 
 std::vector<const void *> Object::ctorEntries() {
-  std::string_view names[] = {"init_func"};
+  std::string_view names[] = {"init_func", "CRT$XCU"};
   std::span sns{names, std::size(names)};
   return cdtor_entries(ofile_.get(), sns, funcs_, true);
 }

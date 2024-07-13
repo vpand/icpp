@@ -518,17 +518,21 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
       // replace it with a nop stub function
       args[0] = reinterpret_cast<uint64_t>(nop_function);
     }
-  } else if (reinterpret_cast<uint64_t>(__stack_chk_fail) == target) {
-    log_print(Runtime, "Fatal error, stack overflow checked.");
-    dump();
-    std::exit(-1);
   } else if (reinterpret_cast<uint64_t>(abort) == target) {
     log_print(Runtime, "Abort called in script.");
     dump();
     exitcode_ = -1;
     target = reinterpret_cast<uint64_t>(nop_function);
     retaddr = reinterpret_cast<uint64_t>(topReturn());
+  } else if (reinterpret_cast<uint64_t>(__stack_chk_fail) == target) {
+    log_print(Runtime, "Fatal error, stack overflow checked.");
+    dump();
+    std::exit(-1);
   } else if (reinterpret_cast<uint64_t>(__cxa_throw) == target) {
+#if ON_WINDOWS
+    log_print(Runtime, "Exception thrown in script: exception={:x}, rtti={:x}.",
+              args[0], args[1]);
+#else
     auto typeinfo = reinterpret_cast<std::type_info *>(args[1]);
     // char * exception
     if (typeinfo == &typeid(const char *) || typeinfo == &typeid(char *)) {
@@ -551,6 +555,7 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
       log_print(Runtime, "Exception thrown in script: {}",
                 reinterpret_cast<std::exception *>(args[0])->what());
     }
+#endif
     exitcode_ = -1;
     target = reinterpret_cast<uint64_t>(nop_function);
     retaddr = reinterpret_cast<uint64_t>(topReturn());
