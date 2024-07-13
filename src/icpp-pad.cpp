@@ -77,7 +77,8 @@ struct LaunchPad {
   void signal() { itc_.signal(); }
 
   std::vector<std::string> cflags() {
-    std::string_view arch, name, env;
+    // architecture, vender and environment of the remote running icpp-gadget
+    std::string_view arch, vender, env;
     switch (remote_arch_) {
     case icpp::X86_64:
       arch = "x86_64";
@@ -97,30 +98,30 @@ struct LaunchPad {
 
     switch (remote_system_) {
     case icpp::Windows:
-      name = "windows";
+      vender = "pc-windows";
       env = "msvc";
       break;
     case icpp::macOS:
-      name = "apple";
+      vender = "apple";
       env = "macosx10.0.0";
       break;
     case icpp::Linux:
-      name = "unknown-linux";
+      vender = "unknown-linux";
       env = "gnu";
       break;
     case icpp::iOS:
-      name = "apple";
+      vender = "apple";
       env = "ios10.0.0";
       break;
     default:
-      name = "none-linux";
+      vender = "none-linux";
       env = "android24";
       break;
     }
 
     std::vector<std::string> args;
     args.push_back("-target");
-    args.push_back(std::format("{}-{}-{}", arch, name, env));
+    args.push_back(std::format("{}-{}-{}", arch, vender, env));
     return args;
   }
 

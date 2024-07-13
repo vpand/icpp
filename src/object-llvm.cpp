@@ -874,8 +874,25 @@ static void parseInstX64(const MCInst &inst, uint64_t opcptr,
 
 using SymbolRef = object::SymbolRef;
 
-static SymbolRef::Type reloc_symtype(ArchType arch, ObjectType otype,
-                                     uint64_t rtype) {
+struct RelocSymbol {
+  /*
+  symbol detail
+  */
+  SymbolRef sym;
+  StringRef name;
+  SymbolRef::Type stype;
+  unsigned int sflags = 0;
+  /*
+  relocation detail
+  */
+  uint32_t rtype = 0;
+  int addend = 0;
+};
+
+static SymbolRef::Type reloc_symtype(const InsnInfo &inst, ArchType arch,
+                                     ObjectType otype,
+                                     const RelocSymbol &rsym) {
+  auto rtype = rsym.rtype;
   switch (otype) {
   case MachO_Reloc:
     rtype |= MACHO_MAGIC_BIT;
@@ -913,8 +930,63 @@ static SymbolRef::Type reloc_symtype(ArchType arch, ObjectType otype,
     case ELF::R_X86_64_REX_GOTPCRELX | ELF_MAGIC_BIT:
 // undefine these macros from windows headers
 #undef IMAGE_REL_AMD64_ADDR64
+#undef IMAGE_REL_AMD64_REL32
     case COFF::RelocationTypeAMD64::IMAGE_REL_AMD64_ADDR64 | COFF_MAGIC_BIT:
       return SymbolRef::ST_Data;
+    case COFF::RelocationTypeAMD64::IMAGE_REL_AMD64_REL32 | COFF_MAGIC_BIT:
+      switch (inst.type) {
+      case INSN_X64_CALLMEM:
+      case INSN_X64_JUMPMEM:
+      case INSN_X64_MOV8RM:
+      case INSN_X64_MOV8MR:
+      case INSN_X64_MOV16RM:
+      case INSN_X64_MOV16MR:
+      case INSN_X64_MOV32RM:
+      case INSN_X64_MOV32MR:
+      case INSN_X64_MOV64RM:
+      case INSN_X64_MOV64MR:
+      case INSN_X64_MOV64MI32:
+      case INSN_X64_MOVAPSRM:
+      case INSN_X64_MOVAPSMR:
+      case INSN_X64_MOVUPSRM:
+      case INSN_X64_MOVUPSMR:
+      case INSN_X64_MOVAPDRM:
+      case INSN_X64_MOVAPDMR:
+      case INSN_X64_MOVUPDRM:
+      case INSN_X64_MOVUPDMR:
+      case INSN_X64_CMP8MI:
+      case INSN_X64_CMP8MI8:
+      case INSN_X64_CMP16MI:
+      case INSN_X64_CMP16MI8:
+      case INSN_X64_CMP32MI:
+      case INSN_X64_CMP32MI8:
+      case INSN_X64_CMP64MI32:
+      case INSN_X64_CMP64MI8:
+      case INSN_X64_CMP8RM:
+      case INSN_X64_CMP16RM:
+      case INSN_X64_CMP32RM:
+      case INSN_X64_CMP64RM:
+      case INSN_X64_MOVSX16RM8:
+      case INSN_X64_MOVSX16RM16:
+      case INSN_X64_MOVSX16RM32:
+      case INSN_X64_MOVSX32RM8:
+      case INSN_X64_MOVSX32RM16:
+      case INSN_X64_MOVSX32RM32:
+      case INSN_X64_MOVSX64RM8:
+      case INSN_X64_MOVSX64RM16:
+      case INSN_X64_MOVSX64RM32:
+      case INSN_X64_TEST8MI:
+      case INSN_X64_TEST8MR:
+      case INSN_X64_TEST16MI:
+      case INSN_X64_TEST16MR:
+      case INSN_X64_TEST32MI:
+      case INSN_X64_TEST32MR:
+      case INSN_X64_TEST64MI32:
+      case INSN_X64_TEST64MR:
+        return SymbolRef::ST_Data;
+      default:
+        return SymbolRef::ST_Function;
+      }
     default:
       break;
     }
@@ -943,21 +1015,6 @@ static int reloc_addend(const CObjectFile *object,
   }
   return 0;
 }
-
-struct RelocSymbol {
-  /*
-  symbol detail
-  */
-  SymbolRef sym;
-  StringRef name;
-  SymbolRef::Type stype;
-  unsigned int sflags = 0;
-  /*
-  relocation detail
-  */
-  uint32_t rtype = 0;
-  int addend = 0;
-};
 
 static RelocSymbol get_symbol(uint64_t addr, const SymbolRef &sym,
                               uint32_t rtype) {
@@ -1104,6 +1161,15 @@ void Object::decodeInsns(TextSection &text) {
     }
     default: {
       iinfo.len = static_cast<uint32_t>(size);
+      // convert llvm opcode to icpp InsnType
+      std::function<uint16_t(unsigned)> llvm2uc_register;
+      if (arch() == AArch64) {
+        llvm2uc_register = llvm2ucRegisterAArch64;
+        parseInstAArch64(inst, opc, idecinfs_, iinfo);
+      } else {
+        llvm2uc_register = llvm2ucRegisterX64;
+        parseInstX64(inst, opc, idecinfs_, iinfo);
+      }
       // check and resolve the relocation symbol
 #if ARCH_ARM64
       auto found = rsyms.find(iinfo.rva);
@@ -1126,7 +1192,7 @@ void Object::decodeInsns(TextSection &text) {
             break;
           }
         }
-        auto symtype = reloc_symtype(arch(), type(), rsym.rtype);
+        auto symtype = reloc_symtype(iinfo, arch(), type(), rsym);
         if (rsym.addend || rit == irelocs_.end()) {
           if (rsym.sflags & SymbolRef::SF_Undefined) {
             // locate and insert a new extern relocation
@@ -1202,15 +1268,6 @@ void Object::decodeInsns(TextSection &text) {
         // record its relocation index
         iinfo.rflag = 1;
         iinfo.reloc = rit - irelocs_.begin();
-      }
-      // convert llvm opcode to icpp InsnType
-      std::function<uint16_t(unsigned)> llvm2uc_register;
-      if (arch() == AArch64) {
-        llvm2uc_register = llvm2ucRegisterAArch64;
-        parseInstAArch64(inst, opc, idecinfs_, iinfo);
-      } else {
-        llvm2uc_register = llvm2ucRegisterX64;
-        parseInstX64(inst, opc, idecinfs_, iinfo);
       }
       // encode none-hardware instruction if there's no one
       if (iinfo.type != INSN_HARDWARE &&

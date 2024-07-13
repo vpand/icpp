@@ -57,8 +57,9 @@ static int compile_source_clang(int argc, const char **argv) {
 }
 
 int compile_source(int argc, const char **argv) {
-  auto rtinc = fs::absolute(fs::path(argv[0])).parent_path() / ".." / "include")
-                  .string();
+  auto rtinc =
+      (fs::absolute(fs::path(argv[0])).parent_path() / ".." / "include")
+          .string();
   std::vector<const char *> args;
   for (int i = 0; i < argc; i++) {
     args.push_back(argv[i]);
@@ -70,7 +71,7 @@ int compile_source(int argc, const char **argv) {
   args.push_back("-std=gnu++23");
 
   // add libc++ include
-  auto cxxinc = std::format("-I{}/c++/v1", rtinc));
+  auto cxxinc = std::format("-I{}/c++/v1", rtinc);
   args.push_back(cxxinc.data());
   // force to use the icpp integrated C/C++ runtime header
   args.push_back("-nostdinc++");
