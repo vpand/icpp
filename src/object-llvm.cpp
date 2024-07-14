@@ -1401,6 +1401,28 @@ static void relocate_data(StringRef content, uint64_t offset,
           const_cast<char *>(content.data() + offset)) = rel32;
       return;
     }
+    case COFF::RelocationTypeAMD64::IMAGE_REL_AMD64_REL32 | COFF_MAGIC_BIT: {
+      auto relocpot = reinterpret_cast<uint32_t *>(
+          const_cast<char *>(content.data() + offset));
+      // coff places the static addend here
+      auto addend = relocpot[0];
+      /*
+      the same formula used by ELF::R_X86_64_PC32 on Linux, but it needs to
+      minus an extra 4. I didn't find the documentation to explain this constant
+      value, but I found the worked magic at llvm lld's coff linker code:
+      SectionChunk::applyRelX64:
+        case IMAGE_REL_AMD64_REL32: add32(off, s - p - 4);
+      */
+      uint32_t rel32 = static_cast<uint32_t>(
+          target + addend -
+          reinterpret_cast<uint64_t>(content.data() + offset) - 4);
+      if (0) {
+        log_print(Develop, "Relocated data symbol {} at 0x{:x}.",
+                  rsym.name.data(), rel32);
+      }
+      relocpot[0] = rel32;
+      return;
+    }
     default:
       break;
     }
@@ -1418,7 +1440,19 @@ static void relocate_data(StringRef content, uint64_t offset,
 }
 
 void Object::parseSections() {
+  struct rva_updator {
+    ~rva_updator() {
+      // update the next section's rva
+      rva += size ? size : 8;
+      rva = alignToPowerOf2(rva, 8);
+    }
+
+    uint64_t size;
+    uint32_t &rva;
+  };
+  uint32_t rva = 0;
   for (auto &s : ofile_->sections()) {
+    rva_updator update{s.getSize(), rva};
     auto expName = s.getName();
     if (!expName) {
       continue;
@@ -1438,11 +1472,11 @@ void Object::parseSections() {
                       static_cast<uint32_t>(s.getSize()),
                       static_cast<uint32_t>(s.getAddress()),
                       reinterpret_cast<uint64_t>(expContent->data())});
-      if (textsects_.size() > 1) {
+      if (textsects_.size() > 1 && news.rva == 0) {
         // elf/coff may place each function in its own section, in this
         // kind of situation, all the independent section's address may be 0.
-        // herein we fix their rva to the first text section's vm address.
-        news.rva = static_cast<uint32_t>(news.vm - textsects_[0].vm);
+        // herein we fix their rva which is manually calculated.
+        news.rva = rva;
       }
       if (0) {
         log_print(Develop, "Section {} rva={:x}, vm={:x} size={}.", name.data(),
@@ -1514,8 +1548,6 @@ void Object::parseSections() {
           log_print(Develop, "Bad symbol flags: {}.", strerr);
           continue;
         }
-        if (!(expFlags.get() & SymbolRef::SF_Undefined))
-          continue;
         auto expName = sym->getName();
         if (!expName)
           continue;

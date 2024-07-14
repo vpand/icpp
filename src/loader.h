@@ -55,4 +55,8 @@ private:
   const void *handle_;
 };
 
+// on windows, std::thread finally calls this api in libc++
+typedef int (*libcpp_thread_create_t)(void *, void *(*)(void *), void *);
+extern libcpp_thread_create_t libcpp_thread_create;
+
 } // namespace icpp

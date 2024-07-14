@@ -26,6 +26,8 @@ namespace icpp {
 // some simulated system global variables
 static uint64_t __dso_handle = 0;
 
+libcpp_thread_create_t libcpp_thread_create = nullptr;
+
 extern "C" {
 #if __linux__ && __x86_64__
 void __divti3(void);
@@ -68,7 +70,12 @@ struct ModuleLoader {
     // load c++ runtime library
     auto libcxx = fs::absolute(RunConfig::inst()->program).parent_path() /
                   "libc++" LLVM_PLUGIN_EXT;
-    loadLibrary(libcxx.string());
+    auto mcxx = loadLibrary(libcxx.string());
+#if ON_WINDOWS
+    libcpp_thread_create = (libcpp_thread_create_t)(resolve(
+        mcxx, "?__libcpp_thread_create@__1@std@@YAHPEAPEAXP6APEAXPEAX@Z1@Z",
+        false));
+#endif
 
     // initialize the symbol hashes for the third-party modules lazy loading
     if (fs::exists(RuntimeLib::inst().repo(false)))

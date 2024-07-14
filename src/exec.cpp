@@ -510,13 +510,14 @@ uint64_t ExecEngine::createStub(uint64_t vmfunc) {
     stubpage_ = page_alloc();
     stubcode_ = stubpage_;
   }
-  page_writable(stubpage_);
-  auto stub = host_callback_stub({this, vmfunc}, stubcode_);
-  if (stubcode_ > (stubpage_ + mem_page_size)) {
+  if (stubcode_ > (stubpage_ + mem_page_size - 64)) {
+    // should never be here, one page can contain thousands of stubs
     log_print(Runtime, "You must be kidding me, how can you make so many "
                        "callbacks for host...");
     std::exit(-1);
   }
+  page_writable(stubpage_);
+  auto stub = host_callback_stub({this, vmfunc}, stubcode_);
   page_executable(stubpage_);
   page_flush(stubpage_);
   return reinterpret_cast<uint64_t>(stub);
@@ -560,13 +561,14 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
     uc_reg_read(uc_, rids[i], &args[i]);
   std::memcpy(backups, args, sizeof(args));
 
-  if (reinterpret_cast<uint64_t>(thread_create) == target) {
+  if (reinterpret_cast<uint64_t>(thread_create) == target ||
+      reinterpret_cast<uint64_t>(libcpp_thread_create) == target) {
     // index of thread and argument in thread_create_func arguments list
-#ifdef ON_WINDOWS
-    int ientry = 1, iarg = 2;
-#else
     int ientry = 2, iarg = 3;
-#endif
+    if (reinterpret_cast<uint64_t>(libcpp_thread_create) == target) {
+      ientry = 1;
+      iarg = 2;
+    }
 
     auto context = new exec_thread_context_t{this, args[ientry], args[iarg]};
     // replace to our stub instance
@@ -985,7 +987,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
   // interpret the pre-decoded instructions
   for (unsigned i = 0; i < origstep && inst->type != INSN_HARDWARE; i++) {
 #if LOG_EXECUTION
-    log_print(Develop, "Interpret {:x} I{}", robject_->vm2rva(pc), inst->type);
+    log_print(Develop, "Interpret {:x} I{}", inst->rva, inst->type);
 #endif
 
     // call and return within object should update this to true

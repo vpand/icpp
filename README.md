@@ -3,7 +3,7 @@
  * Writing powerful script using C++ just as easy as Python;
  * Writing hot-loading C++ script code in running process;
  * Based on [Unicorn Engine](https://github.com/unicorn-engine/unicorn.git) qemu virtual cpu and [Clang/LLVM](https://github.com/llvm/llvm-project.git) C++ compiler;
- * Integrated [Boost](https://github.com/boostorg/boost.git) internally with [Standard C/C++23](https://en.cppreference.com/w/cpp/23) supported;
+ * Integrated internally with [Standard C++23](https://en.cppreference.com/w/cpp/23) and [Boost](https://github.com/boostorg/boost.git) libraries;
  * To reuse the existing C/C++ library as an icpp module extension is extremely simple.
 
 Copyright (c) vpand.com 2024.
@@ -17,7 +17,7 @@ Copyright (c) vpand.com 2024.
 | **Frida** | JavaScript | Bytecode | N/A | frida/frida-gadget | frida-server |
 
 ## Scenarios
-**Using ICPP to write C++ code just as a script.** Write and then run directly, no creating project, no configuring build, no compiling, no linking...
+**Using ICPP to write C++ code just as a script.** Write and then run directly, no creating project, no configuring build, no compiling and linking...
 
 No matter if you're a beginner or an expert with C++, ICPP is suitable for you. With ICPP, you can focus on:
  * Writing **snippet code** to study any of the newest C++ features;
