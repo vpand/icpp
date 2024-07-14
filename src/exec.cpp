@@ -134,10 +134,14 @@ struct ExecEngine {
     execDtor();
     // give back the borrowed uc instance
     ue.release(uc_);
+
+    if (stubpage_)
+      page_free(stubpage_);
   }
 
   int run(bool lib = false);
   bool run(uint64_t vm, uint64_t arg0, uint64_t arg1);
+  void run(uint64_t pc, ContextICPP *regs);
   uint64_t returnValue(); // get x0/rax register value
   void dump();
 
@@ -218,6 +222,9 @@ private:
 
   constexpr void *topReturn() { return static_cast<void *>(this); }
 
+  // create a new stub function for the target
+  uint64_t createStub(uint64_t vmfunc);
+
 private:
   // object dependency module loader
   Loader loader_;
@@ -250,7 +257,49 @@ private:
     uint64_t args[2];
   };
   std::vector<Atexit> dyndtors_;
+
+  // callback functions' stub code page
+  char *stubpage_ = nullptr;
+  // current available stub code start address
+  char *stubcode_ = nullptr;
+  // <vm, stub> caches
+  std::map<uint64_t, uint64_t> stubcaches_;
 };
+
+void ExecEngine::run(uint64_t pc, ContextICPP *regs) {
+  // backup the old context and set a new one
+#if ARCH_ARM64
+  auto pcrid = UC_ARM64_REG_PC;
+  auto backup = loadRegisterAArch64();
+  saveRegisterAArch64(*regs);
+#else
+  auto pcrid = UC_X86_REG_RIP;
+  auto backup = loadRegisterX64();
+  saveRegisterX64(*regs);
+#endif
+  // backup old pc
+  uint64_t pcbackup;
+  uc_reg_read(uc_, pcrid, &pcbackup);
+
+  // run the current pc
+  execLoop(pc);
+
+  // save the current context and restore the old one
+#if ARCH_ARM64
+  *regs = loadRegisterAArch64();
+  saveRegisterAArch64(backup);
+#else
+  *regs = loadRegisterX64();
+  saveRegisterX64(backup);
+#endif
+  // restore old pc
+  uc_reg_write(uc_, pcrid, &pcbackup);
+}
+
+extern "C" void exec_engine_main(StubContext *ctx, ContextICPP *regs) {
+  auto engine = (ExecEngine *)(ctx->context);
+  engine->run(ctx->vmfunc, regs);
+}
 
 void ExecEngine::init() {
   robject_ = iobject_.get();
@@ -455,6 +504,24 @@ static thread_return_t exec_thread_stub(void *pcontext) {
 
 static void nop_function() {}
 
+uint64_t ExecEngine::createStub(uint64_t vmfunc) {
+  // initialize the stub code page
+  if (!stubpage_) {
+    stubpage_ = page_alloc();
+    stubcode_ = stubpage_;
+  }
+  page_writable(stubpage_);
+  auto stub = host_callback_stub({this, vmfunc}, stubcode_);
+  if (stubcode_ > (stubpage_ + mem_page_size)) {
+    log_print(Runtime, "You must be kidding me, how can you make so many "
+                       "callbacks for host...");
+    std::exit(-1);
+  }
+  page_executable(stubpage_);
+  page_flush(stubpage_);
+  return reinterpret_cast<uint64_t>(stub);
+}
+
 bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
   uint64_t args[4], backups[4];
   int rids[4]; // register id
@@ -559,6 +626,18 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
     exitcode_ = -1;
     target = reinterpret_cast<uint64_t>(nop_function);
     retaddr = reinterpret_cast<uint64_t>(topReturn());
+  } else {
+    for (size_t i = 0; i < std::size(args); i++) {
+      Object *iobj;
+      if (robject_->executable(target, &iobj)) {
+        auto found = stubcaches_.find(target);
+        if (found == stubcaches_.end()) {
+          // create a new stub for this iobject vm target function
+          found = stubcaches_.insert({target, createStub(target)}).first;
+        }
+        args[i] = found->second;
+      }
+    }
   }
 
   // redirect printf to remote client

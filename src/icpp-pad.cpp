@@ -62,6 +62,11 @@ static void print_version(llvm::raw_ostream &os) {
      << icpp::version_string() << "\n";
 }
 
+// Don't need these implementations at all in iopad tool
+namespace icpp {
+extern "C" void exec_engine_main(StubContext *ctx, ContextICPP *regs) {}
+} // namespace icpp
+
 struct LaunchPad {
   icpp::CondMutex itc_;
   icpp::ArchType remote_arch_ = icpp::Unsupported;

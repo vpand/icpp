@@ -37,6 +37,9 @@
 #include <AvailabilityVersions.h>
 #include <TargetConditionals.h>
 #include <mach-o/dyld.h>
+#include <mach/mach_init.h>
+#include <mach/vm_map.h>
+#include <mach/vm_prot.h>
 #else
 #include <link.h>
 #endif
@@ -59,7 +62,41 @@ typedef DWORD thread_return_t;
 const thread_create_t thread_create = CreateThread;
 constexpr const std::string_view env_home = "userprofile";
 constexpr const std::string_view path_split = ";";
-constexpr const std::string_view ndk_build = "ndk-build.bat";
+
+static inline uint32_t mem_page_size_impl() {
+  SYSTEM_INFO info;
+  ::GetSystemInfo(&info);
+  return info.dwPageSize;
+}
+
+#define mem_page_size mem_page_size_impl()
+
+static inline char *page_alloc() {
+  auto page =
+      ::VirtualAlloc(nullptr, mem_page_size, MEM_RESERVE, PAGE_READWRITE);
+  return reinterpret_cast<char *>(page);
+}
+
+static inline void page_free(const void *page) {
+  ::VirtualFree(const_cast<void *>(page), mem_page_size, MEM_RELEASE);
+}
+
+static inline void page_flush(const void *page) {
+  ::FlushInstructionCache(::GetCurrentProcess(), page, mem_page_size);
+}
+
+static inline void page_protect(const void *page, DWORD perms) {
+  DWORD old;
+  ::VirtualProtect(const_cast<void *>(page), mem_page_size, perms, &old);
+}
+
+static inline void page_writable(const void *page) {
+  page_protect(page, PAGE_READWRITE);
+}
+
+static inline void page_executable(const void *page) {
+  page_protect(page, PAGE_EXECUTE_READ);
+}
 
 #else
 
@@ -70,9 +107,56 @@ typedef void *thread_return_t;
 const thread_create_t thread_create = pthread_create;
 constexpr const std::string_view env_home = "HOME";
 constexpr const std::string_view path_split = ":";
-constexpr const std::string_view ndk_build = "ndk-build";
 
-#endif
+#if __APPLE__
+#define mem_page_size ((int)PAGE_SIZE)
+
+static inline char *page_alloc() {
+  vm_address_t page;
+  vm_allocate(mach_task_self(), &page, mem_page_size, VM_FLAGS_ANYWHERE);
+  mprotect(reinterpret_cast<void *>(page), mem_page_size, PROT_WRITE);
+  return reinterpret_cast<char *>(page);
+}
+
+static inline void page_free(const void *page) {
+  vm_deallocate(mach_task_self(), reinterpret_cast<vm_address_t>(page),
+                mem_page_size);
+}
+
+extern "C" void sys_icache_invalidate(const char *start, size_t len);
+
+static inline void page_flush(const void *page) {
+  sys_icache_invalidate(reinterpret_cast<char *>(page), mem_page_size);
+}
+#else
+#define mem_page_size getpagesize()
+
+static inline char *page_alloc() {
+  auto page = mmap(nullptr, mem_page_size, PROT_WRITE,
+                   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  return reinterpret_cast<char *>(page);
+}
+
+static inline void page_free(const void *page) {
+  munmap(const_cast<void *>(page), mem_page_size);
+}
+
+static inline void page_flush(const void *page) {
+  auto start = reinterpret_cast<char *>(page);
+  __builtin___clear_cache(start, start + mem_page_size);
+}
+
+#endif // end of __APPLE__
+
+static inline void page_writable(const void *page) {
+  mprotect(const_cast<void *>(page), mem_page_size, PROT_WRITE);
+}
+
+static inline void page_executable(const void *page) {
+  mprotect(const_cast<void *>(page), mem_page_size, PROT_READ | PROT_EXEC);
+}
+
+#endif // end of ON_WINDOWS
 
 const void *load_library(std::string_view path);
 

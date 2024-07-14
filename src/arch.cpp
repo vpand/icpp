@@ -350,13 +350,13 @@ void __NAKED__ host_call_asm(void *ctx, const void *func) {
   // currently, rdi=context
   __ASM__("pushq %rdi"); // save context
 #if __APPLE__
-  __ASM__("call _pickup_rsp");
+  __ASM__("callq _pickup_rsp");
 #else
 #if ON_WINDOWS
   __ASM__("movq %rdi, %rcx");
   __ASM__("movq %rsi, %rdx");
 #endif
-  __ASM__("call pickup_rsp");
+  __ASM__("callq pickup_rsp");
 #endif
   __ASM__("popq %r11");          // load context
   __ASM__("pushq %r11");         // save context
@@ -487,6 +487,145 @@ uint64_t __NAKED__ host_naked_test(uint64_t left, uint64_t right) {
 #error Unsupported host architecture.
 #endif
 }
+
+#if ARCH_X64
+
+static void __NAKED__ stub_exec_engine() {
+  __ASM__("subq $776, %rsp"); // gpr+xmm+st+rflags=8*16+16*16+10*8+8=472==>776
+  save_gpr(% rsp);
+  save_xmm_after_gpr(% rsp);
+  __ASM__("movq %r11, %rdi"); // user context
+  __ASM__("pushfq");
+  __ASM__("popq %r11");
+  __ASM__("movq %r11, 0x278(%rsp)");
+#if ENABLE_SWITCH_X86_FLOAT_REGISTERS
+  __ASM__("fnsave 0x280(%rsp)");
+  __ASM__("frstor 0x280(%rsp)");
+#endif
+  __ASM__("movq %rsp, %rsi"); // saved context
+#if ON_WINDOWS
+  __ASM__("movq %rdi, %rcx");
+  __ASM__("movq %rsi, %rdx");
+#endif
+#if __APPLE__
+  __ASM__("callq _exec_engine_main");
+#else
+  __ASM__("callq exec_engine_main");
+#endif
+  __ASM__("movq %rsp, %r11");
+  load_gpr_r11();
+  load_xmm_after_gpr(% r11);
+#if ENABLE_SWITCH_X86_FLOAT_REGISTERS
+  __ASM__("fnsave 0x280(%r11)");
+#endif
+  __ASM__("addq $776, %rsp"); // 776 stack
+  __ASM__("retq");
+}
+
+static void __NAKED__ stub_entry_host() {
+  __ASM__("leaq -0x27(%rip), %r11");
+  __ASM__("nop");
+  __ASM__("jmpq *-0x16(%rip)");
+}
+
+const void *host_callback_stub(const StubContext &ctx, char *&codeptr) {
+  // init stub context
+  auto interpctx = reinterpret_cast<StubContext *>(codeptr);
+  interpctx[0] = ctx;
+
+  // init entry back to execution engine
+  void **entryptr = (void **)&interpctx[1];
+  *entryptr++ = (void *)stub_exec_engine;
+
+  // init stub entry called from host
+  char *curfn = (char *)entryptr;
+  memcpy(curfn, (void *)stub_entry_host, 32);
+
+  // update current code start pointer
+  codeptr = curfn + 32;
+  return curfn;
+}
+
+#endif // end of ARCH_X64
+
+#if ARCH_ARM64
+
+static inline uint32_t adrp_opcode(uint32_t reg, uint32_t pages) {
+  uint32_t tmp = 0x90000000 | reg;
+  uint32_t lo = (pages & 3) << 29;
+  uint32_t hi = (pages >> 2) << 5;
+  tmp |= (lo | hi);
+  return tmp;
+}
+
+static inline uint32_t ldr_opcode(uint32_t reg, uint32_t imm) {
+  uint32_t tmp = 0xF9400508;
+  uint32_t mask = ~((1 << 22) - 1);
+  tmp &= mask;
+  tmp |= (imm / 8) << 10;
+  tmp |= reg << 5;
+  tmp |= reg;
+  return tmp;
+}
+
+static inline uint32_t br_opcode(uint32_t reg) {
+  uint32_t tmp = 0xD61F0180 & (~0x1E0);
+  tmp |= reg << 5;
+  return tmp;
+}
+
+static void __NAKED__ stub_exec_engine() {
+  __ASM__("sub sp, sp, #0x400");
+  save_gpr_real_a64();
+  save_neon_a64();
+  __ASM__("mov x0, x16"); // dyncode page
+  __ASM__("mov x1, sp");  // current machine context
+#if __APPLE__
+  __ASM__("bl _exec_engine_main");
+#else
+  __ASM__("bl exec_engine_main");
+#endif
+  load_gpr_a64();
+  load_neon_a64();
+  __ASM__("add  sp, sp, #0x400");
+  __ASM__("ret");
+}
+
+const void *host_callback_stub(const StubContext &ctx, char *&codeptr) {
+  /*
+  stub entry for host:
+   adrp x16, #0
+   adrp x17, #page
+   ldr  x17, [x17, #pageoff]
+   br   x17
+   */
+  // init stub context
+  auto interpctx = reinterpret_cast<StubContext *>(codeptr);
+  interpctx[0] = ctx;
+
+  uint32_t *curfn = (uint32_t *)&interpctx[1];
+  uint32_t *opcodeptr = curfn;
+  *opcodeptr++ = adrp_opcode(16, 0);
+
+  // make sure the pointer address of stub_exec_engine is aligned to 8
+  uint64_t fnptraddr = ((uint64_t)opcodeptr + 0xC);
+  while (fnptraddr % 8) {
+    fnptraddr += 4;
+  }
+
+  uint64_t pcoff = fnptraddr - ((uint64_t)opcodeptr & ~(mem_page_size - 1));
+  uint64_t pagecount = pcoff / mem_page_size;
+  uint64_t pageoff = pcoff - pagecount * mem_page_size;
+  *opcodeptr++ = adrp_opcode(17, (uint32_t)pagecount);
+  *opcodeptr++ = ldr_opcode(17, (uint32_t)pageoff);
+  *opcodeptr++ = br_opcode(17);
+
+  *(void **)fnptraddr = (void *)&stub_exec_engine;
+  codeptr = reinterpret_cast<char *>(fnptraddr) + 8;
+  return curfn;
+}
+
+#endif // end of ARCH_ARM64
 
 #if ON_WINDOWS
 // re-implement the symbols on Windows ARM64 which are dependent by unicorn/qemu

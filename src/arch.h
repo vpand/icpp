@@ -179,6 +179,12 @@ struct ContextX64 {
   uint64_t rsp;
 };
 
+#if ARCH_ARM64
+typedef ContextA64 ContextICPP;
+#else
+typedef ContextX64 ContextICPP;
+#endif
+
 // the stack switch size between the host and interpreter vm
 #define switch_stack_strsize "0x1000"
 constexpr const int switch_stack_size = 0x1000;
@@ -201,5 +207,26 @@ void host_naked_syscall();
 // return the updated rflags
 uint64_t host_naked_compare(uint64_t left, uint64_t right);
 uint64_t host_naked_test(uint64_t left, uint64_t right);
+
+/*
+when vm registers a callback function to host, we must dynamically
+generate a executable host callback wrapper to it, otherwise program
+will crash as all of the iobject pages are not executable, e.g.:
+
+original:
+  sysapi(...vmfunc...);
+
+wrapped:
+  sysapi(...vmfunc_stub...);
+  vmfunc_stub:
+    ...
+    ExecEngine.run(vmfunc);
+    ...
+*/
+struct StubContext {
+  const void *context;
+  uint64_t vmfunc;
+};
+const void *host_callback_stub(const StubContext &ctx, char *&codeptr);
 
 } // namespace icpp
