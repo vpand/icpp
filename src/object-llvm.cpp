@@ -1026,11 +1026,14 @@ static RelocSymbol get_symbol(uint64_t addr, const SymbolRef &sym,
     if (exp)
       return true;
     auto strerr = toString(exp.takeError());
-    log_print(Runtime, "Bad symbol {}: {:x}, {}.", name, addr, strerr);
+    // so many fake errors on macOS, ignoring them...
+    log_print(Ignore, "Bad symbol {}: {:x}, {}.", name, addr, strerr);
     return false;
   };
-  if (checker("name", expName) && checker("type", expType) &&
-      checker("flags", expFlags)) {
+  bool hasName = checker("name", expName);
+  bool hasType = checker("type", expType);
+  bool hasFlag = checker("flags", expFlags);
+  if (hasName && hasType && hasFlag) {
     rsym.sym = sym;
     rsym.name = expName.get();
     rsym.stype = expType.get();
@@ -1543,14 +1546,18 @@ void Object::parseSections() {
         auto sym = r.getSymbol();
         auto expFlags = sym->getFlags();
         if (!expFlags) {
-          auto err = expFlags.takeError();
-          auto strerr = toString(std::move(err));
-          log_print(Develop, "Bad symbol flags: {}.", strerr);
+          log_print(Develop, "Bad symbol flags: {}.",
+                    toString(expFlags.takeError()));
           continue;
         }
         auto expName = sym->getName();
-        if (!expName)
+        if (!expName) {
+          // on macOS, there'll be many this kind of errors,
+          // ignore it anyway, it doesn't matter at all
+          log_print(Ignore, "Bad symbol name: {}.",
+                    toString(expName.takeError()));
           continue;
+        }
         auto rsym = get_symbol(0, *sym, r.getType());
         relocate_data(expContent.get(), r.getOffset(), rsym, dynsects_, type(),
                       arch());

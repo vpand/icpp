@@ -74,6 +74,7 @@ ObjectDisassembler::~ObjectDisassembler() {}
 void ObjectDisassembler::init(CObjectFile *, std::string_view) {}
 void Object::decodeInsns(TextSection &) {}
 void Object::parseSections(void) {}
+extern "C" void exec_engine_main(StubContext *ctx, ContextICPP *regs) {}
 } // namespace icpp
 
 template <typename FILTER, typename PACKER>

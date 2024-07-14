@@ -126,8 +126,8 @@ gadget::gadget() {
   RunConfig::printf = gadget_printf;
   RunConfig::puts = gadget_puts;
   Loader::initialize();
-  Loader::cacheSymbol("printf", gadget_printf);
-  Loader::cacheSymbol("puts", gadget_puts);
+  Loader::cacheSymbol("printf", reinterpret_cast<const void *>(gadget_printf));
+  Loader::cacheSymbol("puts", reinterpret_cast<const void *>(gadget_puts));
 }
 
 gadget::~gadget() {

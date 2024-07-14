@@ -33,6 +33,7 @@
 #else
 #include <dlfcn.h>
 #include <pthread.h>
+#include <sys/mman.h>
 #if __APPLE__
 #include <AvailabilityVersions.h>
 #include <TargetConditionals.h>
@@ -123,10 +124,10 @@ static inline void page_free(const void *page) {
                 mem_page_size);
 }
 
-extern "C" void sys_icache_invalidate(const char *start, size_t len);
+extern "C" void sys_icache_invalidate(const void *start, size_t len);
 
 static inline void page_flush(const void *page) {
-  sys_icache_invalidate(reinterpret_cast<char *>(page), mem_page_size);
+  sys_icache_invalidate(page, mem_page_size);
 }
 #else
 #define mem_page_size getpagesize()
@@ -142,7 +143,7 @@ static inline void page_free(const void *page) {
 }
 
 static inline void page_flush(const void *page) {
-  auto start = reinterpret_cast<char *>(page);
+  auto start = reinterpret_cast<const char *>(page);
   __builtin___clear_cache(start, start + mem_page_size);
 }
 

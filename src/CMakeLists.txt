@@ -301,13 +301,13 @@ set(LLVM_LINK_COMPONENTS
   Support
 )
 file(GLOB IGADGET_LLVM_SOURCES
+  icpp-gadget.cpp
   object.cpp
   object-llvm.cpp
   ${LLVM_OBJDUMP_ROOT}/SourcePrinter.cpp
 )
 add_llvm_library(icpp-gadget SHARED 
   ${ICPP_CORE_SOURCES}
-  icpp-gadget.cpp
 
   # llvm relational files
   ${IGADGET_LLVM_SOURCES}

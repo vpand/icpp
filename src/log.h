@@ -19,6 +19,7 @@ enum LogType {
   Develop,
   Runtime,
   Raw,
+  Ignore,
 };
 
 template <typename... Args>
@@ -40,6 +41,8 @@ inline void log_print(LogType type, std::format_string<Args...> format,
   case Raw:
     commit = true;
     break;
+  case Ignore:
+    return;
   default:
     return;
   }
