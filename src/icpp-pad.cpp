@@ -55,6 +55,11 @@ static cl::opt<bool> Repl(
     cl::desc("Enter into a REPL interactive shell to fire the input snippet "
              "code to the connected remote icpp-gadget to execute it."),
     cl::init(false), cl::cat(IOPad));
+static cl::opt<std::string>
+    NDK("ndk",
+        cl::desc("Set the Android NDK root path, default to the parent "
+                 "directory of the ndk-build in PATH."),
+        cl::cat(IOPad));
 
 static void print_version(llvm::raw_ostream &os) {
   os << "ICPP (https://vpand.com/):\n  IObject Launch Pad Tool built with "
@@ -81,7 +86,29 @@ struct LaunchPad {
   void wait() { itc_.wait(); }
   void signal() { itc_.signal(); }
 
+  std::string_view ndk() {
+    if (ndk_.size())
+      return ndk_;
+
+    // user specified
+    if (NDK.length()) {
+      ndk_ = NDK;
+      return ndk_;
+    }
+    // search in system PATH list: NDK_ROOT/ndk_build
+    icpp::iterate_pathenv([this](std::string_view path) {
+      auto ndkbuild = fs::path(path) / icpp::ndk_build;
+      if (fs::exists(ndkbuild)) {
+        ndk_ = path;
+        return icpp::IterBreak;
+      }
+      return icpp::IterContinue;
+    });
+    return ndk_;
+  }
+
   std::vector<std::string> cflags() {
+    std::vector<std::string> args;
     // architecture, vender and environment of the remote running icpp-gadget
     std::string_view arch, vender, env;
     switch (remote_arch_) {
@@ -118,13 +145,41 @@ struct LaunchPad {
       vender = "apple";
       env = "ios10.0.0";
       break;
-    default:
+    default: {
       vender = "none-linux";
       env = "android24";
+      if (ndk().length()) {
+        const char *osname, *osarch;
+        switch (icpp::host_system()) {
+        case icpp::Windows:
+          osname = "windows";
+          break;
+        case icpp::macOS:
+          osname = "darwin";
+          break;
+        default:
+          osname = "linux";
+          break;
+        }
+        switch (icpp::host_arch()) {
+        case icpp::X86_64:
+          osarch = "x86_64";
+          break;
+        default:
+          if (icpp::host_system() == icpp::Linux)
+            osarch = "aarch64";
+          else
+            osarch = "arm64";
+          break;
+        }
+        args.push_back("--sysroot");
+        args.push_back(std::format("{}/toolchains/llvm/prebuilt/{}-{}/sysroot",
+                                   ndk().data(), osname, osarch));
+      }
       break;
     }
+    }
 
-    std::vector<std::string> args;
     args.push_back("-target");
     args.push_back(std::format("{}-{}-{}", arch, vender, env));
     return args;
@@ -208,8 +263,14 @@ struct LaunchPad {
 
   bool sync() {
     // wait to receive the SYNCENV payload
-    if (recv())
+    if (recv()) {
+      if (!ndk().size()) {
+        icpp::log_print(icpp::Runtime,
+                        "NDK is missing, even tried to parse from PATH, maybe "
+                        "you should run with --ndk=</path/to/ndk>.");
+      }
       return true;
+    }
     disconnect();
     return false;
   }

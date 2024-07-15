@@ -75,28 +75,34 @@ int compile_source(int argc, const char **argv) {
                          "MacOSX.platform/Developer/SDKs/MacOSX.sdk";
   for (int i = 0; i < argc - 1; i++) {
     if (std::string_view(argv[i]) == "-target") {
-      if (std::string_view(argv[i + 1]).find("ios") != std::string_view::npos) {
+      auto target = std::string_view(argv[i + 1]);
+      if (target.find("ios") != std::string_view::npos) {
         sdk = "/Applications/Xcode.app/Contents/Developer/Platforms/"
               "iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk";
-        break;
+      } else if (target.find("android") != std::string_view::npos) {
+        sdk = "";
       }
+      break;
     }
   }
-  args.push_back("-isysroot");
-  args.push_back(sdk.data());
-  args.push_back("-I/Applications/Xcode.app/Contents/Developer/Toolchains/"
-                 "XcodeDefault.xctoolchain/usr/include/c++/v1");
-#else
+  if (sdk.size()) {
+    args.push_back("-isysroot");
+    args.push_back(sdk.data());
+    args.push_back("-I/Applications/Xcode.app/Contents/Developer/Toolchains/"
+                   "XcodeDefault.xctoolchain/usr/include/c++/v1");
+  }
+#endif
+
   // add libc include
   auto icppinc = std::format("-I{}", rtinc);
   args.push_back(icppinc.data());
+
   // add libc++ include
   auto cxxinc = std::format("-I{}/c++/v1", rtinc);
   args.push_back(cxxinc.data());
   // force to use the icpp integrated C/C++ runtime header
   args.push_back("-nostdinc++");
   args.push_back("-nostdlib++");
-#endif
 
   // add icpp module include
   auto icppminc =

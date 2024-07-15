@@ -63,6 +63,7 @@ typedef DWORD thread_return_t;
 const thread_create_t thread_create = CreateThread;
 constexpr const std::string_view env_home = "userprofile";
 constexpr const std::string_view path_split = ";";
+constexpr const std::string_view ndk_build = "ndk-build.bat";
 
 static inline uint32_t mem_page_size_impl() {
   SYSTEM_INFO info;
@@ -108,6 +109,7 @@ typedef void *thread_return_t;
 const thread_create_t thread_create = pthread_create;
 constexpr const std::string_view env_home = "HOME";
 constexpr const std::string_view path_split = ":";
+constexpr const std::string_view ndk_build = "ndk-build";
 
 #if __APPLE__
 #define mem_page_size ((int)PAGE_SIZE)

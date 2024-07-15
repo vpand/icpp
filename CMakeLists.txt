@@ -31,6 +31,8 @@ if(WIN32)
 else()
   set(PYTHON python3)
   set(BUILDCMD make)
+  # make all the symbols hidden by default
+  add_compile_options(-fvisibility=hidden -fvisibility-inlines-hidden)
 endif()
 if(LINUX)
   set(ICPPCLANG ${CMAKE_BINARY_DIR}/llvm)
