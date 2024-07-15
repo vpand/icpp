@@ -122,6 +122,10 @@ message(STATUS "Configuring unicorn...")
 execute_process(COMMAND ${PYTHON}
   ${CMAKE_CURRENT_SOURCE_DIR}/tool/qemu_mmu_patcher.py
   ${CMAKE_CURRENT_SOURCE_DIR}/third/unicorn/qemu/accel/tcg/cputlb.c)
+# patch qemu tbgen buffer size to 64MB
+execute_process(COMMAND ${PYTHON}
+  ${CMAKE_CURRENT_SOURCE_DIR}/tool/qemu_tbgen_patcher.py
+  ${CMAKE_CURRENT_SOURCE_DIR}/third/unicorn/qemu/softmmu/vl.c)
 if(MSVC)
   # patch unicorn cmake to cmake correctly on Windows, otherwise it fails to cmake
   if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "ARM64")

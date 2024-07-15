@@ -47,7 +47,11 @@ SystemType host_system() {
 std::string_view arch_name(ArchType arch) {
   switch (arch) {
   case AArch64:
+#if __linux__
     return "aarch64";
+#else
+    return "arm64";
+#endif
   case X86_64:
     return "x86_64";
   default:
