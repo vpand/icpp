@@ -71,26 +71,39 @@ int compile_source(int argc, const char **argv) {
   args.push_back("-std=gnu++23");
 
 #if __APPLE__
-  std::string_view sdk = "/Applications/Xcode.app/Contents/Developer/Platforms/"
-                         "MacOSX.platform/Developer/SDKs/MacOSX.sdk";
+  std::string_view argsysroot = "-isysroot";
+  auto isysroot = std::format("{}/apple", rtinc);
   for (int i = 0; i < argc - 1; i++) {
     if (std::string_view(argv[i]) == "-target") {
       auto target = std::string_view(argv[i + 1]);
-      if (target.find("ios") != std::string_view::npos) {
-        sdk = "/Applications/Xcode.app/Contents/Developer/Platforms/"
-              "iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk";
-      } else if (target.find("android") != std::string_view::npos) {
-        sdk = "";
+      if (target.find("win") != std::string_view::npos ||
+          target.find("linux") != std::string_view::npos ||
+          target.find("android") != std::string_view::npos) {
+        argsysroot = "";
       }
       break;
     }
   }
-  if (sdk.size()) {
-    args.push_back("-isysroot");
-    args.push_back(sdk.data());
-    args.push_back("-I/Applications/Xcode.app/Contents/Developer/Toolchains/"
-                   "XcodeDefault.xctoolchain/usr/include/c++/v1");
+  if (argsysroot.size()) {
+    args.push_back(argsysroot.data());
+    args.push_back(isysroot.data());
   }
+#elif ON_WINDOWS
+  auto wininc = std::format("-I{}/win", rtinc);
+  std::string sysroot;
+  for (int i = 0; i < argc - 1; i++) {
+    if (std::string_view(argv[i]) == "-target") {
+      auto target = std::string_view(argv[i + 1]);
+      if (target.find("apple") != std::string_view::npos ||
+          target.find("linux") != std::string_view::npos ||
+          target.find("android") != std::string_view::npos) {
+        wininc = "";
+      }
+      break;
+    }
+  }
+  if (wininc.size())
+    args.push_back(wininc.data());
 #endif
 
   // add libc include
