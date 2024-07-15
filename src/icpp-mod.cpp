@@ -4,6 +4,7 @@
    See LICENSE in root directory for more details
 */
 
+#include "arch.h"
 #include "icpp.h"
 #include "imod/createcfg.h"
 #include "object.h"
@@ -216,9 +217,11 @@ static void create_package(const char *program, std::string_view cfgpath) {
     }
 
     // done.
-    auto pkgpath =
-        fs::path(cfgpath).parent_path() /
-        std::format("{}{}", cfg.name().data(), Rtlib::inst().packageExtension);
+    auto pkgpath = fs::path(cfgpath).parent_path() /
+                   std::format("{}-{}-{}{}", cfg.name().data(),
+                               icpp::system_name(icpp::host_system()),
+                               icpp::arch_name(icpp::host_arch()),
+                               Rtlib::inst().packageExtension);
     std::ofstream outf(pkgpath.c_str(), std::ios::binary);
     if (!outf.is_open()) {
       icpp::log_print(prefix_error, "Failed to create the package file {}.",

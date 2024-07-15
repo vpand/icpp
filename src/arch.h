@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string_view>
 
 #if __arm64__ || __aarch64__
 #define ARCH_ARM64 1
@@ -191,7 +192,8 @@ constexpr const int switch_stack_size = 0x1000;
 
 ArchType host_arch();
 SystemType host_system();
-const char *arch_name(ArchType arch);
+std::string_view arch_name(ArchType arch);
+std::string_view system_name(SystemType arch);
 
 // call a host function with specified register context,
 // ctx is a ContextA64 or ContextX64 instance,

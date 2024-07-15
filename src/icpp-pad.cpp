@@ -264,7 +264,7 @@ struct LaunchPad {
   bool sync() {
     // wait to receive the SYNCENV payload
     if (recv()) {
-      if (!ndk().size()) {
+      if (remote_system_ == icpp::Android && !ndk().size()) {
         icpp::log_print(icpp::Runtime,
                         "NDK is missing, even tried to parse from PATH, maybe "
                         "you should run with --ndk=</path/to/ndk>.");

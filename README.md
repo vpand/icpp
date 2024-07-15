@@ -141,9 +141,9 @@ ICPP Interpretable Object Launch Pad Options:
   --fire=<string>   - Fire the input source file to the connected remote icpp-gadget to execute it.
   --incdir=<string> - Specify the include directory for compilation, can be multiple.
   --ip=<string>     - Set the remote ip address of icpp-gadget.
-  --port=<int>      - Set the connection port.
-  --repl            - Enter into a REPL interactive shell to fire the input snippet code to the connected remote icpp-gadget to execute it.  
   --ndk=<string>    - Set the Android NDK root path, default to the parent directory of the ndk-build in PATH.
+  --port=<int>      - Set the connection port.
+  --repl            - Enter into a REPL interactive shell to fire the input snippet code to the connected remote icpp-gadget to execute it.
 ```
 ### ICPP-SERVER
 ```sh
@@ -161,6 +161,7 @@ ICPP Remote Gadget Server Options:
 
 ## Status
 ICPP_ROOT/snippet:
+ * Windows X86_64 &#10004;
  * macOS ARM64/X86_64 &#10004;
  * Linux X86_64 &#10004;
  * Under developing...

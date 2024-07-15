@@ -44,7 +44,7 @@ SystemType host_system() {
 #endif
 }
 
-const char *arch_name(ArchType arch) {
+std::string_view arch_name(ArchType arch) {
   switch (arch) {
   case AArch64:
     return "aarch64";
@@ -52,6 +52,21 @@ const char *arch_name(ArchType arch) {
     return "x86_64";
   default:
     return "unknown";
+  }
+}
+
+std::string_view system_name(SystemType sys) {
+  switch (sys) {
+  case Windows:
+    return "win";
+  case macOS:
+    return "osx";
+  case Linux:
+    return "linux";
+  case Android:
+    return "android";
+  case iOS:
+    return "ios";
   }
 }
 

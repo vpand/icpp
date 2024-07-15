@@ -1185,88 +1185,83 @@ void Object::decodeInsns(TextSection &text) {
       }
 #endif
       if (found != rsyms.end()) {
+        const void *rtaddr = nullptr;
         auto &rsym = found->second;
+        auto symtype = reloc_symtype(iinfo, arch(), type(), rsym);
+        if (rsym.sflags & SymbolRef::SF_Undefined) {
+          // an extern relocation
+          rtaddr =
+              Loader::locateSymbol(rsym.name, symtype == SymbolRef::ST_Data);
+        } else {
+          // a local relocation
+          auto expSect = rsym.sym.getSection();
+          auto expAddr = rsym.sym.getAddress();
+          if (!expSect || !expAddr) {
+            // never be here
+            log_print(
+                Runtime,
+                "Fatal error, the symbol section/address of '{}'.'{:x}' is "
+                "missing for "
+                "relocation.",
+                rsym.name.data(), vm2rva(opc));
+            abort();
+          }
+          bool dyn = false;
+          auto sectname = expSect.get()->getName();
+          if (!sectname) {
+            // never be here
+            log_print(
+                Runtime,
+                "Fatal error, the section name is missing for relocation.");
+            abort();
+          }
+          auto symoff =
+              expAddr.get() - expSect.get()->getAddress() + rsym.addend;
+          for (auto &ds : dynsects_) {
+            if (sectname.get() == ds.name) {
+              // dynamically allocated section
+              dyn = true;
+
+              rtaddr =
+                  reinterpret_cast<const void *>(ds.buffer.data() + symoff);
+              break;
+            }
+          }
+          if (!dyn) {
+            // inner section from file
+            auto expContent = expSect.get()->getContents();
+            if (!expContent) {
+              // never be here
+              log_print(
+                  Runtime,
+                  "Fatal error, the section content of '{}' is missing for "
+                  "relocation.",
+                  sectname->data());
+              abort();
+            }
+            rtaddr =
+                reinterpret_cast<const void *>(expContent->data() + symoff);
+          }
+        }
         // check the existed relocation
         auto rit = irelocs_.end();
         for (auto it = irelocs_.begin(), end = irelocs_.end(); it != end;
              it++) {
-          if (rsym.name == it->name) {
+          if (rtaddr == it->target) {
             rit = it;
             break;
           }
         }
-        auto symtype = reloc_symtype(iinfo, arch(), type(), rsym);
-        if (rsym.addend || rit == irelocs_.end()) {
-          if (rsym.sflags & SymbolRef::SF_Undefined) {
-            // locate and insert a new extern relocation
-            auto rtaddr =
-                Loader::locateSymbol(rsym.name, symtype == SymbolRef::ST_Data);
-            rit = irelocs_.insert(irelocs_.end(),
-                                  RelocInfo{rsym.name.data(), rtaddr,
-                                            static_cast<uint32_t>(symtype)});
-          } else {
-            // insert a new local relocation
-            auto expSect = rsym.sym.getSection();
-            auto expAddr = rsym.sym.getAddress();
-            if (!expSect || !expAddr) {
-              // never be here
-              log_print(
-                  Runtime,
-                  "Fatal error, the symbol section/address of '{}'.'{:x}' is "
-                  "missing for "
-                  "relocation.",
-                  rsym.name.data(), vm2rva(opc));
-              abort();
-            }
-            bool dyn = false;
-            auto sectname = expSect.get()->getName();
-            if (!sectname) {
-              // never be here
-              log_print(
-                  Runtime,
-                  "Fatal error, the section name is missing for relocation.");
-              abort();
-            }
-            auto symoff =
-                expAddr.get() - expSect.get()->getAddress() + rsym.addend;
-            for (auto &ds : dynsects_) {
-              if (sectname.get() == ds.name) {
-                // dynamically allocated section
-                dyn = true;
-
-                auto rtaddr =
-                    reinterpret_cast<const void *>(ds.buffer.data() + symoff);
-                rit = irelocs_.insert(
-                    irelocs_.end(), RelocInfo{rsym.name.data(), rtaddr,
-                                              static_cast<uint32_t>(symtype)});
-                break;
-              }
-            }
-            if (!dyn) {
-              // inner section from file
-              auto expContent = expSect.get()->getContents();
-              if (!expContent) {
-                // never be here
-                log_print(
-                    Runtime,
-                    "Fatal error, the section content of '{}' is missing for "
-                    "relocation.",
-                    sectname->data());
-                abort();
-              }
-              auto rtaddr =
-                  reinterpret_cast<const void *>(expContent->data() + symoff);
-              rit = irelocs_.insert(irelocs_.end(),
-                                    RelocInfo{rsym.name.data(), rtaddr,
-                                              static_cast<uint32_t>(symtype)});
-            }
-          }
-          if (0) {
-            log_print(Develop, "Relocated {:06x}.{} symbol {} at {}.",
-                      iinfo.rva,
-                      symtype == SymbolRef::ST_Data ? "data" : "func",
-                      rit->name, rit->target);
-          }
+        if (rit == irelocs_.end()) {
+          // insert a new relocation record
+          rit = irelocs_.insert(irelocs_.end(),
+                                RelocInfo{rsym.name.data(), rtaddr,
+                                          static_cast<uint32_t>(symtype)});
+        }
+        if (0) {
+          log_print(Develop, "Relocated {:06x}.{} symbol {} at {}.", iinfo.rva,
+                    symtype == SymbolRef::ST_Data ? "data" : "func", rit->name,
+                    rit->target);
         }
         // record its relocation index
         iinfo.rflag = 1;
@@ -1559,6 +1554,8 @@ void Object::parseSections() {
           continue;
         }
         auto rsym = get_symbol(0, *sym, r.getType());
+        if (rsym.stype == SymbolRef::ST_File)
+          continue;
         relocate_data(expContent.get(), r.getOffset(), rsym, dynsects_, type(),
                       arch());
       }

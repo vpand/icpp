@@ -63,7 +63,8 @@ static const void *find_symbol(std::string_view raw) {
   }
   // search in the system modules
   for (auto &mod : sysmods) {
-    auto addr = ::GetProcAddress(mod, raw.data());
+    auto addr =
+        reinterpret_cast<const void *>(::GetProcAddress(mod, raw.data()));
     if (addr)
       return addr;
   }
@@ -72,7 +73,8 @@ static const void *find_symbol(std::string_view raw) {
     if (addr || path.find("Windows") != std::string_view::npos)
       return false;
     // search in the user modules
-    addr = ::GetProcAddress(reinterpret_cast<HMODULE>(handle), raw.data());
+    addr = reinterpret_cast<const void *>(
+        ::GetProcAddress(reinterpret_cast<HMODULE>(handle), raw.data()));
     return false;
   });
   return addr;
@@ -86,8 +88,8 @@ const void *find_symbol(const void *handle, std::string_view raw) {
     return find_symbol(raw);
 
 #if ON_WINDOWS
-  return ::GetProcAddress(reinterpret_cast<HMODULE>(const_cast<void *>(handle)),
-                          symbol_name(raw));
+  return reinterpret_cast<const void *>(::GetProcAddress(
+      reinterpret_cast<HMODULE>(const_cast<void *>(handle)), symbol_name(raw)));
 #else
   return dlsym(const_cast<void *>(handle), symbol_name(raw));
 #endif
