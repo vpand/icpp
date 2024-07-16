@@ -102,15 +102,8 @@ Run an installed module, e.g.:
   icpp helloworld
   icpp helloworld -- hello world
 
-Run the repl shell, e.g:
-  icpp
-    ICPP v0.0.1.255. Copyright (c) vpand.com.
-    Run a C++ in anywhere like a script.
-    >>> #include <stdio.h>
-    >>> puts("Hello world.")
-
 Run an C++ expression, e.g:
-  icpp "puts(std::format(\"{:x}\", 666).data())"
+  icpp "puts(std::format(\"{:x}\", 88888888).data())"
 ```
 ### ICPP REPL
 ```sh
@@ -120,7 +113,7 @@ Running C++ in anywhere like a script.
 >>> #include <stdio.h>
 >>> puts("Hello, world.")   
 Hello, world.
->>> #include <iostream> 
+>>> import std 
 >>> std::cout << "Hello, world." << std::endl
 Hello, world.
 >>> std::cout << std::hex << 88888888 << std::endl

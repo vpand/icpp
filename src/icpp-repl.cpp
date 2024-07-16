@@ -53,6 +53,7 @@ int exec_repl(const char *argv0) {
   std::cout << std::format("ICPP {}. Copyright (c) vpand.com.\nRunning C++ in "
                            "anywhere like a script.\n",
                            version_string());
+  RunConfig::inst(argv0, "");
   return icpp::repl_entry(
       [&](std::string_view dyncode) { exec_string(argv0, dyncode, true); });
 }

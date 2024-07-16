@@ -116,6 +116,8 @@ int repl_entry(const std::function<void(std::string_view)> &exec) {
         snippet.starts_with(R"(extern "C")") ||
         snippet.starts_with("import ")) {
       // accumulated compiler directives, like #include, #define, etc.
+      if (snippet[0] != '#')
+        snippet += ";";
       directives.insert(snippet);
       continue;
     }

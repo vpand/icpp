@@ -67,6 +67,14 @@ struct ModuleLoader {
                   reinterpret_cast<const void *>(&_CxxThrowException)});
 #endif
 
+// currently, the clang cpp module initializer is a nop function,
+// and we will skip to call it in ctor caller
+#if __APPLE__
+    syms_.insert({"__ZGIW3std", nullptr});
+#else
+    syms_.insert({"_ZGIW3std", nullptr});
+#endif
+
     // load c++ runtime library
     auto libcxx = fs::absolute(RunConfig::inst()->program).parent_path() /
                   "libc++" LLVM_PLUGIN_EXT;

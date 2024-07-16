@@ -7,6 +7,7 @@
 #include "object.h"
 #include "icpp.h"
 #include "loader.h"
+#include "platform.h"
 #include "runcfg.h"
 #include "utils.h"
 #include <boost/beast.hpp>
@@ -226,7 +227,20 @@ cdtor_entries(CObjectFile *ofile, const std::span<std::string_view> &names,
 std::vector<const void *> Object::ctorEntries() {
   std::string_view names[] = {"init_func", "CRT$XCU"};
   std::span sns{names, std::size(names)};
-  return cdtor_entries(ofile_.get(), sns, funcs_, true);
+  auto ctors = cdtor_entries(ofile_.get(), sns, funcs_, true);
+  for (auto it = ctors.begin(); it != ctors.end();) {
+    auto inst = insnInfo(reinterpret_cast<uint64_t>(*it));
+    if (inst->rflag) {
+      auto &reloc = irelocs_[inst->reloc];
+      if (reloc.name.find(cppm_init_func) != std::string::npos) {
+        // remove the cpp module initializer nop function
+        it = ctors.erase(it);
+        continue;
+      }
+    }
+    it++;
+  }
+  return ctors;
 }
 
 std::vector<const void *> Object::dtorEntries() {

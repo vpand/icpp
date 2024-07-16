@@ -59,6 +59,7 @@ int compile_source_clang(int argc, const char **argv) {
 int compile_source_icpp(int argc, const char **argv) {
   auto root = fs::absolute(fs::path(argv[0])).parent_path() / "..";
   auto rtinc = (root / "include").string();
+  std::string cppminc;
   std::vector<const char *> args;
   for (int i = 0; i < argc; i++) {
     args.push_back(argv[i]);
@@ -86,6 +87,7 @@ int compile_source_icpp(int argc, const char **argv) {
   if (argsysroot.size()) {
     args.push_back(argsysroot.data());
     args.push_back(isysroot.data());
+    cppminc = std::format("-fprebuilt-module-path={}/apple/module", rtinc);
   }
 #elif ON_WINDOWS
   auto wininc = std::format("-I{}/win", rtinc);
@@ -101,9 +103,17 @@ int compile_source_icpp(int argc, const char **argv) {
       break;
     }
   }
-  if (wininc.size())
+  if (wininc.size()) {
     args.push_back(wininc.data());
+    cppminc = std::format("-fprebuilt-module-path={}/win/module", rtinc);
+  }
 #endif
+  if (!cppminc.size()) {
+    // set for linux/android
+    cppminc = std::format("-fprebuilt-module-path={}/linux/module", rtinc);
+  }
+  // add c++ standard module precompiled module path
+  args.push_back(cppminc.data());
 
   // add libc include
   auto icppinc = std::format("-I{}", rtinc);
