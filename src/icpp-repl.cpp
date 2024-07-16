@@ -18,7 +18,7 @@
 
 namespace icpp {
 
-void exec_string(const char *argv0, std::string_view snippet, bool whole) {
+int exec_string(const char *argv0, std::string_view snippet, bool whole) {
   RunConfig::repl = true;
 
   // construct a temporary source path
@@ -27,7 +27,7 @@ void exec_string(const char *argv0, std::string_view snippet, bool whole) {
   if (!outf.is_open()) {
     log_print(Runtime, "Failed to create a temporary source file {}.",
               srcpath.string());
-    return;
+    return -1;
   }
   if (whole)
     outf << snippet.data();
@@ -36,16 +36,17 @@ void exec_string(const char *argv0, std::string_view snippet, bool whole) {
   outf.close();
 
   std::vector<const char *> incs;
-  auto opath = compile_source(argv0, srcpath.string(), "-O1", incs);
+  auto opath = compile_source_icpp(argv0, srcpath.string(), "-O1", incs);
   if (!fs::exists(opath))
-    return; // clang has printed the error message
+    return -1; // clang has printed the error message
 
   std::vector<std::string> deps;
   int iargc = 1;
   const char *iarg[] = {""};
-  exec_main(opath.string(), deps, srcpath.string(), iargc,
-            reinterpret_cast<char **>(&iarg));
+  int exitcode = exec_main(opath.string(), deps, srcpath.string(), iargc,
+                           reinterpret_cast<char **>(&iarg));
   fs::remove(opath);
+  return exitcode;
 }
 
 int exec_repl(const char *argv0) {

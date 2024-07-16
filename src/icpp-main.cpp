@@ -11,6 +11,7 @@
 #include "object.h"
 #include "platform.h"
 #include "runcfg.h"
+#include "runtime.h"
 #include "llvm/Support/InitLLVM.h"
 #include <format>
 #include <span>
@@ -32,7 +33,7 @@ static void print_help() {
       << "  Interpreting C++, running C++ in anywhere like a script."
       << std::endl
       << std::endl
-      << "USAGE: icpp [options] file0 [file1 ...] [-- args]" << std::endl
+      << "USAGE: icpp [options] exec0 [exec1 ...] [-- args]" << std::endl
       << "OPTIONS:" << std::endl
       << "  -v, -version: print icpp version." << std::endl
       << "  --version: print icpp and clang version." << std::endl
@@ -65,20 +66,36 @@ static void print_help() {
       << "ARGS: arguments passed to the main entry function of the input files."
       << std::endl
       << std::endl
-      << "e.g.:" << std::endl
+      << "Run a C++ source file, e.g.:" << std::endl
       << "  icpp helloworld.cc" << std::endl
       << R"x(  icpp helloworld.cc -- Hello World (i.e.: argc=3, argv[]={"helloworld.cc", "Hello", "World"}))x"
       << std::endl
       << "  icpp -O3 helloworld.cc" << std::endl
       << "  icpp -O0 -p/path/to/profile.json helloworld.cc" << std::endl
-      << "  icpp -p/path/to/trace.json helloworld.exe" << std::endl
       << "  icpp -I/qt/include -L/qt/lib -llibQtCore.so hellowrold.cc"
       << std::endl
       << "  icpp -I/qt/include -L/qt/lib -lQtCore.dll hellowrold.cc"
       << std::endl
       << "  icpp -I/qt/include -F/qt/framework -fQtCore hellowrold.cc"
       << std::endl
-      << std::endl;
+      << std::endl
+      << "Run an executable, e.g.:" << std::endl
+      << "  icpp -p/path/to/trace.json helloworld.exe" << std::endl
+      << "  icpp -p/path/to/profile.json helloworld" << std::endl
+      << std::endl
+      << "Run an installed module, e.g.:" << std::endl
+      << "  icpp helloworld" << std::endl
+      << "  icpp helloworld -- hello world" << std::endl
+      << std::endl
+      << "Run the repl shell, e.g:" << std::endl
+      << "  icpp" << std::endl
+      << "    ICPP v0.0.1.255. Copyright (c) vpand.com.\n"
+         "    Run a C++ in anywhere like a script.\n"
+         "    >>> #include <stdio.h>\n"
+         "    >>> puts(\"Hello world.\")\n"
+      << std::endl
+      << "Run an C++ expression, e.g:" << std::endl
+      << R"x(  icpp "puts(std::format(\"{:x}\", 666).data())")x" << std::endl;
 }
 
 static std::vector<std::string>
@@ -158,7 +175,8 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
     }
     if (sp == "--version") {
       print_version();
-      return 1; // continuing let clang print its version
+      // continuing let clang print its version
+      return icpp::compile_source_clang(argc, const_cast<const char **>(argv));
     }
     if (sp == "-h" || sp == "-help") {
       print_help();
@@ -166,12 +184,13 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
     }
     if (sp == "--help") {
       print_help();
-      return 1; // continuing let clang print its help list
+      // continuing let clang print its help list
+      return icpp::compile_source_clang(argc, const_cast<const char **>(argv));
     }
     if (sp == "-c" || sp == "-o") {
       icpp::RunConfig::inst(argv[0], "");
       // let clang do the compilation task directly
-      return icpp::compile_source(argc, const_cast<const char **>(argv));
+      return icpp::compile_source_icpp(argc, const_cast<const char **>(argv));
     }
     if (sp.starts_with("-I")) {
       // forward to clang
@@ -202,15 +221,26 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
     if (sp[0] == '-')
       continue;
     if (!fs::exists(fs::path(sp))) {
-      // execute as a code snippet
-      icpp::exec_string(argv[0], sp);
+      // execute as an installed module
+      auto omain = icpp::RuntimeLib::inst().libFull(sp) / "main.o";
+      if (fs::exists(omain)) {
+        exitcode = icpp::exec_main(omain.string(), deps, sp, argc - idoubledash,
+                                   &argv[idoubledash + 1]);
+      } else {
+        // execute as a dynamic code snippet
+        auto dyncode = std::string("#include <format>\n"
+                                   "#include <iostream>;\n"
+                                   "int main(void) {") +
+                       std::string(sp) + "; return 0;}";
+        exitcode = icpp::exec_string(argv[0], dyncode, true);
+      }
       continue;
     }
     if (icpp::is_cpp_source(sp)) {
       // compile the input source to be as the running host object file(.o,
       // .obj)
-      auto opath = icpp::compile_source(argv[0], sp, icpp_option_opt,
-                                        icpp_option_incdirs);
+      auto opath = icpp::compile_source_icpp(argv[0], sp, icpp_option_opt,
+                                             icpp_option_incdirs);
       if (fs::exists(opath)) {
         exitcode = icpp::exec_main(opath.string(), deps, sp, argc - idoubledash,
                                    &argv[idoubledash + 1]);

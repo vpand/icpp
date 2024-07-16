@@ -1552,6 +1552,13 @@ int exec_main(std::string_view path, const std::vector<std::string> &deps,
                        "includes: X86_64, AArch64.");
     return -1;
   }
+  if (object->arch() != host_arch()) {
+    log_print(Runtime,
+              "Unsupported input arch type, currently supported arch "
+              "should be the same as host's, expected {}.",
+              arch_name(host_arch()));
+    return -1;
+  }
 
   // construct arguments passed to the main entry of the input file
   std::vector<const char *> iargs;

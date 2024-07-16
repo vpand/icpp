@@ -2,7 +2,7 @@
   "name": "module-demo",
   "headers": ["module.h"],
   "header-dirs": [],
-  "sources": ["module.cc"],
+  "sources": ["module.cc", "main.cc"],
   "binary-objs": [],
   "binary-libs": [],
   "include-dirs": []

@@ -29,7 +29,7 @@ static std::string argv_string(int argc, const char **argv) {
   return cmds;
 }
 
-static int compile_source_clang(int argc, const char **argv) {
+int compile_source_clang(int argc, const char **argv) {
   // just echo the compiling args
   if (echocc) {
     log_print(Develop, "{}", argv_string(argc, argv));
@@ -56,10 +56,9 @@ static int compile_source_clang(int argc, const char **argv) {
   return result;
 }
 
-int compile_source(int argc, const char **argv) {
-  auto rtinc =
-      (fs::absolute(fs::path(argv[0])).parent_path() / ".." / "include")
-          .string();
+int compile_source_icpp(int argc, const char **argv) {
+  auto root = fs::absolute(fs::path(argv[0])).parent_path() / "..";
+  auto rtinc = (root / "include").string();
   std::vector<const char *> args;
   for (int i = 0; i < argc; i++) {
     args.push_back(argv[i]);
@@ -68,7 +67,7 @@ int compile_source(int argc, const char **argv) {
   // make clang driver to use our fake clang path as the executable path
   args.push_back("-no-canonical-prefixes");
   // use C++23 standard
-  args.push_back("-std=gnu++23");
+  args.push_back("-std=c++23");
 
 #if __APPLE__
   std::string_view argsysroot = "-isysroot";
@@ -125,9 +124,9 @@ int compile_source(int argc, const char **argv) {
   return compile_source_clang(static_cast<int>(args.size()), &args[0]);
 }
 
-fs::path compile_source(const char *argv0, std::string_view path,
-                        const char *opt,
-                        const std::vector<const char *> &incdirs) {
+fs::path compile_source_icpp(const char *argv0, std::string_view path,
+                             const char *opt,
+                             const std::vector<const char *> &incdirs) {
   // construct a temporary output object file path
   auto opath =
       (fs::temp_directory_path() / icpp::rand_filename(8, obj_ext)).string();
@@ -164,7 +163,7 @@ fs::path compile_source(const char *argv0, std::string_view path,
     echocc = true;
   }
 
-  compile_source(static_cast<int>(args.size()), &args[0]);
+  compile_source_icpp(static_cast<int>(args.size()), &args[0]);
   return cache.has_filename() ? cache : fs::path(opath);
 }
 
