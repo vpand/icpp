@@ -216,6 +216,7 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
   // interpret the input Source-C++ or
   // Executable-MachO/Executable-ELF/Executable-PE files
   int exitcode = 0;
+  bool validcache = true;
   for (auto p : args) {
     auto sp = std::string_view(p);
     if (sp[0] == '-')
@@ -225,7 +226,7 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
       auto omain = icpp::RuntimeLib::inst().libFull(sp) / "main.o";
       if (fs::exists(omain)) {
         exitcode = icpp::exec_main(omain.string(), deps, sp, argc - idoubledash,
-                                   &argv[idoubledash + 1]);
+                                   &argv[idoubledash + 1], validcache);
       } else {
         // execute as a dynamic code snippet
         auto dyncode = std::string("#include <stdio.h>\n"
@@ -237,23 +238,40 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
       continue;
     }
     if (icpp::is_cpp_source(sp)) {
-      // compile the input source to be as the running host object file(.o,
-      // .obj)
-      auto opath = icpp::compile_source_icpp(argv[0], sp, icpp_option_opt,
-                                             icpp_option_incdirs);
-      if (fs::exists(opath)) {
-        exitcode = icpp::exec_main(opath.string(), deps, sp, argc - idoubledash,
-                                   &argv[idoubledash + 1]);
-        if (opath.extension() != icpp::iobj_ext)
-          fs::remove(opath);
-      } else {
-        // if failed to compile the input source, clang has already printed the
-        // errors
+      while (true) {
+        // compile the input source to be as the running host object file(.o,
+        // .obj)
+        auto opath = icpp::compile_source_icpp(argv[0], sp, icpp_option_opt,
+                                               icpp_option_incdirs);
+        if (fs::exists(opath)) {
+          exitcode =
+              icpp::exec_main(opath.string(), deps, sp, argc - idoubledash,
+                              &argv[idoubledash + 1], validcache);
+          if (opath.extension() != icpp::iobj_ext) {
+            // remove the temporary intermediate object file
+            fs::remove(opath);
+            // done
+            break;
+          } else if (validcache) {
+            // done
+            break;
+          } else {
+            // remove the version miss-matched iobject cache file
+            fs::remove(opath);
+            icpp::log_print(icpp::Develop,
+                            "Removed the old iobject cache file: {}.",
+                            opath.string());
+          }
+        } else {
+          // if failed to compile the input source, clang has already printed
+          // the errors
+          break;
+        }
       }
     } else {
       // pass sp as an executable file
       exitcode = icpp::exec_main(sp, deps, sp, idoubledash - argc,
-                                 &argv[idoubledash + 1]);
+                                 &argv[idoubledash + 1], validcache);
     }
   }
   icpp::Loader::deinitialize(exitcode);

@@ -43,8 +43,9 @@ int exec_string(const char *argv0, std::string_view snippet, bool whole) {
   std::vector<std::string> deps;
   int iargc = 1;
   const char *iarg[] = {""};
+  bool validcache;
   int exitcode = exec_main(opath.string(), deps, srcpath.string(), iargc,
-                           reinterpret_cast<char **>(&iarg));
+                           reinterpret_cast<char **>(&iarg), validcache);
   fs::remove(opath);
   return exitcode;
 }

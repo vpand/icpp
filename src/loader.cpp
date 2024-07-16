@@ -39,6 +39,8 @@ void _CxxThrowException(void);
 #endif
 }
 
+static void nop_function(void) {}
+
 struct ModuleLoader {
   ModuleLoader() : mainid_(std::this_thread::get_id()) {
     // these symbols are extern in object but finally linked in exe/lib,
@@ -67,12 +69,25 @@ struct ModuleLoader {
                   reinterpret_cast<const void *>(&_CxxThrowException)});
 #endif
 
-// currently, the clang cpp module initializer is a nop function,
-// and we will skip to call it in ctor caller
 #if __APPLE__
-    syms_.insert({"__ZGIW3std", nullptr});
+    // currently, the clang cpp module initializer is a nop function,
+    // and we will skip to call it in ctor caller
+    syms_.insert({"__ZGIW3std", reinterpret_cast<const void *>(&nop_function)});
+
+    // make sure that icpp and its script use the same exception api
+    syms_.insert(
+        {"___cxa_atexit", reinterpret_cast<const void *>(&__cxa_atexit)});
+    syms_.insert(
+        {"___cxa_throw", reinterpret_cast<const void *>(&__cxa_throw)});
 #else
-    syms_.insert({"_ZGIW3std", nullptr});
+    syms_.insert({"_ZGIW3std", reinterpret_cast<const void *>(&nop_function)});
+#endif
+
+    // make sure that icpp and its script use the same exception api
+#if __linux__
+    syms_.insert(
+        {"__cxa_atexit", reinterpret_cast<const void *>(&__cxa_atexit)});
+    syms_.insert({"__cxa_throw", reinterpret_cast<const void *>(&__cxa_throw)});
 #endif
 
     // load c++ runtime library
@@ -189,7 +204,8 @@ const void *ModuleLoader::loadLibrary(std::string_view path) {
           return found->second;
         }
 
-        auto object = create_object("", path);
+        bool validcache;
+        auto object = create_object("", path, validcache);
         if (object && object->valid()) {
           // initialize this iobject module, call its construction functions,
           // it'll call the Loader::cacheObject after executing the ctors

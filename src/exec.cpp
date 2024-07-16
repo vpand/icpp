@@ -21,22 +21,6 @@
 
 #define LOG_EXECUTION 0
 
-extern "C" {
-#if ON_WINDOWS
-void _CxxThrowException(void);
-
-// rename to libc++abi's symbol name
-#define __cxa_throw _CxxThrowException
-#define __cxa_atexit atexit
-#define __stack_chk_fail abort
-#else
-int __cxa_atexit(void (*f)(void *), void *p, void *d);
-void __stack_chk_fail(void);
-void __cxa_throw(void *thrown_object, std::type_info *tinfo,
-                 void (*dest)(void *));
-#endif
-}
-
 namespace icpp {
 
 // uc instance cache
@@ -598,7 +582,7 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
     dump();
     std::exit(-1);
   } else if (reinterpret_cast<uint64_t>(__cxa_throw) == target) {
-#if ON_WINDOWS
+#if ON_WINDOWS || __APPLE__
     log_print(Runtime, "Exception thrown in script: exception={:x}, rtti={:x}.",
               args[0], args[1]);
 #else
@@ -1533,7 +1517,8 @@ int ExecEngine::run(bool lib) {
 
   if (execCtor()) {
     if (!lib && execMain()) {
-      if (!robject_->isCache() && !RunConfig::repl && !RunConfig::gadget) {
+      if (!robject_->isCache() && !RunConfig::repl && !RunConfig::gadget &&
+          !exitcode_) {
         // generate the interpretable object file if everthing went well
         robject_->generateCache();
       }
@@ -1543,8 +1528,9 @@ int ExecEngine::run(bool lib) {
 }
 
 int exec_main(std::string_view path, const std::vector<std::string> &deps,
-              std::string_view srcpath, int iargc, char **iargv) {
-  auto object = create_object(srcpath, path);
+              std::string_view srcpath, int iargc, char **iargv,
+              bool &validcache) {
+  auto object = create_object(srcpath, path, validcache);
   if (!object)
     return -1;
   if (!object->valid()) {

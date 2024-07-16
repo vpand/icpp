@@ -66,7 +66,7 @@ graph LR
 
 ```sh
 vpand@MacBook-Pro icpp % icpp -h              
-OVERVIEW: ICPP v0.0.1.255 based on Unicorn and Clang/LLVM.
+OVERVIEW: ICPP v0.1.0.255 based on Unicorn and Clang/LLVM.
   Interpreting C++, running C++ in anywhere like a script.
 
 USAGE: icpp [options] exec0 [exec1 ...] [-- args]
@@ -108,7 +108,7 @@ Run an C++ expression, e.g:
 ### ICPP REPL
 ```sh
 vpand@MacBook-Pro icpp % icpp     
-ICPP v0.0.1.255. Copyright (c) vpand.com.
+ICPP v0.1.0.255. Copyright (c) vpand.com.
 Running C++ in anywhere like a script.
 >>> #include <stdio.h>
 >>> puts("Hello, world.")   
@@ -123,7 +123,7 @@ Hello, world.
 ```sh
 vpand@MacBook-Pro icpp % imod -h                
 OVERVIEW: ICPP, Interpreting C++, running C++ in anywhere like a script.
-  IObject Module Manager Tool built with ICPP v0.0.1.255
+  IObject Module Manager Tool built with ICPP v0.1.0.255
 USAGE: imod [options]
 
 OPTIONS:
@@ -139,7 +139,7 @@ ICPP Module Manager Options:
 ```sh
 vpand@MacBook-Pro icpp % iopad -h
 OVERVIEW: ICPP, Interpreting C++, running C++ in anywhere like a script.
-  IObject Launch Pad Tool built with ICPP v0.0.1.255
+  IObject Launch Pad Tool built with ICPP v0.1.0.255
 USAGE: iopad [options]
 
 OPTIONS:
@@ -157,7 +157,7 @@ ICPP Interpretable Object Launch Pad Options:
 ```sh
 vpand@MacBook-Pro icpp % icpp-server -h
 OVERVIEW: ICPP, Interpreting C++, running C++ in anywhere like a script.
-  Remote icpp-gadget server built with ICPP v0.0.1.255
+  Remote icpp-gadget server built with ICPP v0.1.0.255
 USAGE: icpp-server [options]
 
 OPTIONS:

@@ -16,7 +16,8 @@ class Object;
 
 // execute with a source file and its relational dependencies
 int exec_main(std::string_view path, const std::vector<std::string> &deps,
-              std::string_view srcpath, int iargc, char **iargv);
+              std::string_view srcpath, int iargc, char **iargv,
+              bool &validcache);
 
 // execute with a small code snippet
 int exec_string(const char *argv0, std::string_view snippet,

@@ -1051,7 +1051,7 @@ static RelocSymbol get_symbol(uint64_t addr, const SymbolRef &sym,
   return rsym;
 }
 
-static void reloc_symbols(ObjectFile *ofile, TextSection &text,
+static void reloc_symbols(ObjectFile *ofile, ArchType arch, TextSection &text,
                           std::map<uint64_t, RelocSymbol> &rsyms) {
   for (auto &texts : ofile->sections()) {
     if (texts.getIndex() != text.index) {
@@ -1123,13 +1123,26 @@ static void reloc_symbols(ObjectFile *ofile, TextSection &text,
       }
       break;
     }
+    uint64_t addend = 0;
     for (auto &r : texts.relocations()) {
       auto addr = text.rva + r.getOffset();
       auto sym = r.getSymbol();
       auto rsym = get_symbol(addr, *sym, r.getType());
       if (rsym.name.size()) {
-        rsym.addend = reloc_addend(ofile, r);
+        if (addend) {
+          rsym.addend = addend;
+          addend = 0;
+        } else {
+          rsym.addend = reloc_addend(ofile, r);
+        }
         rsyms.insert({addr, rsym});
+      } else if (arch == AArch64) {
+        // arm64 addend relocation is separated with the main relocation,
+        // usually it's in this sequence:
+        // 0 - ARM64_RELOC_ADDEND
+        // 1 - ARM64_RELOC_PAGE21
+        // 2 - ARM64_RELOC_PAGEOFF12
+        addend = reloc_addend(ofile, r);
       }
     }
     break;
@@ -1139,7 +1152,7 @@ static void reloc_symbols(ObjectFile *ofile, TextSection &text,
 void Object::decodeInsns(TextSection &text) {
   // load text relocation symbols
   std::map<uint64_t, RelocSymbol> rsyms;
-  reloc_symbols(ofile_.get(), text, rsyms);
+  reloc_symbols(ofile_.get(), arch(), text, rsyms);
 
   int skipsz = arch_ == AArch64 ? 4 : 1;
   // decode instructions in text section

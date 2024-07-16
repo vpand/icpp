@@ -32,6 +32,7 @@ static std::string argv_string(int argc, const char **argv) {
 int compile_source_clang(int argc, const char **argv) {
   // just echo the compiling args
   if (echocc) {
+    echocc = false;
     log_print(Develop, "{}", argv_string(argc, argv));
     return 0;
   }

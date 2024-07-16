@@ -100,6 +100,18 @@ void Object::createFromMemory(ObjectType type) {
 }
 
 void Object::createFromFile(ObjectType type) {
+  switch (type) {
+  case COFF_Exe:
+  case ELF_Exe:
+  case MachO_Exe:
+    log_print(
+        Runtime,
+        "The current version of icpp doesn't support running executable yet.");
+    return;
+  default:
+    break;
+  }
+
   // herein we pass IsVolatile as true to disable llvm to mmap this file
   // because some data sections may be modified at runtime
   auto errBuff = llvm::MemoryBuffer::getFile(path_, false, true, true);
@@ -372,7 +384,8 @@ std::string Object::generateCache() {
   Loader::locateModule("", true); // update loader's module list
   for (auto &r : irelocs_) {
     // collect referenced modules
-    if (!belong(reinterpret_cast<uint64_t>(r.realTarget()))) {
+    if (!belong(reinterpret_cast<uint64_t>(r.realTarget())) &&
+        !belong(reinterpret_cast<uint64_t>(r.target))) {
       refmods.insert(Loader::locateModule(r.realTarget()).data());
     }
   }
@@ -599,7 +612,7 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
     return;
   }
   if (iobject.version() != version_value().value) {
-    log_print(Runtime,
+    log_print(Develop,
               "The file {} does be an icpp interpretable object, but its "
               "version doesn't match this icpp (expected {}).",
               path_, version_string());
@@ -751,18 +764,19 @@ std::vector<uint32_t> SymbolHash::hashes(std::string &message) {
 }
 
 std::shared_ptr<Object> create_object(std::string_view srcpath,
-                                      std::string_view path) {
+                                      std::string_view path, bool &validcache) {
+  validcache = true;
   if (path.ends_with(iobj_ext)) {
     // it's the cache of the source file
     auto tmp = std::make_shared<InterpObject>(srcpath, path);
-    return tmp->valid() ? tmp : nullptr;
+    return (validcache = tmp->valid()) ? tmp : nullptr;
   }
   if (!srcpath.length() && path.ends_with(obj_ext)) {
     // it's the cache of the module object file
     auto cache = convert_file(path, iobj_ext);
     if (cache.has_filename()) {
       auto tmp = std::make_shared<InterpObject>(srcpath, path);
-      if (tmp->valid()) {
+      if ((validcache = tmp->valid())) {
         log_print(Develop, "Using iobject cache file when loading: {}.",
                   cache.string());
         return tmp;

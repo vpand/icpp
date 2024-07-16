@@ -100,6 +100,15 @@ static inline void page_executable(const void *page) {
   page_protect(page, PAGE_EXECUTE_READ);
 }
 
+extern "C" {
+void _CxxThrowException(void);
+
+// rename to libc++abi's symbol name
+#define __cxa_throw _CxxThrowException
+#define __cxa_atexit atexit
+#define __stack_chk_fail abort
+}
+
 #else
 
 typedef int (*thread_create_t)(pthread_t *thread, const pthread_attr_t *attr,
@@ -159,6 +168,13 @@ static inline void page_writable(const void *page) {
 
 static inline void page_executable(const void *page) {
   mprotect(const_cast<void *>(page), mem_page_size, PROT_READ | PROT_EXEC);
+}
+
+extern "C" {
+int __cxa_atexit(void (*f)(void *), void *p, void *d);
+void __cxa_throw(void *thrown_object, std::type_info *tinfo,
+                 void (*dest)(void *));
+void __stack_chk_fail(void);
 }
 
 #endif // end of ON_WINDOWS

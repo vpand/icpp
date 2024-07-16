@@ -262,6 +262,6 @@ public:
 };
 
 std::shared_ptr<Object> create_object(std::string_view srcpath,
-                                      std::string_view path);
+                                      std::string_view path, bool &validcache);
 
 } // namespace icpp
