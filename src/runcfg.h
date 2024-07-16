@@ -38,6 +38,14 @@ public:
   // printf/puts pointer
   static int (*printf)(const char *, ...);
   static int (*puts)(const char *);
+
+private:
+  // default stack size 1MB
+  int stack_size_ = 1024 * 1024;
+  // default step size -1(the max value as interpreter can)
+  int step_size_ = -1;
+  // default debugger status off
+  bool has_debugger_ = false;
 };
 
 } // namespace icpp

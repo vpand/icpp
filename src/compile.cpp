@@ -60,6 +60,7 @@ int compile_source_clang(int argc, const char **argv) {
 int compile_source_icpp(int argc, const char **argv) {
   auto root = fs::absolute(fs::path(argv[0])).parent_path() / "..";
   auto rtinc = (root / "include").string();
+  bool cross_compile = false;
   std::string cppminc;
   std::vector<const char *> args;
   for (int i = 0; i < argc; i++) {
@@ -81,6 +82,7 @@ int compile_source_icpp(int argc, const char **argv) {
           target.find("linux") != std::string_view::npos ||
           target.find("android") != std::string_view::npos) {
         argsysroot = "";
+        cross_compile = true;
       }
       break;
     }
@@ -100,6 +102,7 @@ int compile_source_icpp(int argc, const char **argv) {
           target.find("linux") != std::string_view::npos ||
           target.find("android") != std::string_view::npos) {
         wininc = "";
+        cross_compile = true;
       }
       break;
     }
@@ -107,6 +110,17 @@ int compile_source_icpp(int argc, const char **argv) {
   if (wininc.size()) {
     args.push_back(wininc.data());
     cppminc = std::format("-fprebuilt-module-path={}/win/module", rtinc);
+  }
+#else
+  for (int i = 0; i < argc - 1; i++) {
+    if (std::string_view(argv[i]) == "-target") {
+      auto target = std::string_view(argv[i + 1]);
+      if (target.find("apple") != std::string_view::npos ||
+          target.find("win") != std::string_view::npos) {
+        cross_compile = true;
+      }
+      break;
+    }
   }
 #endif
   if (!cppminc.size()) {
@@ -116,9 +130,10 @@ int compile_source_icpp(int argc, const char **argv) {
   // add c++ standard module precompiled module path
   args.push_back(cppminc.data());
 
-  // add libc include
-  auto icppinc = std::format("-I{}", rtinc);
-  args.push_back(icppinc.data());
+  // add libc include for cross compiling
+  auto cinc = std::format("-I{}/c", rtinc);
+  if (cross_compile)
+    args.push_back(cinc.data());
 
   // add libc++ include
   auto cxxinc = std::format("-I{}/c++/v1", rtinc);
@@ -128,9 +143,8 @@ int compile_source_icpp(int argc, const char **argv) {
   args.push_back("-nostdlib++");
 
   // add icpp module include
-  auto icppminc =
-      std::format("-I{}", RuntimeLib::inst().includeFull().string());
-  args.push_back(icppminc.data());
+  auto icppinc = std::format("-I{}", RuntimeLib::inst().includeFull().string());
+  args.push_back(icppinc.data());
 
   return compile_source_clang(static_cast<int>(args.size()), &args[0]);
 }

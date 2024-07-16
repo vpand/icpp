@@ -1,0 +1,5 @@
+{
+  "vm_debugger": false,
+  "vm_stack_size": 1,
+  "uc_step_size": -1
+}

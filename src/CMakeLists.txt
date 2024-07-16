@@ -150,6 +150,7 @@ clang_target_link_libraries(icpp
   boost_algorithm
   boost_asio
   boost_beast
+  boost_json
   libprotobuf
   brotlienc
   brotlidec
@@ -169,6 +170,7 @@ target_include_directories(icpp PRIVATE
   boost_algorithm
   boost_asio
   boost_beast
+  boost_json
   libprotobuf
 )
 
