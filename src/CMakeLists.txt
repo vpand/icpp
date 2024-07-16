@@ -284,11 +284,13 @@ target_include_directories(iopad PRIVATE
   ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include
   ${CMAKE_CURRENT_BINARY_DIR}
   boost_asio
+  boost_json
   boost_process
   libprotobuf
 )
 target_link_libraries(iopad PRIVATE 
   boost_asio
+  boost_json
   boost_process
   libprotobuf
 )
@@ -332,11 +334,13 @@ target_include_directories(icpp-gadget PRIVATE
   ${LLVM_OBJDUMP_ROOT}
   boost_asio
   boost_beast
+  boost_json
   libprotobuf
 )
 target_link_libraries(icpp-gadget PRIVATE 
   boost_asio
   boost_beast
+  boost_json
   libprotobuf
   unicorn
 )

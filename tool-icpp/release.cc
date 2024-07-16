@@ -5,41 +5,66 @@
 */
 
 /*
-This is a C++ script to release the current running icpp, it'll create an
-icpp release package in the following layout:
+This is a C++ script to release the built icpp files, it'll create an
+icpp release package in the following layout, icpp-vx.x.x-os-arch:
 ---bin
 ------icpp
 ------icpp.so/dll/dylib
 ------icpp-gadget.so/dll/dylib
+------icpp-server
 ------imod
 ------iopad
+------libc++.so/dll/dylib
 ---include
+------apple/win
 ------boost
+------c
+------c++
 ---lib
+------clang
 ------boost
 
-usage: build/src/icpp release.cc /path/to/prefix
-*/
+Usage: icpp release.cc /path/to/build /path/to/prefix
 
-#include <cstdio>
-#include <cstdlib>
-#include <filesystem>
-#include <format>
-#include <iostream>
-#include <string_view>
-#include <vector>
+The initial icpp package can be downloaded for your local system at:
+https://github.com/vpand/icpp/releases
+*/
 
 // for icpp package version
 #include "../src/icpp.h"
 // for llvm version
 #include "../build/third/llvm-project/llvm/include/llvm/Config/llvm-config.h"
 
+// for standard c++ definitions
+import std;
+namespace fs = std::filesystem;
+
 #if __APPLE__
 #define LIBEXT ".dylib"
+constexpr const std::string_view os = "apple";
+constexpr const std::string_view libcpp = "libc++.1.0" LIBEXT;
+constexpr const std::string_view libcppabi = "libc++abi.1.0" LIBEXT;
+constexpr const std::string_view libunwind = "libunwind.1.0" LIBEXT;
 #elif __linux__
 #define LIBEXT ".so"
+constexpr const std::string_view os = "linux";
+constexpr const std::string_view libcpp = "libc++" LIBEXT ".1.0";
+constexpr const std::string_view libcppabi = "libc++abi" LIBEXT ".1.0";
+constexpr const std::string_view libunwind = "libunwind" LIBEXT ".1.0";
 #else
 #define LIBEXT ".dll"
+constexpr const std::string_view os = "win";
+constexpr const std::string_view libcpp = "c++" LIBEXT;
+#endif
+
+#if __aarch64__ || __arm64__
+#if __linux__
+constexpr const std::string_view arch = "aarch64";
+#else
+constexpr const std::string_view arch = "arm64";
+#endif
+#else
+constexpr const std::string_view arch = "x86_64";
 #endif
 
 #if _WIN32
@@ -49,10 +74,17 @@ usage: build/src/icpp release.cc /path/to/prefix
 #else
 #define EXEEXT ""
 #define VERSEP "."
+#if __APPLE__
 #define ICPPRT std::format("icpp" VERSEP "{}" LIBEXT, LLVM_VERSION_MAJOR)
+#else
+#define ICPPRT std::format("icpp" LIBEXT VERSEP "{}", LLVM_VERSION_MAJOR)
+#endif
 #endif
 
-namespace fs = std::filesystem;
+// the final libc++ dynamic library name used by icpp runtime
+constexpr const std::string_view libcpp_name = "libc++" LIBEXT;
+constexpr const std::string_view libcppabi_name = "libc++abi.1" LIBEXT;
+constexpr const std::string_view libunwind_name = "libunwind.1" LIBEXT;
 
 static auto log(const std::string &text) { std::puts(text.data()); }
 
@@ -70,8 +102,14 @@ static auto create_dir(const fs::path &path) {
 }
 
 static auto pack_file(const fs::path &srcfile, const fs::path &dstdir,
-                      bool strip) {
-  auto dstfile = dstdir / srcfile.filename();
+                      bool strip, std::string_view dstname = "") {
+  if (!fs::exists(srcfile)) {
+    log(std::format("There's no {}, ignored packing it.", srcfile.string()));
+    return;
+  }
+
+  auto dstfile =
+      dstdir / (dstname.size() ? fs::path(dstname) : srcfile.filename());
   std::error_code err;
   fs::copy_file(srcfile, dstfile, fs::copy_options::overwrite_existing, err);
   if (err)
@@ -105,33 +143,55 @@ static auto pack_dir(const fs::path &srcdir, const fs::path &dstroot) {
 }
 
 int main(int argc, char **argv) {
-  if (argc != 2)
-    log_exit(std::format("Usage: {} /path/to/prefix.", argv[0]));
+  if (argc != 3)
+    log_exit(std::format("Usage: {} /path/to/build /path/to/prefix.", argv[0]));
 
+  // where the built outputs placed
+  auto srcroot = fs::path(argv[1]) / "src";
   // create the destination directory if necessary
-  auto dst = fs::path(argv[1]);
-  create_dir(dst);
-
-  // create package layout
-  auto thisfile = fs::absolute(argv[0]);
-  auto srcroot = thisfile.parent_path() / "../build-release/src";
-  auto pkgroot = dst / std::format("icpp-v{}.{}.{}", icpp::version_major,
-                                   icpp::version_minor, icpp::version_patch);
-  auto bin = pkgroot / "bin";
-  auto include = pkgroot / "include";
-  auto lib = pkgroot / "lib";
-  create_dir(pkgroot);
+  auto dstroot = fs::path(argv[2]);
+  create_dir(dstroot);
+  // create icpp package layout
+  auto icpproot =
+      dstroot / std::format("icpp-v{}.{}.{}-{}-{}", icpp::version_major,
+                            icpp::version_minor, icpp::version_patch, os, arch);
+  auto bin = icpproot / "bin";
+  auto include = icpproot / "include";
+  auto lib = icpproot / "lib";
+  create_dir(icpproot);
   create_dir(bin);
   create_dir(include);
   create_dir(lib);
 
   // copy icpp files
-  std::vector<std::string> names = {
-      "icpp" EXEEXT,        ICPPRT, "imod" EXEEXT, "iopad" EXEEXT,
-      "icpp-gadget" LIBEXT,
+  std::vector<std::string_view> names = {
+      "icpp" EXEEXT,        ICPPRT,
+      "imod" EXEEXT,        "iopad" EXEEXT,
+      "icpp-gadget" LIBEXT, "icpp-server" EXEEXT,
   };
   for (auto &name : names)
     pack_file(srcroot / name, bin, true);
+
+  // copy libc++ file
+  pack_file(srcroot / "../libcxx/lib" / libcpp, bin, true, libcpp_name);
+#if __APPLE__ || __linux__
+  pack_file(srcroot / "../libcxx/lib" / libcppabi, bin, true, libcppabi_name);
+  pack_file(srcroot / "../libcxx/lib" / libunwind, bin, true, libunwind_name);
+#endif
+
+  // copy c/c++/os headers
+  std::vector<std::string_view> incnames = {
+      os,
+      "include/c",
+      "include/c++",
+  };
+  for (auto &name : incnames) {
+    auto srcdir = srcroot / "../../runtime" / name;
+    if (fs::exists(srcdir))
+      pack_dir(srcdir, include);
+    else
+      log(std::format("There's no {}, ignored packing it.", srcdir.string()));
+  }
 
   // copy clang files
   pack_dir(srcroot / "../third/llvm-project/llvm/lib/clang", lib);
@@ -141,8 +201,8 @@ int main(int argc, char **argv) {
   auto boostinc = boost / "include";
   auto boostlib = boost / "lib";
   if (fs::exists(boostinc) && fs::exists(boostlib)) {
-    pack_dir(boostinc, pkgroot);
-    pack_dir(boostlib, pkgroot);
+    pack_dir(boostinc, icpproot);
+    pack_dir(boostlib, icpproot);
   } else {
     log(std::format("Can't find boost in {}, skipped packing boost.",
                     boost.string()));
