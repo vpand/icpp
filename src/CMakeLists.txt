@@ -12,6 +12,14 @@ if(MSVC)
   add_compile_definitions(-D_CRT_SECURE_NO_WARNINGS=1)
   # add boost config
   add_compile_definitions(-D_WIN32_WINNT=0x0601)
+elseif(APPLE)
+  add_link_options(-Wl,-rpath,@executable_path 
+                   -Wl,-rpath,@executable_path/../lib
+                   -Wl,-rpath,@executable_path/../lib/boost)
+else()
+  add_link_options(-Wl,-rpath,$ORIGIN 
+                   -Wl,-rpath,$ORIGIN/../lib
+                   -Wl,-rpath,$ORIGIN/../lib/boost)
 endif()
 
 set(LLVM_LINK_COMPONENTS

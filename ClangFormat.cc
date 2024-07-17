@@ -105,8 +105,8 @@ int main(int argc, const char *argv[]) {
   // format self
   formatter(argv[0]);
 
-  std::vector<std::string_view> subdirs = {"src", "snippet", "tool-icpp",
-                                           "vmpstudio"};
+  std::vector<std::string_view> subdirs = {"src", "snippet", "snippet-cppm",
+                                           "tool-icpp", "vmpstudio"};
   for (auto &d : subdirs) {
     for (auto &entry : fs::recursive_directory_iterator(thisdir / d)) {
       // format the source and header files

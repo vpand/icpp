@@ -1319,11 +1319,12 @@ void Object::decodeInsns(TextSection &text) {
   }
 }
 
-static void relocate_data(StringRef content, uint64_t offset,
-                          const RelocSymbol &rsym,
-                          const std::vector<DynSection> &dynsects,
-                          ObjectType otype, ArchType arch) {
+static uint64_t relocate_data(StringRef content, uint64_t offset,
+                              const RelocSymbol &rsym,
+                              const std::vector<DynSection> &dynsects,
+                              ObjectType otype, ArchType arch) {
   uint64_t target;
+  bool istext = false;
   if (rsym.sflags & SymbolRef::SF_Undefined) {
     // extern relocation
     target = reinterpret_cast<uint64_t>(Loader::locateSymbol(rsym.name, false));
@@ -1340,6 +1341,7 @@ static void relocate_data(StringRef content, uint64_t offset,
                 rsym.name.data());
       abort();
     }
+    istext = expSect.get()->isText();
     bool dyn = false;
     auto sectname = expSect.get()->getName();
     if (!sectname) {
@@ -1410,7 +1412,7 @@ static void relocate_data(StringRef content, uint64_t offset,
       }
       *reinterpret_cast<uint32_t *>(
           const_cast<char *>(content.data() + offset)) = rel32;
-      return;
+      return 0;
     }
     case COFF::RelocationTypeAMD64::IMAGE_REL_AMD64_REL32 | COFF_MAGIC_BIT: {
       auto relocpot = reinterpret_cast<uint32_t *>(
@@ -1432,7 +1434,7 @@ static void relocate_data(StringRef content, uint64_t offset,
                   rsym.name.data(), rel32);
       }
       relocpot[0] = rel32;
-      return;
+      return 0;
     }
     default:
       break;
@@ -1446,8 +1448,18 @@ static void relocate_data(StringRef content, uint64_t offset,
     log_print(Develop, "Relocated data symbol {} at 0x{:x}.", rsym.name.data(),
               target);
   }
-  *reinterpret_cast<uint64_t *>(const_cast<char *>(content.data() + offset)) =
-      reinterpret_cast<uint64_t>(target);
+  auto relocpot = reinterpret_cast<uint64_t>(content.data() + offset);
+  *reinterpret_cast<uint64_t *>(relocpot) = reinterpret_cast<uint64_t>(target);
+  return istext ? relocpot : 0;
+}
+
+void Object::relocateData(const StringRef &content, uint64_t offset,
+                          const void *rsym) {
+  auto spot = relocate_data(content, offset,
+                            *reinterpret_cast<const RelocSymbol *>(rsym),
+                            dynsects_, type(), arch());
+  if (spot)
+    stubspots_.push_back(spot);
 }
 
 void Object::parseSections() {
@@ -1540,8 +1552,7 @@ void Object::parseSections() {
             auto rsym = get_symbol(addr, sym, r.getType(false));
             if (rsym.name.size()) {
               rsym.addend = r.r_addend;
-              relocate_data(expContent.get(), r.r_offset, rsym, dynsects_,
-                            type(), arch());
+              relocateData(expContent.get(), r.r_offset, &rsym);
             }
           }
         } else {
@@ -1569,8 +1580,7 @@ void Object::parseSections() {
         auto rsym = get_symbol(0, *sym, r.getType());
         if (rsym.stype == SymbolRef::ST_File)
           continue;
-        relocate_data(expContent.get(), r.getOffset(), rsym, dynsects_, type(),
-                      arch());
+        relocateData(expContent.get(), r.getOffset(), &rsym);
       }
     }
   }

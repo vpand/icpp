@@ -309,8 +309,11 @@ uint64_t Object::vm2rva(uint64_t vm, size_t *ti) {
 }
 
 bool Object::executable(uint64_t vm, Object **iobject) {
-  if (vm2rva(vm) != -1)
+  if (vm2rva(vm) != -1) {
+    if (iobject)
+      iobject[0] = this;
     return true;
+  }
   if (!iobject)
     return false;
   return Loader::executable(vm, iobject);

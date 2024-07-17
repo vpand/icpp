@@ -10,11 +10,14 @@
 #include <cassert>
 #include <map>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <unordered_map>
+#include <vector>
 
 namespace llvm {
 class MemoryBuffer;
+class StringRef;
 namespace object {
 class ObjectFile;
 } // namespace object
@@ -105,6 +108,8 @@ public:
     return vm - textsects_[0].vm;
   };
 
+  constexpr std::vector<uint64_t> stubSpots() { return stubspots_; }
+
   uint64_t vm2rva(uint64_t vm, size_t *ti = nullptr);
 
   // check whether vm belongs to text section
@@ -143,6 +148,9 @@ protected:
       decodeInsns(s);
   }
 
+  void relocateData(const llvm::StringRef &content, uint64_t offset,
+                    const void *rsym);
+
 protected:
   ObjectDisassembler odiser_;
   ObjectType type_;
@@ -164,6 +172,9 @@ protected:
   std::map<std::string, std::string> idecinfs_;
   // instruction relocations
   std::vector<RelocInfo> irelocs_;
+  // data section spots which contain pointer in text section,
+  // they'll be redirect to dynamic stub created by ExecEngine
+  std::vector<uint64_t> stubspots_;
 };
 
 class MachOObject : public Object {

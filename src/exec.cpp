@@ -46,6 +46,9 @@ struct UnicornEngine {
       // register
       uint64_t zero = 0;
       uc_reg_write(uc, UC_X86_REG_DR7, &zero);
+#else
+      // use the max version of arm64 cpu
+      uc_ctl_set_cpu_model(uc, UC_CPU_ARM64_MAX);
 #endif
     }
     busy.insert(uc);
@@ -204,10 +207,19 @@ private:
            RunConfig::inst()->stackSize() - switch_stack_size;
   }
 
-  constexpr void *topReturn() { return static_cast<void *>(this); }
+  constexpr void *topReturn() {
+    return topreturn_ ? topreturn_ : static_cast<void *>(this);
+  }
 
   // create a new stub function for the target
   uint64_t createStub(uint64_t vmfunc);
+
+  // check whether the target is a stub or not, if so returns the
+  // vm target directly
+  uint64_t checkStub(uint64_t target) {
+    auto found = stubvms_.find(target);
+    return found != stubvms_.end() ? found->second : target;
+  }
 
 private:
   // object dependency module loader
@@ -247,7 +259,10 @@ private:
   // current available stub code start address
   char *stubcode_ = nullptr;
   // <vm, stub> caches
-  std::map<uint64_t, uint64_t> stubcaches_;
+  std::map<uint64_t, uint64_t> vmstubs_;
+  // <stub, vm> caches
+  std::map<uint64_t, uint64_t> stubvms_;
+  void *topreturn_ = nullptr; // return address when called from stub
 };
 
 void ExecEngine::run(uint64_t pc, ContextICPP *regs) {
@@ -256,10 +271,14 @@ void ExecEngine::run(uint64_t pc, ContextICPP *regs) {
   auto pcrid = UC_ARM64_REG_PC;
   auto backup = loadRegisterAArch64();
   saveRegisterAArch64(*regs);
+
+  topreturn_ = reinterpret_cast<void *>(regs->r[A64_LR]);
 #else
   auto pcrid = UC_X86_REG_RIP;
   auto backup = loadRegisterX64();
   saveRegisterX64(*regs);
+
+  topreturn_ = *reinterpret_cast<void **>(regs->rsp);
 #endif
   // backup old pc
   uint64_t pcbackup;
@@ -267,6 +286,7 @@ void ExecEngine::run(uint64_t pc, ContextICPP *regs) {
 
   // run the current pc
   execLoop(pc);
+  topreturn_ = nullptr;
 
   // save the current context and restore the old one
 #if ARCH_ARM64
@@ -299,6 +319,32 @@ void ExecEngine::init() {
 }
 
 bool ExecEngine::execCtor() {
+  // initialize the stub code page
+  stubpage_ = page_alloc();
+  stubcode_ = stubpage_;
+  page_writable(stubpage_);
+
+  // make function stub, the vm function called from host side must
+  // be in stub mode, because the page it belongs to doesn't have the
+  // executable permission
+  for (auto spot : iobject_->stubSpots()) {
+    auto target = *reinterpret_cast<uint64_t *>(spot);
+    auto found = vmstubs_.find(target);
+    if (found == vmstubs_.end()) {
+      // create a new stub for this iobject vm target function
+      auto stub = host_callback_stub({this, target}, stubcode_);
+      found = vmstubs_.insert({target, reinterpret_cast<uint64_t>(stub)}).first;
+      stubvms_.insert({found->second, found->first});
+    }
+    // redirect to the exeuctable stub
+    *reinterpret_cast<uint64_t *>(spot) = found->second;
+  }
+
+  // set the stub page in read&exec mode
+  page_executable(stubpage_);
+  page_flush(stubpage_);
+
+  // now, we can execute any of the code in this iobject safely
   for (auto target : iobject_->ctorEntries()) {
     robject_ = iobject_.get();
     if (!run(reinterpret_cast<uint64_t>(target), 0, 0))
@@ -489,11 +535,6 @@ static thread_return_t exec_thread_stub(void *pcontext) {
 static void nop_function() {}
 
 uint64_t ExecEngine::createStub(uint64_t vmfunc) {
-  // initialize the stub code page
-  if (!stubpage_) {
-    stubpage_ = page_alloc();
-    stubcode_ = stubpage_;
-  }
   if (stubcode_ > (stubpage_ + mem_page_size - 64)) {
     // should never be here, one page can contain thousands of stubs
     log_print(Runtime, "You must be kidding me, how can you make so many "
@@ -561,7 +602,7 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
   } else if (reinterpret_cast<uint64_t>(atexit) == target ||
              reinterpret_cast<uint64_t>(__cxa_atexit) == target) {
     Object *iobj;
-    if (robject_->executable(target, &iobj)) {
+    if (robject_->executable(args[0], &iobj)) {
       Atexit aep; // at exit parameters
       aep.object = iobj;
       aep.vm = args[0]; // exit routine
@@ -570,6 +611,7 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
       dyndtors_.push_back(aep);
       // replace it with a nop stub function
       args[0] = reinterpret_cast<uint64_t>(nop_function);
+      target = args[0];
     }
   } else if (reinterpret_cast<uint64_t>(abort) == target) {
     log_print(Runtime, "Abort called in script.");
@@ -616,10 +658,11 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
     for (size_t i = 0; i < std::size(args); i++) {
       Object *iobj;
       if (robject_->executable(target, &iobj)) {
-        auto found = stubcaches_.find(target);
-        if (found == stubcaches_.end()) {
+        auto found = vmstubs_.find(target);
+        if (found == vmstubs_.end()) {
           // create a new stub for this iobject vm target function
-          found = stubcaches_.insert({target, createStub(target)}).first;
+          found = vmstubs_.insert({target, createStub(target)}).first;
+          stubvms_.insert({found->second, found->first});
         }
         args[i] = found->second;
       }
@@ -674,10 +717,12 @@ bool ExecEngine::interpretCallAArch64(const InsnInfo *&inst, uint64_t &pc,
     specialCallProcess(target, retaddr);
 
     // call external function
-    auto context = loadRegisterAArch64();
-    context.r[A64_LR] = retaddr; // set return address
-    host_call(&context, reinterpret_cast<const void *>(target));
-    saveRegisterAArch64(context);
+    if (target != reinterpret_cast<uint64_t>(nop_function)) {
+      auto context = loadRegisterAArch64();
+      context.r[A64_LR] = retaddr; // set return address
+      host_call(&context, reinterpret_cast<const void *>(target));
+      saveRegisterAArch64(context);
+    }
 
     // finish interpreting
     if (retaddr == reinterpret_cast<uint64_t>(topReturn())) {
@@ -702,10 +747,14 @@ bool ExecEngine::interpretJumpAArch64(const InsnInfo *&inst, uint64_t &pc,
     if (executable(retaddr) ||
         topReturn() == reinterpret_cast<void *>(retaddr)) {
       // check and process some api which has callback argument
-      specialCallProcess(target, retaddr);
+      bool update = specialCallProcess(target, retaddr);
 
-      host_call(&context, reinterpret_cast<const void *>(target));
-      saveRegisterAArch64(context);
+      if (target != reinterpret_cast<uint64_t>(nop_function)) {
+        if (update)
+          context = loadRegisterAArch64();
+        host_call(&context, reinterpret_cast<const void *>(target));
+        saveRegisterAArch64(context);
+      }
 
       // return to caller
       pc = retaddr;
@@ -751,9 +800,11 @@ bool ExecEngine::interpretCallX64(const InsnInfo *&inst, uint64_t &pc,
     specialCallProcess(target, retaddr);
 
     // call external function
-    auto context = loadRegisterX64();
-    host_call(&context, reinterpret_cast<const void *>(target));
-    saveRegisterX64(context);
+    if (target != reinterpret_cast<uint64_t>(nop_function)) {
+      auto context = loadRegisterX64();
+      host_call(&context, reinterpret_cast<const void *>(target));
+      saveRegisterX64(context);
+    }
 
     // finish interpreting
     if (retaddr == reinterpret_cast<uint64_t>(topReturn())) {
@@ -780,10 +831,14 @@ bool ExecEngine::interpretJumpX64(const InsnInfo *&inst, uint64_t &pc,
     if (executable(retaddr) ||
         topReturn() == reinterpret_cast<void *>(retaddr)) {
       // check and process some api which has callback argument
-      specialCallProcess(target, retaddr);
+      bool update = specialCallProcess(target, retaddr);
 
-      host_call(&context, reinterpret_cast<const void *>(target));
-      saveRegisterX64(context);
+      if (target != reinterpret_cast<uint64_t>(nop_function)) {
+        if (update)
+          context = loadRegisterX64();
+        host_call(&context, reinterpret_cast<const void *>(target));
+        saveRegisterX64(context);
+      }
 
       // return to caller
       pc = retaddr;
@@ -1029,6 +1084,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       auto metaptr = robject_->metaInfo<uint16_t>(inst, pc);
       uint64_t target;
       uc_reg_read(uc_, metaptr[0], &target);
+      target = checkStub(target);
       jump = interpretCallAArch64(inst, pc, target);
       break;
     }
@@ -1049,6 +1105,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       auto metaptr = robject_->metaInfo<uint16_t>(inst, pc);
       uint64_t target;
       uc_reg_read(uc_, metaptr[0], &target);
+      target = checkStub(target);
       jump = interpretJumpAArch64(inst, pc, target);
       break;
     }
@@ -1121,6 +1178,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       auto metaptr = robject_->metaInfo<uint16_t>(inst, pc);
       uint64_t target;
       uc_reg_read(uc_, metaptr[0], &target);
+      target = checkStub(target);
       jump = interpretCallX64(inst, pc, target);
       break;
     }
@@ -1147,6 +1205,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       auto metaptr = robject_->metaInfo<uint16_t>(inst, pc);
       uint64_t target;
       uc_reg_read(uc_, metaptr[0], &target);
+      target = checkStub(target);
       jump = interpretJumpX64(inst, pc, target);
       break;
     }

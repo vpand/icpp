@@ -74,7 +74,7 @@ struct ModuleLoader {
     // and we will skip to call it in ctor caller
     syms_.insert({"__ZGIW3std", reinterpret_cast<const void *>(&nop_function)});
 
-    // make sure that icpp and its script use the same exception api
+    // make sure that icpp and its script use the same c++ api
     syms_.insert(
         {"___cxa_atexit", reinterpret_cast<const void *>(&__cxa_atexit)});
     syms_.insert(
@@ -83,7 +83,6 @@ struct ModuleLoader {
     syms_.insert({"_ZGIW3std", reinterpret_cast<const void *>(&nop_function)});
 #endif
 
-    // make sure that icpp and its script use the same exception api
 #if __linux__
     syms_.insert(
         {"__cxa_atexit", reinterpret_cast<const void *>(&__cxa_atexit)});
