@@ -27,15 +27,14 @@ using namespace std::literals::string_view_literals;
 auto command(const std::string cmd, const std::vector<std::string> &args) {
   bp::ipstream is; // reading pipe-stream
   // cmd args > is
-  bp::child sub(cmd, args, bp::std_out > is);
+  bp::child(cmd, args, bp::std_out > is).wait();
 
   std::vector<std::string> data;
   std::string line;
   // read the output lines
-  while (sub.running() && std::getline(is, line))
+  while (std::getline(is, line))
     data.push_back(line);
 
-  sub.wait();
   return data;
 }
 
@@ -68,10 +67,11 @@ int main(int argc, const char *argv[]) {
   std::vector<std::string> modifiedfs;
   for (auto &line : gitlines) {
     std::vector<std::string> parts;
-    boost::split(parts, line, boost::is_any_of("modified:"));
+    boost::iter_split(parts, line, boost::first_finder("modified:"));
     if (parts.size() != 2)
-      boost::split(parts, line, boost::is_any_of("new file:"));
+      boost::iter_split(parts, line, boost::first_finder("new file:"));
     if (parts.size() == 2) {
+      boost::trim(parts[1]);
       // save the modified or newly created files
       modifiedfs.push_back(fs::path(parts[1]).filename().string());
     }
