@@ -707,10 +707,11 @@ bool ExecEngine::interpretJumpAArch64(const InsnInfo *&inst, uint64_t &pc,
       host_call(&context, reinterpret_cast<const void *>(target));
       saveRegisterAArch64(context);
 
-      // finish interpreting
-      if (retaddr == reinterpret_cast<uint64_t>(topReturn())) {
-        pc = retaddr;
-        return true;
+      // return to caller
+      pc = retaddr;
+      if (retaddr != reinterpret_cast<uint64_t>(topReturn())) {
+        // update current inst
+        inst = robject_->insnInfo(pc);
       }
       return true;
     }
@@ -784,10 +785,11 @@ bool ExecEngine::interpretJumpX64(const InsnInfo *&inst, uint64_t &pc,
       host_call(&context, reinterpret_cast<const void *>(target));
       saveRegisterX64(context);
 
-      // finish interpreting
-      if (retaddr == reinterpret_cast<uint64_t>(topReturn())) {
-        pc = retaddr;
-        return true;
+      // return to caller
+      pc = retaddr;
+      if (retaddr != reinterpret_cast<uint64_t>(topReturn())) {
+        // update current inst
+        inst = robject_->insnInfo(pc);
       }
       return true;
     }

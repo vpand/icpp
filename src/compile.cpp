@@ -71,6 +71,8 @@ int compile_source_icpp(int argc, const char **argv) {
   args.push_back("-no-canonical-prefixes");
   // use C++23 standard
   args.push_back("-std=c++23");
+  // disable some warnings
+  args.push_back("-Wno-deprecated-declarations");
 
 #if __APPLE__
   std::string_view argsysroot = "-isysroot";
@@ -141,6 +143,10 @@ int compile_source_icpp(int argc, const char **argv) {
   // force to use the icpp integrated C/C++ runtime header
   args.push_back("-nostdinc++");
   args.push_back("-nostdlib++");
+
+  // add include itself, the boost library needs this
+  auto inc = std::format("-I{}", rtinc);
+  args.push_back(inc.data());
 
   // add icpp module include
   auto icppinc = std::format("-I{}", RuntimeLib::inst().includeFull().string());

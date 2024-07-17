@@ -201,13 +201,15 @@ int main(int argc, char **argv) {
   auto boostinc = boost / "include";
   auto boostlib = boost / "lib";
   if (fs::exists(boostinc) && fs::exists(boostlib)) {
+    auto icppboostlib = lib / "boost";
+    create_dir(icppboostlib);
     pack_dir(boostinc, icpproot);
-    pack_dir(boostlib, icpproot);
+    pack_dir(boostlib, icppboostlib);
   } else {
     log(std::format("Can't find boost in {}, skipped packing boost.",
                     boost.string()));
   }
 
-  puts("Done.");
+  std::puts("Done.");
   return 0;
 }

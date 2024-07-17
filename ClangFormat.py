@@ -68,7 +68,7 @@ def main(argv):
             # save the modified files
             modifiedfs.append(os.path.basename(parts[1]))
     if len(modifiedfs) == 0:
-        print('Everything is new.')
+        print('Everything is up to date, nothing needs to be done')
         sys.exit(0)
     if len(argv) == 2:
         if argv[1] == 'all':
