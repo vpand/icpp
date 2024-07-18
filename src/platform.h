@@ -34,6 +34,7 @@
 #include <dlfcn.h>
 #include <pthread.h>
 #include <sys/mman.h>
+#include <unistd.h>
 #if __APPLE__
 #include <AvailabilityVersions.h>
 #include <TargetConditionals.h>
@@ -154,7 +155,7 @@ static inline void page_free(const void *page) {
 }
 
 static inline void page_flush(const void *page) {
-  auto start = reinterpret_cast<const char *>(page);
+  auto start = const_cast<char *>(reinterpret_cast<const char *>(page));
   __builtin___clear_cache(start, start + mem_page_size);
 }
 
