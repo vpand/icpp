@@ -213,15 +213,7 @@ void Debugger::stepEntry(Thread *thread, std::string_view reason) {
   thread->itc->wait();
 }
 
-void Debugger::leave() {
-  std::lock_guard lock(mutex_);
-  auto found = threads_.find({.tid = std::this_thread::get_id()});
-  if (curthread_ == &*found) {
-    curthread_ = nullptr;
-  }
-  // delete current thread
-  threads_.erase(found);
-}
+void Debugger::leave() {}
 
 void Debugger::listen() {
   acceptor_ = std::make_unique<ip::tcp::acceptor>(

@@ -122,8 +122,17 @@ struct ExecEngine {
     // give back the borrowed uc instance
     ue.release(uc_);
 
-    if (stubpage_)
-      page_free(stubpage_);
+    if (stubpage_) {
+      auto iptr = reinterpret_cast<uint64_t *>(stubpage_);
+      auto rets = host_insn_rets();
+      // as the script may have registered callback to host system,
+      // we can't simply free this page, so fill them with return instructions.
+      page_writable(stubpage_);
+      for (int i = 0; i < mem_page_size / 8; i++, *iptr++ = rets)
+        ;
+      page_executable(stubpage_);
+      page_flush(stubpage_);
+    }
   }
 
   int run(bool lib = false);
@@ -266,19 +275,31 @@ private:
 };
 
 void ExecEngine::run(uint64_t pc, ContextICPP *regs) {
+  constexpr const int stack_switch_size = 128;
   // backup the old context and set a new one
 #if ARCH_ARM64
   auto pcrid = UC_ARM64_REG_PC;
   auto backup = loadRegisterAArch64();
-  saveRegisterAArch64(*regs);
-
+  char *vmstack =
+      reinterpret_cast<char *>(backup.r[A64_SP]) - stack_switch_size;
+  char *hoststack = reinterpret_cast<char *>(regs->r[A64_SP]);
+  // load host stack
+  std::memcpy(vmstack, hoststack, stack_switch_size);
   topreturn_ = reinterpret_cast<void *>(regs->r[A64_LR]);
+  // set vm stack
+  regs->r[A64_SP] = reinterpret_cast<uint64_t>(vmstack);
+  saveRegisterAArch64(*regs);
 #else
   auto pcrid = UC_X86_REG_RIP;
   auto backup = loadRegisterX64();
-  saveRegisterX64(*regs);
-
+  char *vmstack = reinterpret_cast<char *>(backup.rsp) - stack_switch_size;
+  char *hoststack = reinterpret_cast<char *>(regs->rsp);
+  // load host stack
+  std::memcpy(vmstack, hoststack, stack_switch_size);
   topreturn_ = *reinterpret_cast<void **>(regs->rsp);
+  // set vm stack
+  regs->rsp = reinterpret_cast<uint64_t>(vmstack);
+  saveRegisterX64(*regs);
 #endif
   // backup old pc
   uint64_t pcbackup;
@@ -292,9 +313,11 @@ void ExecEngine::run(uint64_t pc, ContextICPP *regs) {
 #if ARCH_ARM64
   *regs = loadRegisterAArch64();
   saveRegisterAArch64(backup);
+  regs->r[A64_SP] = reinterpret_cast<uint64_t>(hoststack);
 #else
   *regs = loadRegisterX64();
   saveRegisterX64(backup);
+  regs->rsp = reinterpret_cast<uint64_t>(hoststack);
 #endif
   // restore old pc
   uc_reg_write(uc_, pcrid, &pcbackup);

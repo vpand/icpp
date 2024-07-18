@@ -210,6 +210,9 @@ void host_naked_syscall();
 uint64_t host_naked_compare(uint64_t left, uint64_t right);
 uint64_t host_naked_test(uint64_t left, uint64_t right);
 
+// fill the host return instruction's opcode into an int64_t
+uint64_t host_insn_rets();
+
 /*
 when vm registers a callback function to host, we must dynamically
 generate a executable host callback wrapper to it, otherwise program

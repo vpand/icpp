@@ -192,6 +192,7 @@ int main(int argc, char **argv) {
     else
       log(std::format("There's no {}, ignored packing it.", srcdir.string()));
   }
+  pack_file(srcroot / "../../runtime/include/icpp.hpp", include, false);
 
   // copy clang files
   pack_dir(srcroot / "../third/llvm-project/llvm/lib/clang", lib);

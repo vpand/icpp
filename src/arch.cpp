@@ -507,6 +507,28 @@ uint64_t __NAKED__ host_naked_test(uint64_t left, uint64_t right) {
 #endif
 }
 
+static void insn_rets(void) {
+#if ARCH_ARM64
+  __ASM__("ret");
+  __ASM__("ret");
+#elif ARCH_X64
+  __ASM__("retq");
+  __ASM__("retq");
+  __ASM__("retq");
+  __ASM__("retq");
+  __ASM__("retq");
+  __ASM__("retq");
+  __ASM__("retq");
+  __ASM__("retq");
+#else
+#error Unsupported host architecture.
+#endif
+}
+
+uint64_t host_insn_rets() {
+  return *reinterpret_cast<const uint64_t *>(&insn_rets);
+}
+
 #if ARCH_X64
 
 static void __NAKED__ stub_exec_engine() {
@@ -613,9 +635,10 @@ static void __NAKED__ stub_exec_engine() {
 const void *host_callback_stub(const StubContext &ctx, char *&codeptr) {
   /*
   stub entry for host:
-   adrp x16, #0
+   adrp x16, #page
+   ldr  x16, [x16, #page_ctxoff]
    adrp x17, #page
-   ldr  x17, [x17, #pageoff]
+   ldr  x17, [x17, #page_stuboff]
    br   x17
    */
   // init stub context
@@ -624,10 +647,9 @@ const void *host_callback_stub(const StubContext &ctx, char *&codeptr) {
 
   uint32_t *curfn = (uint32_t *)&interpctx[1];
   uint32_t *opcodeptr = curfn;
-  *opcodeptr++ = adrp_opcode(16, 0);
 
   // make sure the pointer address of stub_exec_engine is aligned to 8
-  uint64_t fnptraddr = ((uint64_t)opcodeptr + 0xC);
+  uint64_t fnptraddr = ((uint64_t)opcodeptr + 4 * 5);
   while (fnptraddr % 8) {
     fnptraddr += 4;
   }
@@ -635,12 +657,19 @@ const void *host_callback_stub(const StubContext &ctx, char *&codeptr) {
   uint64_t pcoff = fnptraddr - ((uint64_t)opcodeptr & ~(mem_page_size - 1));
   uint64_t pagecount = pcoff / mem_page_size;
   uint64_t pageoff = pcoff - pagecount * mem_page_size;
+  // load stub/context, and jump to stub
+  *opcodeptr++ = adrp_opcode(16, (uint32_t)pagecount);
+  *opcodeptr++ = ldr_opcode(16, (uint32_t)pageoff + 8);
   *opcodeptr++ = adrp_opcode(17, (uint32_t)pagecount);
   *opcodeptr++ = ldr_opcode(17, (uint32_t)pageoff);
   *opcodeptr++ = br_opcode(17);
 
-  *(void **)fnptraddr = (void *)&stub_exec_engine;
-  codeptr = reinterpret_cast<char *>(fnptraddr) + 8;
+  // place the stub and context pointer
+  *(void **)(fnptraddr + 0) = (void *)&stub_exec_engine;
+  *(void **)(fnptraddr + 8) = interpctx;
+
+  // advance to the next stub startup
+  codeptr = reinterpret_cast<char *>(fnptraddr) + 16;
   return curfn;
 }
 
