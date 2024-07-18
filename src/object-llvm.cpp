@@ -1480,6 +1480,8 @@ void Object::parseSections() {
     if (!expName) {
       continue;
     }
+    if (ofile_->isMachO())
+      rva = s.getAddress();
 
     auto name = expName.get();
     if (s.isText()) {

@@ -127,13 +127,17 @@ static auto pack_file(const fs::path &srcfile, const fs::path &dstdir,
   log(std::format("Packed file {}.", dstfile.string()));
 }
 
-static auto pack_dir(const fs::path &srcdir, const fs::path &dstroot) {
+static auto pack_dir(const fs::path &srcdir, const fs::path &dstroot,
+                     bool symlink = false) {
   auto dstdir = dstroot / srcdir.filename();
   std::error_code err;
-  fs::copy(srcdir, dstdir,
-           fs::copy_options::overwrite_existing | fs::copy_options::recursive |
-               fs::copy_options::skip_symlinks,
-           err);
+  auto option =
+      fs::copy_options::overwrite_existing | fs::copy_options::recursive;
+  if (symlink)
+    option |= fs::copy_options::copy_symlinks;
+  else
+    option |= fs::copy_options::skip_symlinks;
+  fs::copy(srcdir, dstdir, option, err);
   if (err)
     log_exit(std::format("Failed to copy directory: {} ==> {}, {}.",
                          srcdir.string(), dstdir.string(), err.message()));
@@ -188,7 +192,7 @@ int main(int argc, char **argv) {
   for (auto &name : incnames) {
     auto srcdir = srcroot / "../../runtime" / name;
     if (fs::exists(srcdir))
-      pack_dir(srcdir, include);
+      pack_dir(srcdir, include, true);
     else
       log(std::format("There's no {}, ignored packing it.", srcdir.string()));
   }
@@ -205,7 +209,7 @@ int main(int argc, char **argv) {
     auto icppboostlib = lib / "boost";
     create_dir(icppboostlib);
     pack_dir(boostinc, icpproot);
-    pack_dir(boostlib, icppboostlib);
+    pack_dir(boostlib / ".", icppboostlib);
   } else {
     log(std::format("Can't find boost in {}, skipped packing boost.",
                     boost.string()));

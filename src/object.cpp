@@ -432,8 +432,14 @@ std::string Object::generateCache() {
   }
 
   // set the original object buffer
-  iobject.set_objbuf(
-      std::string(fbuf_.get()->getBufferStart(), fbuf_.get()->getBufferSize()));
+  auto errBuff = llvm::MemoryBuffer::getFile(path_);
+  if (!errBuff) {
+    log_print(Runtime, "Failed to read when caching '{}' : {}.", path_,
+              errBuff.getError().message());
+    return "";
+  }
+  iobject.set_objbuf(std::string(errBuff.get()->getBufferStart(),
+                                 errBuff.get()->getBufferSize()));
 
   // save to io file
   auto cachepath = cachePath();

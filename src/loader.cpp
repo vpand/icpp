@@ -73,30 +73,23 @@ struct ModuleLoader {
     // currently, the clang cpp module initializer is a nop function,
     // and we will skip to call it in ctor caller
     syms_.insert({"__ZGIW3std", reinterpret_cast<const void *>(&nop_function)});
-
-    // make sure that icpp and its script use the same c++ api
-    syms_.insert(
-        {"___cxa_atexit", reinterpret_cast<const void *>(&__cxa_atexit)});
-    syms_.insert(
-        {"___cxa_throw", reinterpret_cast<const void *>(&__cxa_throw)});
 #else
     syms_.insert({"_ZGIW3std", reinterpret_cast<const void *>(&nop_function)});
 #endif
 
-#if __linux__
-    syms_.insert(
-        {"__cxa_atexit", reinterpret_cast<const void *>(&__cxa_atexit)});
-    syms_.insert({"__cxa_throw", reinterpret_cast<const void *>(&__cxa_throw)});
-#endif
-
     // load c++ runtime library
-    auto libcxx = fs::absolute(RunConfig::inst()->program).parent_path() /
-                  "libc++" LLVM_PLUGIN_EXT;
-    auto mcxx = loadLibrary(libcxx.string());
+    auto exepath = fs::absolute(RunConfig::inst()->program).parent_path();
+    auto mcxx = loadLibrary((exepath / "libc++" LLVM_PLUGIN_EXT).string());
 #if ON_WINDOWS
     libcpp_thread_create = (libcpp_thread_create_t)(resolve(
         mcxx, "?__libcpp_thread_create@__1@std@@YAHPEAPEAXP6APEAXPEAX@Z1@Z",
         false));
+#elif __APPLE__
+    // although these library have already loaded when loading libc++, but
+    // in order to make sure all the c++ symbols resolved in them, so cache
+    // them herein
+    loadLibrary((exepath / "libc++abi.1" LLVM_PLUGIN_EXT).string());
+    loadLibrary((exepath / "libunwind.1" LLVM_PLUGIN_EXT).string());
 #endif
 
     // initialize the symbol hashes for the third-party modules lazy loading
