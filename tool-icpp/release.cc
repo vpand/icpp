@@ -177,10 +177,20 @@ int main(int argc, char **argv) {
     pack_file(srcroot / name, bin, true);
 
   // copy libc++ file
-  pack_file(srcroot / "../libcxx/lib" / libcpp, bin, true, libcpp_name);
-#if __APPLE__ || __linux__
-  pack_file(srcroot / "../libcxx/lib" / libcppabi, bin, true, libcppabi_name);
-  pack_file(srcroot / "../libcxx/lib" / libunwind, bin, true, libunwind_name);
+#if __APPLE__ || _WIN32
+  pack_file(srcroot / "../libcxx/lib" / libcpp, lib, true, libcpp_name);
+#endif
+#if __APPLE__
+  pack_file(srcroot / "../libcxx/lib" / libcppabi, lib, true, libcppabi_name);
+  pack_file(srcroot / "../libcxx/lib" / libunwind, lib, true, libunwind_name);
+#elif __linux__
+  auto libcxx = srcroot / std::format("../llvm/lib/{}-unknown-linux-gnu", arch);
+  pack_file(libcxx / libcpp, lib, true, libcpp_name);
+  pack_file(libcxx / libcppabi, lib, true, libcppabi_name);
+  pack_file(libcxx / libunwind, lib, true, libunwind_name);
+  std::system(
+      std::format("cd {}; ln -s {} {}", lib.string(), libcpp_name, libcpp)
+          .data());
 #endif
 
   // copy c/c++/os headers

@@ -95,7 +95,8 @@ static void print_help() {
          "    >>> puts(\"Hello world.\")\n"
       << std::endl
       << "Run an C++ expression, e.g:" << std::endl
-      << R"x(  icpp "puts(std::format(\"{:x}\", 666).data())")x" << std::endl;
+      << R"x(  icpp "puts(std::format(\"{:x}\", 88888888).data())")x"
+      << std::endl;
 }
 
 static std::vector<std::string>

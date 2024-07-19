@@ -1074,14 +1074,8 @@ static void reloc_symbols(ObjectFile *ofile, ArchType arch, TextSection &text,
       // system
       auto oelf = static_cast<ELF64LEObjectFile *>(ofile);
       auto elf = oelf->getELFFile();
-      auto checker = [&textname, &elf](const Elf_Shdr &Sec) -> bool {
-        StringRef name;
-        if (auto expName = elf.getSectionName(Sec))
-          name = *expName;
-        else
-          log_print(Runtime, "Bad section name: {}.",
-                    toString(expName.takeError()));
-        return name == textname;
+      auto checker = [&texts, &oelf](const Elf_Shdr &Sec) {
+        return texts == oelf->toSectionRef(&Sec);
       };
       Expected<MapVector<const Elf_Shdr *, const Elf_Shdr *>> expTextReloc =
           elf.getSectionAndRelocations(checker);

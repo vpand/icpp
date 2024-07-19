@@ -92,8 +92,9 @@ struct ModuleLoader {
 #endif
 
     // load c++ runtime library
-    auto exepath = fs::absolute(RunConfig::inst()->program).parent_path();
-    auto mcxx = loadLibrary((exepath / "libc++" LLVM_PLUGIN_EXT).string());
+    auto libpath =
+        fs::absolute(RunConfig::inst()->program).parent_path() / "../lib";
+    auto mcxx = loadLibrary((libpath / "libc++" LLVM_PLUGIN_EXT).string());
 #if ON_WINDOWS
     libcpp_thread_create = (libcpp_thread_create_t)(resolve(
         mcxx, "?__libcpp_thread_create@__1@std@@YAHPEAPEAXP6APEAXPEAX@Z1@Z",
@@ -102,8 +103,8 @@ struct ModuleLoader {
     // although these library have already loaded when loading libc++, but
     // in order to make sure all the c++ symbols resolved in them, so cache
     // them herein
-    loadLibrary((exepath / "libc++abi.1" LLVM_PLUGIN_EXT).string());
-    loadLibrary((exepath / "libunwind.1" LLVM_PLUGIN_EXT).string());
+    loadLibrary((libpath / "libc++abi.1" LLVM_PLUGIN_EXT).string());
+    loadLibrary((libpath / "libunwind.1" LLVM_PLUGIN_EXT).string());
 #endif
 
     // initialize the symbol hashes for the third-party modules lazy loading
