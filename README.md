@@ -168,17 +168,16 @@ ICPP Remote Gadget Server Options:
 ```
 
 ## Status
-ICPP_ROOT/snippet:
- * Windows X86_64 &#10004;
- * macOS ARM64/X86_64 &#10004;
- * Linux X86_64 &#10004;
- * Under developing...
-
-| OS           | C++ Source | X86_64 Binary | AArch64 Binary | X86_64 on AArch64 | AArch64 on X86_64 |
-| :----------  | :--------: | :-----------: | :------------: | :---------------: | :---------------: |
-| **Windows**  | &#10008;   | &#10008;      | &#10008;       | &#10008;          | &#10008;          |
-| **macOS**    | &#10008;   | &#10008;      | &#10008;       | &#10008;          | &#10008;          |
-| **Linux**    | &#10008;   | &#10008;      | &#10008;       | &#10008;          | &#10008;          |
+### Implementation
+| OS           | C/C++ Source | Executable Binary | X86_64 on AArch64 | AArch64 on X86_64 |
+| :----------  | :--------:   | :------------: | :---------------: | :---------------: |
+| **Windows**  | &#10004;     | &#10008;       | &#10008;          | &#10008;          |
+| **macOS**    | &#10004;     | &#10008;       | &#10008;          | &#10008;          |
+| **Linux**    | &#10004;     | &#10008;       | &#10008;          | &#10008;          |
+### Platform
+ * Microsoft: Windows x86_64 >= **10**, Windows arm64 >= **11**;
+ * Apple: macOS x86_64 >= **10.15**, macOS arm64 >= **11.3**;
+ * Linux: **Ubuntu** x86_64/aarch64 >= **22.04**;
 
 ## Build
 To build your own version of icpp, make sure all of the **prerequisites** are in your system PATH environment:

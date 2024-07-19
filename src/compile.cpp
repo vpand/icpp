@@ -95,7 +95,7 @@ int compile_source_icpp(int argc, const char **argv) {
     cppminc = std::format("-fprebuilt-module-path={}/apple/module", rtinc);
   }
 #elif ON_WINDOWS
-  auto wininc = std::format("-I{}/win", rtinc);
+  auto wininc = std::format("-I{}/win/ucrt", rtinc);
   std::string sysroot;
   for (int i = 0; i < argc - 1; i++) {
     if (std::string_view(argv[i]) == "-target") {

@@ -1516,14 +1516,8 @@ void Object::parseSections() {
 
         auto oelf = static_cast<ELF64LEObjectFile *>(ofile_.get());
         auto elf = oelf->getELFFile();
-        auto checker = [&name, &elf](const Elf_Shdr &Sec) -> bool {
-          StringRef sname;
-          if (auto expName = elf.getSectionName(Sec))
-            sname = *expName;
-          else
-            log_print(Runtime, "Bad section name: {}.",
-                      toString(expName.takeError()));
-          return sname == name;
+        auto checker = [&s, &oelf](const Elf_Shdr &Sec) {
+          return s == oelf->toSectionRef(&Sec);
         };
         Expected<MapVector<const Elf_Shdr *, const Elf_Shdr *>> expDataReloc =
             elf.getSectionAndRelocations(checker);

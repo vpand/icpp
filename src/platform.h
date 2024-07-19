@@ -161,8 +161,6 @@ static inline void page_flush(const void *page) {
 
 #endif // end of __APPLE__
 
-constexpr const std::string_view cppm_init_func = "ZGIW3std";
-
 static inline void page_writable(const void *page) {
   mprotect(const_cast<void *>(page), mem_page_size, PROT_WRITE);
 }
@@ -179,6 +177,8 @@ void __stack_chk_fail(void);
 }
 
 #endif // end of ON_WINDOWS
+
+constexpr const std::string_view cppm_init_func = "ZGIW3std";
 
 const void *load_library(std::string_view path);
 

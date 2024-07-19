@@ -679,7 +679,7 @@ const void *host_callback_stub(const StubContext &ctx, char *&codeptr) {
 // re-implement the symbols on Windows ARM64 which are dependent by unicorn/qemu
 #if ARCH_ARM64
 extern "C" {
-void __cpuidex(int vec[4], int, int) { std::memset(vec, 0, sizeof(vec)); }
+void __cpuidex(int vec[4], int, int) { vec[0] = vec[1] = vec[2] = vec[3] = 0; }
 
 void _setjmp_wrapper(jmp_buf jbuf) { ::setjmp(jbuf); }
 }
