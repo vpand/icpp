@@ -35,7 +35,12 @@ const void *load_library(std::string_view path) {
 #if ON_WINDOWS
   return reinterpret_cast<void *>(::LoadLibraryA(path.data()));
 #else
-  return dlopen(path.data(), RTLD_NOW);
+  auto handle = dlopen(path.data(), RTLD_NOW);
+  if (handle)
+    return handle;
+  log_print(Runtime, "{}", dlerror());
+  ;
+  return nullptr;
 #endif
 }
 

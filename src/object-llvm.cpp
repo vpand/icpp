@@ -1463,26 +1463,28 @@ void Object::relocateData(const StringRef &content, uint64_t offset,
 }
 
 void Object::parseSections() {
-  struct rva_updator {
-    ~rva_updator() {
-      // update the next section's rva
-      rva += size ? size : 8;
-      rva = alignToPowerOf2(rva, 8);
+  struct vmrva_updator {
+    ~vmrva_updator() {
+      // update the next section's vm rva
+      vmrva += size ? size : 8;
+      vmrva = alignToPowerOf2(vmrva, 8);
     }
 
     uint64_t size;
-    uint32_t &rva;
+    uint32_t &vmrva;
   };
-  uint32_t rva = 0;
+  // it doesn't make any sense for runtime but useful to locate the section in
+  // VMPStudio or IDA when debugging the following code
+  uint32_t vmrva = 0;
   for (auto &s : ofile_->sections()) {
-    rva_updator update{s.getSize(), rva};
+    vmrva_updator update{s.getSize(), vmrva};
+    if (ofile_->isMachO())
+      vmrva = s.getAddress();
+
     auto expName = s.getName();
     if (!expName) {
       continue;
     }
-    if (ofile_->isMachO())
-      rva = s.getAddress();
-
     auto name = expName.get();
     if (s.isText()) {
       auto expContent = s.getContents();
@@ -1501,7 +1503,7 @@ void Object::parseSections() {
         // elf/coff may place each function in its own section, in this
         // kind of situation, all the independent section's address may be 0.
         // herein we fix their rva which is manually calculated.
-        news.rva = rva;
+        news.rva = news.vm - textsects_[0].vm;
       }
       if (0) {
         log_print(Develop, "Section {} rva={:x}, vm={:x} size={}.", name.data(),

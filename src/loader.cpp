@@ -5,6 +5,7 @@
 */
 
 #include "loader.h"
+#include "arch.h"
 #include "exec.h"
 #include "log.h"
 #include "object.h"
@@ -29,11 +30,16 @@ static uint64_t __dso_handle = 0;
 libcpp_thread_create_t libcpp_thread_create = nullptr;
 
 extern "C" {
-#if __linux__ && __x86_64__
+#if __linux__
 void __divti3(void);
 void __modti3(void);
 void __udivti3(void);
 void __umodti3(void);
+void __unordtf2(void);
+#if ARCH_ARM64
+void __aarch64_ldadd8_acq_rel(void);
+void __aarch64_ldadd8_relax(void);
+#endif
 #elif ON_WINDOWS
 void _CxxThrowException(void);
 #endif
@@ -49,12 +55,19 @@ struct ModuleLoader {
     //
     // herein simulates this behaviour or redirects it to the pre-cached
     // implementation
-    syms_.insert({"___dso_handle", &__dso_handle});
-#if __linux__ && __x86_64__
+#if __linux__
+    syms_.insert({"__dso_handle", &__dso_handle});
     syms_.insert({"__divti3", reinterpret_cast<const void *>(&__divti3)});
     syms_.insert({"__modti3", reinterpret_cast<const void *>(&__modti3)});
     syms_.insert({"__udivti3", reinterpret_cast<const void *>(&__udivti3)});
     syms_.insert({"__umodti3", reinterpret_cast<const void *>(&__umodti3)});
+    syms_.insert({"__unordtf2", reinterpret_cast<const void *>(&__unordtf2)});
+#if ARCH_ARM64
+    syms_.insert({"__aarch64_ldadd8_acq_rel",
+                  reinterpret_cast<const void *>(&__aarch64_ldadd8_acq_rel)});
+    syms_.insert({"__aarch64_ldadd8_relax",
+                  reinterpret_cast<const void *>(&__aarch64_ldadd8_relax)});
+#endif
 #elif ON_WINDOWS
     // clang libc++: operator delete(void *,unsigned __int64)
     // msvc: operator delete(void *)
@@ -70,6 +83,7 @@ struct ModuleLoader {
 #endif
 
 #if __APPLE__
+    syms_.insert({"___dso_handle", &__dso_handle});
     // currently, the clang cpp module initializer is a nop function,
     // and we will skip to call it in ctor caller
     syms_.insert({"__ZGIW3std", reinterpret_cast<const void *>(&nop_function)});
@@ -264,16 +278,28 @@ const void *ModuleLoader::lookup(std::string_view name, bool data) {
   if (!boost && name.find("boost") != std::string_view::npos) {
     boost = true;
 
+    // load these libs in the end, otherwise failed loading
+    std::vector<std::string> lazylibs;
     for (auto &entry : fs::recursive_directory_iterator(
              fs::absolute(RunConfig::inst()->program).parent_path() / ".." /
              "lib" / "boost")) {
       auto libpath = entry.path();
-      if (entry.is_regular_file() && libpath.extension() == LLVM_PLUGIN_EXT) {
-        if (!load_library(libpath.string()))
-          log_print(Runtime, "Failed load boost library: {}.",
-                    libpath.string());
+      auto name = libpath.filename().string();
+      if (entry.is_regular_file() && !entry.is_symlink() &&
+          name.find(LLVM_PLUGIN_EXT) != std::string::npos) {
+#if __linux__
+        if (name.find("boost_log") != std::string::npos ||
+            name.find("boost_locale") != std::string::npos ||
+            name.find("boost_fiber_numa") != std::string::npos) {
+          lazylibs.push_back(libpath.string());
+          continue;
+        }
+#endif
+        loadLibrary(libpath.string());
       }
     }
+    for (auto &p : lazylibs)
+      loadLibrary(p);
   }
 
   const void *target = nullptr;

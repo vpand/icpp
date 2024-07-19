@@ -1,0 +1,1 @@
+-Wl,-rpath,$ORIGIN -Wl,-rpath,$ORIGIN/../lib -Wl,-rpath,$ORIGIN/../lib/boost

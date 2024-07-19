@@ -17,9 +17,7 @@ elseif(APPLE)
                    -Wl,-rpath,@executable_path/../lib
                    -Wl,-rpath,@executable_path/../lib/boost)
 else()
-  add_link_options(-Wl,-rpath,$ORIGIN 
-                   -Wl,-rpath,$ORIGIN/../lib
-                   -Wl,-rpath,$ORIGIN/../lib/boost)
+  add_link_options(@${CMAKE_CURRENT_SOURCE_DIR}/ld.txt)
 endif()
 
 set(LLVM_LINK_COMPONENTS
