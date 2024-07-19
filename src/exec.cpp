@@ -122,16 +122,16 @@ struct ExecEngine {
     // give back the borrowed uc instance
     ue.release(uc_);
 
-    if (stubpage_) {
-      auto iptr = reinterpret_cast<uint64_t *>(stubpage_);
-      auto rets = host_insn_rets();
+    auto rets = host_insn_rets();
+    for (auto page : stubpages_) {
+      auto iptr = reinterpret_cast<uint64_t *>(page);
       // as the script may have registered callback to host system,
       // we can't simply free this page, so fill them with return instructions.
-      page_writable(stubpage_);
+      page_writable(page);
       for (int i = 0; i < mem_page_size / 8; i++, *iptr++ = rets)
         ;
-      page_executable(stubpage_);
-      page_flush(stubpage_);
+      page_executable(page);
+      page_flush(page);
     }
   }
 
@@ -264,9 +264,9 @@ private:
   std::vector<Atexit> dyndtors_;
 
   // callback functions' stub code page
-  char *stubpage_ = nullptr;
+  std::vector<char *> stubpages_;
   // current available stub code start address
-  char *stubcode_ = nullptr;
+  char *stubcode_ = nullptr, *stubend_ = nullptr;
   // <vm, stub> caches
   std::map<uint64_t, uint64_t> vmstubs_;
   // <stub, vm> caches
@@ -341,11 +341,18 @@ void ExecEngine::init() {
   stack_.resize(RunConfig::inst()->stackSize());
 }
 
+static inline char *alloc_page(char *&end) {
+  auto page = page_alloc();
+  page_writable(page);
+  end = page + mem_page_size - 0x60;
+  return page;
+}
+
 bool ExecEngine::execCtor() {
   // initialize the stub code page
-  stubpage_ = page_alloc();
-  stubcode_ = stubpage_;
-  page_writable(stubpage_);
+  auto page = alloc_page(stubend_);
+  stubcode_ = page;
+  stubpages_.push_back(page);
 
   // make function stub, the vm function called from host side must
   // be in stub mode, because the page it belongs to doesn't have the
@@ -358,14 +365,25 @@ bool ExecEngine::execCtor() {
       auto stub = host_callback_stub({this, target}, stubcode_);
       found = vmstubs_.insert({target, reinterpret_cast<uint64_t>(stub)}).first;
       stubvms_.insert({found->second, found->first});
+      // overflow check
+      if (stubcode_ > stubend_) {
+        // set the stub page in read&exec mode
+        page_executable(page);
+        page_flush(page);
+
+        // allocate a new page
+        page = alloc_page(stubend_);
+        stubcode_ = page;
+        stubpages_.push_back(page);
+      }
     }
     // redirect to the exeuctable stub
     *reinterpret_cast<uint64_t *>(spot) = found->second;
   }
 
   // set the stub page in read&exec mode
-  page_executable(stubpage_);
-  page_flush(stubpage_);
+  page_executable(page);
+  page_flush(page);
 
   // now, we can execute any of the code in this iobject safely
   for (auto target : iobject_->ctorEntries()) {
@@ -558,16 +576,18 @@ static thread_return_t exec_thread_stub(void *pcontext) {
 static void nop_function() {}
 
 uint64_t ExecEngine::createStub(uint64_t vmfunc) {
-  if (stubcode_ > (stubpage_ + mem_page_size - 64)) {
-    // should never be here, one page can contain thousands of stubs
-    log_print(Runtime, "You must be kidding me, how can you make so many "
-                       "callbacks for host...");
-    std::exit(-1);
+  auto page = *stubpages_.rbegin();
+  if (stubcode_ > stubend_) {
+    // allocate a new page
+    page = alloc_page(stubend_);
+    stubcode_ = page;
+    stubpages_.push_back(page);
+  } else {
+    page_writable(page);
   }
-  page_writable(stubpage_);
   auto stub = host_callback_stub({this, vmfunc}, stubcode_);
-  page_executable(stubpage_);
-  page_flush(stubpage_);
+  page_executable(page);
+  page_flush(page);
   return reinterpret_cast<uint64_t>(stub);
 }
 
