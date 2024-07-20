@@ -127,8 +127,14 @@ execute_process(COMMAND ${PYTHON}
   ${CMAKE_CURRENT_SOURCE_DIR}/tool/qemu_tbgen_patcher.py
   ${CMAKE_CURRENT_SOURCE_DIR}/third/unicorn/qemu/softmmu/vl.c)
 if(MSVC)
-  # patch unicorn cmake to cmake correctly on Windows, otherwise it fails to cmake
+  # patch unicorn cmake to cmake correctly on Windows, otherwise it fails to cmake or run
   if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "ARM64")
+    execute_process(COMMAND ${PYTHON}
+      ${CMAKE_CURRENT_SOURCE_DIR}/tool/qemu_tcgop_patcher_arm64.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/third/unicorn/qemu/include/tcg/tcg-opc.h)
+    execute_process(COMMAND ${PYTHON}
+      ${CMAKE_CURRENT_SOURCE_DIR}/tool/qemu_tcgul_patcher_arm64.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/third/unicorn/qemu/tcg/aarch64/tcg-target.inc.c)
     execute_process(COMMAND ${PYTHON}
       ${CMAKE_CURRENT_SOURCE_DIR}/tool/unicorn_cmake_patcher_arm64.py
       ${CMAKE_CURRENT_SOURCE_DIR}/third/unicorn/CMakeLists.txt)

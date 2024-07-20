@@ -680,7 +680,7 @@ const void *host_callback_stub(const StubContext &ctx, char *&codeptr) {
 #if ARCH_ARM64
 extern "C" {
 void __cpuidex(int vec[4], int, int) { vec[0] = vec[1] = vec[2] = vec[3] = 0; }
-
+void __cpuid(int vec[4], int) { __cpuidex(vec, 0, 0); }
 void _setjmp_wrapper(jmp_buf jbuf) { ::setjmp(jbuf); }
 }
 #endif

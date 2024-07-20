@@ -75,8 +75,8 @@ static inline uint32_t mem_page_size_impl() {
 #define mem_page_size mem_page_size_impl()
 
 static inline char *page_alloc() {
-  auto page =
-      ::VirtualAlloc(nullptr, mem_page_size, MEM_RESERVE, PAGE_READWRITE);
+  auto page = ::VirtualAlloc(nullptr, mem_page_size, MEM_COMMIT | MEM_RESERVE,
+                             PAGE_READWRITE);
   return reinterpret_cast<char *>(page);
 }
 
