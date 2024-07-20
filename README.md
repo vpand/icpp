@@ -224,7 +224,8 @@ vcvarsall arm64
 # some paths, like the path of lib.exe, assembler search directory, so we have some 
 # extra steps to make this cmake command working:
 # 1.copy llvm-lib.exe as lib.exe in LLVM_ROOT/bin;
-# 2.copy VC_ROOT/bin/armasm64.exe to LLVM_ROOT/bin;
+# 2.copy VC_ROOT/bin/armasm64.exe to LLVM_ROOT/bin/armasm64.exe.exe;
+# 3.build cmake/boost/armasm64 and copy it to LLVM_ROOT/bin/armasm64.exe;
 #
 cmake -G Ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_MT=llvm-mt -DCMAKE_ASM_MASM_COMPILE_OBJECT=armasm64 -DCMAKE_BUILD_TYPE=Release ..
 ```
