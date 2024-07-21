@@ -306,14 +306,15 @@ uint64_t Object::vm2rva(uint64_t vm, size_t *ti) {
 }
 
 bool Object::executable(uint64_t vm, Object **iobject) {
-  if (vm2rva(vm) != -1) {
-    if (iobject)
-      iobject[0] = this;
-    return true;
+  for (size_t i = 0; i < textsects_.size(); i++) {
+    auto &s = textsects_[i];
+    if (s.vm <= vm && vm < s.vm + s.size) {
+      if (iobject)
+        iobject[0] = this;
+      return true;
+    }
   }
-  if (!iobject)
-    return false;
-  return Loader::executable(vm, iobject);
+  return iobject ? Loader::executable(vm, iobject) : false;
 }
 
 std::string Object::cachePath() {

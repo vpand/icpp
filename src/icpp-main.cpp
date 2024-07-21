@@ -33,7 +33,7 @@ static void print_help() {
       << "  Interpreting C++, running C++ in anywhere like a script."
       << std::endl
       << std::endl
-      << "USAGE: icpp [options] exec0 [exec1 ...] [-- args]" << std::endl
+      << "USAGE: icpp [options] exec0 [exec1 ...] [[--] args]" << std::endl
       << "OPTIONS:" << std::endl
       << "  -v, -version: print icpp version." << std::endl
       << "  --version: print icpp and clang version." << std::endl
@@ -154,18 +154,41 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
   if (argc == 1)
     return icpp::exec_repl(argv[0]);
 
-  // mark the double dash index, all the args after idoubledash will be passed
-  // to the input file
-  int idoubledash = argc;
-  for (int i = 0; i < argc; i++) {
-    if (std::string_view(argv[i]) == "--") {
+  // calculate the double dash index, all the args after idoubledash will be
+  // passed to the input file as its cli argc/argv
+  int idoubledash = argc, ilastfile = -1;
+  for (int i = 1; i < argc; i++) {
+    std::string_view arg{argv[i]};
+    if (arg == "--") {
       idoubledash = i;
       break;
     }
+    if (arg[0] == '-')
+      continue;
+    if (!fs::exists(fs::path(arg))) {
+      if (ilastfile > 0)
+        break;
+
+      auto omain = icpp::RuntimeLib::inst().libFull(arg) / "main.o";
+      if (fs::exists(omain))
+        ilastfile = i;
+    } else if (icpp::is_interpretable(arg)) {
+      ilastfile = i;
+    } else {
+      if (ilastfile > 0)
+        break;
+    }
+  }
+  // set the implicit idoubledash position
+  bool implicity = false;
+  if (idoubledash == argc && ilastfile > 0) {
+    idoubledash = ilastfile;
+    implicity = true;
   }
 
   // skip argv[0] and argv[idoubledash, ...]
-  auto args = std::span{argv + 1, static_cast<std::size_t>(idoubledash - 1)};
+  auto args = std::span{
+      argv + 1, static_cast<std::size_t>(idoubledash - (implicity ? 0 : 1))};
 
   // parse the command line arguments for icpp options
   for (auto p : args) {
@@ -235,6 +258,11 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
                                    "int main(void) {") +
                        std::string(sp) + "; return 0;}";
         exitcode = icpp::exec_string(argv[0], dyncode, true);
+        if (exitcode)
+          icpp::log_print(
+              icpp::Raw,
+              "Tried to run as an C++ expression but failed, make sure that "
+              "your input file exists or the expression is valid.");
       }
       continue;
     }
@@ -271,7 +299,7 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
       }
     } else {
       // pass sp as an executable file
-      exitcode = icpp::exec_main(sp, deps, sp, idoubledash - argc,
+      exitcode = icpp::exec_main(sp, deps, sp, argc - idoubledash,
                                  &argv[idoubledash + 1], validcache);
     }
   }

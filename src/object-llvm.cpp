@@ -1252,6 +1252,17 @@ void Object::decodeInsns(TextSection &text) {
              it++) {
           if (rtaddr == it->target) {
             rit = it;
+            // fix it as a data relocation for coff object
+            if (arch_ == AArch64 && ofile_->isCOFF() &&
+                (rsym.sflags & SymbolRef::SF_Undefined)) {
+#undef IMAGE_REL_ARM64_PAGEOFFSET_12L
+              if (rsym.rtype ==
+                  COFF::RelocationTypesARM64::IMAGE_REL_ARM64_PAGEOFFSET_12L) {
+                symtype = SymbolRef::ST_Data;
+                it->target = Loader::locateSymbol(rsym.name, true);
+                it->type = symtype;
+              }
+            }
             break;
           }
         }

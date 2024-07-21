@@ -646,12 +646,22 @@ static inline uint32_t br_opcode(uint32_t reg) {
   return tmp;
 }
 
+#if ON_WINDOWS
+#define STUB_EXCTX_REG "9"
+#define STUB_REG0 9
+#define STUB_REG1 10
+#else
+#define STUB_EXCTX_REG "16"
+#define STUB_REG0 16
+#define STUB_REG1 17
+#endif
+
 static void __NAKED__ stub_exec_engine() {
   __ASM__("sub sp, sp, #0x400");
   save_gpr_real_a64();
   save_neon_a64();
-  __ASM__("mov x0, x16"); // dyncode page
-  __ASM__("mov x1, sp");  // current machine context
+  __ASM__("mov x0, x" STUB_EXCTX_REG); // execution context
+  __ASM__("mov x1, sp");               // current machine context
 #if __APPLE__
   __ASM__("bl _exec_engine_main");
 #else
@@ -689,11 +699,11 @@ const void *host_callback_stub(const StubContext &ctx, char *&codeptr) {
   uint64_t pagecount = pcoff / mem_page_size;
   uint64_t pageoff = pcoff - pagecount * mem_page_size;
   // load stub/context, and jump to stub
-  *opcodeptr++ = adrp_opcode(16, (uint32_t)pagecount);
-  *opcodeptr++ = ldr_opcode(16, (uint32_t)pageoff + 8);
-  *opcodeptr++ = adrp_opcode(17, (uint32_t)pagecount);
-  *opcodeptr++ = ldr_opcode(17, (uint32_t)pageoff);
-  *opcodeptr++ = br_opcode(17);
+  *opcodeptr++ = adrp_opcode(STUB_REG0, (uint32_t)pagecount);
+  *opcodeptr++ = ldr_opcode(STUB_REG0, (uint32_t)pageoff + 8);
+  *opcodeptr++ = adrp_opcode(STUB_REG1, (uint32_t)pagecount);
+  *opcodeptr++ = ldr_opcode(STUB_REG1, (uint32_t)pageoff);
+  *opcodeptr++ = br_opcode(STUB_REG1);
 
   // place the stub and context pointer
   *(void **)(fnptraddr + 0) = (void *)&stub_exec_engine;

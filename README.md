@@ -69,7 +69,7 @@ vpand@MacBook-Pro icpp % icpp -h
 OVERVIEW: ICPP v0.1.0.255 based on Unicorn and Clang/LLVM.
   Interpreting C++, running C++ in anywhere like a script.
 
-USAGE: icpp [options] exec0 [exec1 ...] [-- args]
+USAGE: icpp [options] exec0 [exec1 ...] [[--] args]
 OPTIONS:
   -v, -version: print icpp version.
   --version: print icpp and clang version.

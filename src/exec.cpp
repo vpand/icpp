@@ -359,40 +359,44 @@ static inline char *alloc_page(char *&end) {
 
 bool ExecEngine::execCtor() {
   // initialize the stub code page
-  auto page = alloc_page(stubend_);
-  stubcode_ = page;
-  stubpages_.push_back(page);
+  auto stubpots = iobject_->stubSpots();
+  if (stubpots.size()) {
+    auto page = alloc_page(stubend_);
+    stubcode_ = page;
+    stubpages_.push_back(page);
 
-  // make function stub, the vm function called from host side must
-  // be in stub mode, because the page it belongs to doesn't have the
-  // executable permission
-  for (auto spot : iobject_->stubSpots()) {
-    auto target = *reinterpret_cast<uint64_t *>(spot);
-    auto found = vmstubs_.find(target);
-    if (found == vmstubs_.end()) {
-      // create a new stub for this iobject vm target function
-      auto stub = host_callback_stub({this, target}, stubcode_);
-      found = vmstubs_.insert({target, reinterpret_cast<uint64_t>(stub)}).first;
-      stubvms_.insert({found->second, found->first});
-      // overflow check
-      if (stubcode_ > stubend_) {
-        // set the stub page in read&exec mode
-        page_executable(page);
-        page_flush(page);
+    // make function stub, the vm function called from host side must
+    // be in stub mode, because the page it belongs to doesn't have the
+    // executable permission
+    for (auto spot : stubpots) {
+      auto target = *reinterpret_cast<uint64_t *>(spot);
+      auto found = vmstubs_.find(target);
+      if (found == vmstubs_.end()) {
+        // create a new stub for this iobject vm target function
+        auto stub = host_callback_stub({this, target}, stubcode_);
+        found =
+            vmstubs_.insert({target, reinterpret_cast<uint64_t>(stub)}).first;
+        stubvms_.insert({found->second, found->first});
+        // overflow check
+        if (stubcode_ > stubend_) {
+          // set the stub page in read&exec mode
+          page_executable(page);
+          page_flush(page);
 
-        // allocate a new page
-        page = alloc_page(stubend_);
-        stubcode_ = page;
-        stubpages_.push_back(page);
+          // allocate a new page
+          page = alloc_page(stubend_);
+          stubcode_ = page;
+          stubpages_.push_back(page);
+        }
       }
+      // redirect to the exeuctable stub
+      *reinterpret_cast<uint64_t *>(spot) = found->second;
     }
-    // redirect to the exeuctable stub
-    *reinterpret_cast<uint64_t *>(spot) = found->second;
-  }
 
-  // set the stub page in read&exec mode
-  page_executable(page);
-  page_flush(page);
+    // set the stub page in read&exec mode
+    page_executable(page);
+    page_flush(page);
+  }
 
   // now, we can execute any of the code in this iobject safely
   for (auto target : iobject_->ctorEntries()) {
@@ -585,6 +589,12 @@ static thread_return_t exec_thread_stub(void *pcontext) {
 static void nop_function() {}
 
 uint64_t ExecEngine::createStub(uint64_t vmfunc) {
+  if (!stubpages_.size()) {
+    // initialize a new page
+    stubcode_ = alloc_page(stubend_);
+    stubpages_.push_back(stubcode_);
+  }
+
   auto page = *stubpages_.rbegin();
   if (stubcode_ > stubend_) {
     // allocate a new page
@@ -709,11 +719,11 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
   } else {
     for (size_t i = 0; i < std::size(args); i++) {
       Object *iobj;
-      if (robject_->executable(target, &iobj)) {
-        auto found = vmstubs_.find(target);
+      if (robject_->executable(args[i], &iobj)) {
+        auto found = vmstubs_.find(args[i]);
         if (found == vmstubs_.end()) {
           // create a new stub for this iobject vm target function
-          found = vmstubs_.insert({target, createStub(target)}).first;
+          found = vmstubs_.insert({args[i], createStub(args[i])}).first;
           stubvms_.insert({found->second, found->first});
         }
         args[i] = found->second;

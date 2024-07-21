@@ -11,7 +11,7 @@
 
 #if __arm64__ || __aarch64__
 #define ARCH_ARM64 1
-#elif __x86_64__ || __x64__
+#elif __x86_64__ || __x64__ || _M_AMD64
 #define ARCH_X64 1
 #else
 #error Unsupported host architecture.

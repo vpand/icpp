@@ -25,11 +25,21 @@ void CondMutex::signal() { cond.notify_all(); }
 bool is_cpp_source(std::string_view path) {
   for (auto ext :
        std::array{".c", ".cc", ".cpp", ".cxx", ".C", ".CC", ".CPP", ".CXX"}) {
-    if (path.ends_with(ext)) {
+    if (path.ends_with(ext))
       return true;
-    }
   }
   return false;
+}
+
+bool is_interpretable(std::string_view path) {
+  if (fs::path(path).has_extension()) {
+    for (auto ext : std::array{".exe", ".EXE", ".so", ".dylib"}) {
+      if (path.ends_with(ext))
+        return true;
+    }
+    return is_cpp_source(path);
+  }
+  return true; // unix like exe file ?
 }
 
 int rand_value() {

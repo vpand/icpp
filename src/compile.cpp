@@ -73,6 +73,8 @@ int compile_source_icpp(int argc, const char **argv) {
   args.push_back("-std=c++23");
   // disable some warnings
   args.push_back("-Wno-deprecated-declarations");
+  args.push_back("-Wno-ignored-attributes");
+  args.push_back("-Wno-#pragma-messages");
 
   /*
   The header search paths should contain the C++ Standard Library headers before
