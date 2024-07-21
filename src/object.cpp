@@ -163,14 +163,11 @@ void Object::parseSymbols() {
       continue;
     auto saddr = sect->getAddress();
     auto sbuff = expSContent.get();
-    auto snameExp = sect->getName();
-    if (!snameExp)
-      continue;
     auto addr = expAddr.get();
     auto name = expName.get();
     auto buff = sbuff.data() + addr - saddr;
     for (auto &ds : dynsects_) {
-      if (snameExp.get() == ds.name) {
+      if (sect->getIndex() == ds.index) {
         // dynamically allocated section
         buff = ds.buffer.data() + addr - saddr;
         break;
@@ -283,7 +280,7 @@ uint64_t Object::vm2rva(uint64_t vm, size_t *ti) {
       if (ti) {
         ti[0] = i;
       }
-      return s.rva + vm - s.vm;
+      return s.vmrva + vm - s.vm;
     }
   }
   for (auto &s : ofile_->sections()) {
@@ -302,7 +299,7 @@ uint64_t Object::vm2rva(uint64_t vm, size_t *ti) {
         abort();
       }
       // return rva to text section
-      return textsects_[0].rva + vm - textsects_[0].vm;
+      return textsects_[0].vmrva + vm - textsects_[0].vm;
     }
   }
   return -1;
@@ -413,7 +410,7 @@ std::string Object::generateCache() {
                    dynsects_[di].buffer.data());
       } else {
         ri.set_dindex(-1);
-        ri.set_rva(vm2rva(target));
+        ri.set_rva(target - textsects_[0].vm);
       }
       ri.set_module(0); // set self module index
     } else {

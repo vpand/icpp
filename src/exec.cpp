@@ -333,6 +333,15 @@ void ExecEngine::init() {
   // get a unicorn instruction emulation instance
   uc_ = ue.acquire(robject_);
 
+  // set the initial register context copied from host
+  ContextICPP initctx;
+  host_context(&initctx);
+#if ARCH_ARM64
+  saveRegisterAArch64(initctx);
+#else
+  saveRegisterX64(initctx);
+#endif
+
   if (RunConfig::inst()->hasDebugger()) {
     // initialize debugger instance
     debugger_ = Debugger::inst();
@@ -1462,7 +1471,7 @@ bool ExecEngine::execLoop(uint64_t pc) {
   while (pc != reinterpret_cast<uint64_t>(topReturn())) {
     // debugging
     if (debugger_) {
-      debugger_->entry(dbgthread, robject_->vm2rva(pc), inst);
+      debugger_->entry(dbgthread, inst->rva, inst);
       if (debugger_->stopped()) {
         // stop executing by user request
         break;
@@ -1476,7 +1485,7 @@ bool ExecEngine::execLoop(uint64_t pc) {
     }
 
 #if LOG_EXECUTION
-    log_print(Develop, "Emulation {:x}", robject_->vm2rva(pc));
+    log_print(Develop, "Emulation {:x}", inst->rva);
 #endif
 
     // running instructions by unicorn engine

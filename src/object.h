@@ -39,7 +39,7 @@ struct InsnInfo {
       len : 5,       // opcode length
       rflag : 1,     // relocation flag, 1 indicates a valid reloc index
       reloc : 18;    // relocation index
-  uint32_t rva;      // instruction file rva
+  uint32_t rva;      // instruction vm address rva
 
   bool operator<(const InsnInfo &right) const { return rva < right.rva; }
   bool operator==(const InsnInfo &right) const { return rva == right.rva; }
@@ -62,8 +62,7 @@ struct RelocInfo {
 };
 
 struct DynSection {
-  std::string name; // section name
-  uint32_t rva;     // rva address in object file
+  uint32_t index; // section index
   // dynamically allocated buffer for this section, e.g.: bss common
   std::string buffer;
 };
@@ -73,8 +72,9 @@ struct TextSection {
   // this kind of section contains instructions
   uint32_t index;
   uint32_t size;
-  uint32_t rva; // file buffer rva from .text[0]
-  uint64_t vm;  // runtime address in iobject instance
+  uint32_t frva;  // file buffer rva from .text[0]
+  uint64_t vmrva; // vm address rva like in VMPStudio or IDA
+  uint64_t vm;    // runtime address in iobject instance
   // instruction informations
   std::vector<InsnInfo> iinfs;
 };

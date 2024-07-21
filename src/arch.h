@@ -195,6 +195,10 @@ SystemType host_system();
 std::string_view arch_name(ArchType arch);
 std::string_view system_name(SystemType arch);
 
+// load the current host register context to ctx, used to initialize
+// the original context for interpreter
+void host_context(ContextICPP *ctx);
+
 // call a host function with specified register context,
 // ctx is a ContextA64 or ContextX64 instance,
 // func is a host function address

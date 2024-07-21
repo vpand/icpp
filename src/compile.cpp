@@ -74,6 +74,17 @@ int compile_source_icpp(int argc, const char **argv) {
   // disable some warnings
   args.push_back("-Wno-deprecated-declarations");
 
+  /*
+  The header search paths should contain the C++ Standard Library headers before
+  any C Standard Library.
+  */
+  // add libc++ include
+  auto cxxinc = std::format("-I{}/c++/v1", rtinc);
+  args.push_back(cxxinc.data());
+  // force to use the icpp integrated C/C++ runtime header
+  args.push_back("-nostdinc++");
+  args.push_back("-nostdlib++");
+
 #if __APPLE__
   std::string_view argsysroot = "-isysroot";
   auto isysroot = std::format("{}/apple", rtinc);
@@ -136,13 +147,6 @@ int compile_source_icpp(int argc, const char **argv) {
   auto cinc = std::format("-I{}/c", rtinc);
   if (cross_compile)
     args.push_back(cinc.data());
-
-  // add libc++ include
-  auto cxxinc = std::format("-I{}/c++/v1", rtinc);
-  args.push_back(cxxinc.data());
-  // force to use the icpp integrated C/C++ runtime header
-  args.push_back("-nostdinc++");
-  args.push_back("-nostdlib++");
 
   // add include itself, the boost library needs this
   auto inc = std::format("-I{}", rtinc);

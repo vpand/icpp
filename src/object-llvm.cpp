@@ -912,10 +912,6 @@ static SymbolRef::Type reloc_symtype(const InsnInfo &inst, ArchType arch,
     case ELF::R_AARCH64_GOTREL64 | ELF_MAGIC_BIT:
     case ELF::R_AARCH64_GOT_LD_PREL19 | ELF_MAGIC_BIT:
     case ELF::R_AARCH64_ADR_GOT_PAGE | ELF_MAGIC_BIT:
-// undefine these macros from windows headers
-#undef IMAGE_REL_ARM64_PAGEBASE_REL21
-    case COFF::RelocationTypesARM64::IMAGE_REL_ARM64_PAGEBASE_REL21 |
-        COFF_MAGIC_BIT:
       return SymbolRef::ST_Data;
     default:
       break;
@@ -1098,7 +1094,7 @@ static void reloc_symbols(ObjectFile *ofile, ArchType arch, TextSection &text,
       if (Expected<Elf_Rela_Range> expRelas = elf.relas(*relocsect)) {
         for (const Elf_Rela &r : *expRelas) {
           auto sym = oelf->toSymbolRef(*expSymtab, r.getSymbol(false));
-          auto addr = text.rva + r.r_offset;
+          auto addr = text.vmrva + r.r_offset;
           auto rsym = get_symbol(addr, sym, r.getType(false));
           if (rsym.name.size()) {
             rsym.addend = r.r_addend;
@@ -1119,7 +1115,7 @@ static void reloc_symbols(ObjectFile *ofile, ArchType arch, TextSection &text,
     }
     uint64_t addend = 0;
     for (auto &r : texts.relocations()) {
-      auto addr = text.rva + r.getOffset();
+      auto addr = text.vmrva + r.getOffset();
       auto sym = r.getSymbol();
       auto rsym = get_symbol(addr, *sym, r.getType());
       if (rsym.name.size()) {
@@ -1157,7 +1153,7 @@ void Object::decodeInsns(TextSection &text) {
         inst, size, BuildIDRef(reinterpret_cast<const uint8_t *>(opc), 16), opc,
         outs());
     InsnInfo iinfo{};
-    iinfo.rva = text.rva + opc - text.vm;
+    iinfo.rva = text.vmrva + opc - text.vm;
     switch (status) {
     case MCDisassembler::Fail: {
       iinfo.type = INSN_ABORT;
@@ -1225,7 +1221,7 @@ void Object::decodeInsns(TextSection &text) {
           auto symoff =
               expAddr.get() - expSect.get()->getAddress() + rsym.addend;
           for (auto &ds : dynsects_) {
-            if (sectname.get() == ds.name) {
+            if (expSect.get()->getIndex() == ds.index) {
               // dynamically allocated section
               dyn = true;
 
@@ -1346,7 +1342,7 @@ static uint64_t relocate_data(StringRef content, uint64_t offset,
     }
     auto symoff = expAddr.get() - expSect.get()->getAddress() + rsym.addend;
     for (auto &ds : dynsects) {
-      if (sectname.get() == ds.name) {
+      if (expSect.get()->getIndex() == ds.index) {
         // dynamically allocated section
         dyn = true;
 
@@ -1491,21 +1487,21 @@ void Object::parseSections() {
       auto &news = textsects_.emplace_back(
           TextSection{static_cast<uint32_t>(s.getIndex()),
                       static_cast<uint32_t>(s.getSize()),
-                      static_cast<uint32_t>(s.getAddress()),
+                      static_cast<uint32_t>(s.getAddress()), vmrva,
                       reinterpret_cast<uint64_t>(expContent->data())});
-      if (textsects_.size() > 1 && news.rva == 0) {
+      if (textsects_.size() > 1 && news.frva == 0) {
         // elf/coff may place each function in its own section, in this
         // kind of situation, all the independent section's address may be 0.
         // herein we fix their rva which is manually calculated.
-        news.rva = news.vm - textsects_[0].vm;
+        news.frva = news.vm - textsects_[0].vm;
       }
       if (0) {
-        log_print(Develop, "Section {} rva={:x}, vm={:x} size={}.", name.data(),
-                  news.rva, news.vm, news.size);
+        log_print(Develop, "Section {} frva={:x}, vmrva={:x} vm={:x} size={}.",
+                  name.data(), news.frva, news.vmrva, news.vm, news.size);
       }
     } else if (s.isBSS() || name.ends_with("bss") || name.ends_with("common")) {
-      dynsects_.push_back({name.data(), static_cast<uint32_t>(s.getAddress()),
-                           std::string(s.getSize(), 0)});
+      dynsects_.push_back(
+          {static_cast<uint32_t>(s.getIndex()), std::string(s.getSize(), 0)});
     } else {
       auto expContent = s.getContents();
       if (!expContent || !expContent->size())

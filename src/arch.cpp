@@ -92,7 +92,6 @@ std::string_view system_name(SystemType sys) {
   __ASM__("stp  x28, x29, [sp, #0xe0]");                                       \
   __ASM__("stp  x30, x17, [sp, #0xf0]");
 
-// other usage need save real x31(sp) to context
 #define save_gpr_real_a64()                                                    \
   __ASM__("stp  x0, x1, [sp, #0x0]");                                          \
   __ASM__("stp  x2, x3, [sp, #0x10]");                                         \
@@ -111,6 +110,24 @@ std::string_view system_name(SystemType sys) {
   __ASM__("stp  x28, x29, [sp, #0xe0]");                                       \
   __ASM__("mov  x17, sp");                                                     \
   __ASM__("stp  x30, x17, [sp, #0xf0]");
+
+#define save_gpr_a64_x0()                                                      \
+  __ASM__("stp  x0, x1, [x0, #0x0]");                                          \
+  __ASM__("stp  x2, x3, [x0, #0x10]");                                         \
+  __ASM__("stp  x4, x5, [x0, #0x20]");                                         \
+  __ASM__("stp  x6, x7, [x0, #0x30]");                                         \
+  __ASM__("stp  x8, x9, [x0, #0x40]");                                         \
+  __ASM__("stp  x10, x11, [x0, #0x50]");                                       \
+  __ASM__("stp  x12, x13, [x0, #0x60]");                                       \
+  __ASM__("stp  x14, x15, [x0, #0x70]");                                       \
+  __ASM__("stp  x16, x17, [x0, #0x80]");                                       \
+  __ASM__("stp  x18, x19, [x0, #0x90]");                                       \
+  __ASM__("stp  x20, x21, [x0, #0xa0]");                                       \
+  __ASM__("stp  x22, x23, [x0, #0xb0]");                                       \
+  __ASM__("stp  x24, x25, [x0, #0xc0]");                                       \
+  __ASM__("stp  x26, x27, [x0, #0xd0]");                                       \
+  __ASM__("stp  x28, x29, [x0, #0xe0]");                                       \
+  __ASM__("str  x30, [x0, #0xf0]");
 
 #define save_neon_a64()                                                        \
   __ASM__("stp  q0, q1, [sp, #0x100]");                                        \
@@ -417,6 +434,20 @@ void __NAKED__ host_call_asm(void *ctx, const void *func) {
   __ASM__("retq");
 #else
 #error Unsupported host architecture.
+#endif
+}
+
+void __NAKED__ host_context(ContextICPP *ctx) {
+#if ARCH_ARM64
+  save_gpr_a64_x0();
+  __ASM__("ret");
+#else
+#if ON_WINDOWS
+  save_gpr(rcx);
+#else
+  save_gpr(rdi);
+#endif
+  __ASM__("retq");
 #endif
 }
 
