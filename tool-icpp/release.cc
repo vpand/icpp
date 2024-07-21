@@ -20,6 +20,8 @@ icpp release package in the following layout, icpp-vx.x.x-os-arch:
 ------boost
 ------c
 ------c++
+------icpp.hpp
+------icppex.hpp
 ---lib
 ------clang
 ------boost
@@ -176,7 +178,7 @@ int main(int argc, char **argv) {
   for (auto &name : names)
     pack_file(srcroot / name, bin, true);
 
-  // copy libc++ file
+    // copy libc++ file
 #if __APPLE__ || _WIN32
   pack_file(srcroot / "../libcxx/lib" / libcpp, lib, true, libcpp_name);
 #endif
@@ -207,6 +209,7 @@ int main(int argc, char **argv) {
       log(std::format("There's no {}, ignored packing it.", srcdir.string()));
   }
   pack_file(srcroot / "../../runtime/include/icpp.hpp", include, false);
+  pack_file(srcroot / "../../runtime/include/icppex.hpp", include, false);
 
   // copy clang files
   pack_dir(srcroot / "../third/llvm-project/llvm/lib/clang", lib);

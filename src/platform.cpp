@@ -8,7 +8,7 @@
 #include "arch.h"
 #include "runcfg.h"
 #include "utils.h"
-#include <vector>
+#include <set>
 
 #if __APPLE__
 // there's an extra underscore character in macho symbol, skip it
@@ -33,54 +33,45 @@ namespace icpp {
 
 const void *load_library(std::string_view path) {
 #if ON_WINDOWS
-  return reinterpret_cast<void *>(::LoadLibraryA(path.data()));
+  auto handle = reinterpret_cast<void *>(::LoadLibraryExA(
+      path.data(), nullptr,
+      LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_USER_DIRS |
+          LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR));
+  if (handle)
+    return handle;
+
+  char buff[512];
+  ::FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                   nullptr, ::GetLastError(), 0, buff, sizeof(buff), nullptr);
+  log_print(Runtime, "Failed to load {}: {}", path.data(), buff);
 #else
   auto handle = dlopen(path.data(), RTLD_NOW);
   if (handle)
     return handle;
+
   log_print(Runtime, "{}", dlerror());
-  ;
-  return nullptr;
 #endif
+  return nullptr;
 }
 
 static const void *find_symbol(std::string_view raw) {
 #ifdef ON_WINDOWS
-  static std::vector<HMODULE> sysmods;
-  if (!sysmods.size()) {
-    static std::vector<std::string_view> names{
-        "api-ms-win", "vcruntime", "vcp", "kernel", "crt",
-        "API-MS-WIN", "VCRUNTIME", "VCP", "KERNEL", "CRT"};
-    iterate_modules([](uint64_t handle, std::string_view path) {
-      for (auto &n : names) {
-        if (path.find(n) != std::string_view::npos) {
-          sysmods.push_back(reinterpret_cast<HMODULE>(handle));
-          break;
-        }
-      }
-      return false;
-    });
-    if (sysmods.size() < names.size() / 2) {
-      log_print(Develop,
-                "Warning, the count of the default system module handle should "
-                "be at least the same size with the names's.");
-    }
-  }
-  // search in the system modules
+  static std::set<HMODULE> sysmods;
+  // find in the cached module
   for (auto &mod : sysmods) {
     auto addr =
-        reinterpret_cast<const void *>(::GetProcAddress(mod, raw.data()));
+        reinterpret_cast<const void *>(::GetProcAddress(mod, symbol_name(raw)));
     if (addr)
       return addr;
   }
+  // find in the whole program
   const void *addr = nullptr;
   iterate_modules([&addr, &raw](uint64_t handle, std::string_view path) {
-    if (addr || path.find("Windows") != std::string_view::npos)
-      return false;
-    // search in the user modules
     addr = reinterpret_cast<const void *>(
-        ::GetProcAddress(reinterpret_cast<HMODULE>(handle), raw.data()));
-    return false;
+        ::GetProcAddress(reinterpret_cast<HMODULE>(handle), symbol_name(raw)));
+    if (addr)
+      sysmods.insert(reinterpret_cast<HMODULE>(handle));
+    return addr != nullptr;
   });
   return addr;
 #else

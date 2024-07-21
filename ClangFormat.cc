@@ -106,6 +106,7 @@ int main(int argc, const char *argv[]) {
   formatter(argv[0]);
   // format the icpp api header
   formatter((thisdir / "runtime/include/icpp.hpp").string());
+  formatter((thisdir / "runtime/include/icppex.hpp").string());
 
   std::vector<std::string_view> subdirs = {
       "src", "snippet", "snippet-cppm", "tool-icpp", "test", "vmpstudio"};

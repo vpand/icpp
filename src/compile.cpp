@@ -29,7 +29,7 @@ static std::string argv_string(int argc, const char **argv) {
   return cmds;
 }
 
-int compile_source_clang(int argc, const char **argv) {
+int compile_source_clang(int argc, const char **argv, bool cl) {
   // just echo the compiling args
   if (echocc) {
     echocc = false;
@@ -43,8 +43,9 @@ int compile_source_clang(int argc, const char **argv) {
   auto exepath = GetExecutablePath(argv[0], true);
   // this full path ends with "clang", it's exactly the format that clang driver
   // wants
-  auto program =
-      (fs::path(exepath).parent_path() / ".." / "lib" / "clang").string();
+  auto program = (fs::path(exepath).parent_path() / ".." / "lib" /
+                  (cl ? "clang-cl" : "clang"))
+                     .string();
   auto argv0 = argv[0];
   argv[0] = program.c_str();
   // iclang_main will invoke clang_main to generate the object file with the
@@ -60,7 +61,7 @@ int compile_source_clang(int argc, const char **argv) {
 int compile_source_icpp(int argc, const char **argv) {
   auto root = fs::absolute(fs::path(argv[0])).parent_path() / "..";
   auto rtinc = (root / "include").string();
-  bool cross_compile = false;
+  bool cross_compile = false, cl = false;
   std::string cppminc;
   std::vector<const char *> args;
   for (int i = 0; i < argc; i++) {
@@ -69,12 +70,18 @@ int compile_source_icpp(int argc, const char **argv) {
 
   // make clang driver to use our fake clang path as the executable path
   args.push_back("-no-canonical-prefixes");
-  // use C++23 standard
-  args.push_back("-std=c++23");
+
   // disable some warnings
   args.push_back("-Wno-deprecated-declarations");
   args.push_back("-Wno-ignored-attributes");
   args.push_back("-Wno-#pragma-messages");
+  args.push_back("-Wno-unknown-argument");
+
+  // use C++23 standard
+  args.push_back("-std=c++23");
+  // force to use the icpp integrated C/C++ runtime header
+  args.push_back("-nostdinc++");
+  args.push_back("-nostdlib++");
 
   /*
   The header search paths should contain the C++ Standard Library headers before
@@ -83,9 +90,6 @@ int compile_source_icpp(int argc, const char **argv) {
   // add libc++ include
   auto cxxinc = std::format("-I{}/c++/v1", rtinc);
   args.push_back(cxxinc.data());
-  // force to use the icpp integrated C/C++ runtime header
-  args.push_back("-nostdinc++");
-  args.push_back("-nostdlib++");
 
 #if __APPLE__
   std::string_view argsysroot = "-isysroot";
@@ -123,8 +127,20 @@ int compile_source_icpp(int argc, const char **argv) {
     }
   }
   if (wininc.size()) {
+    // use C++23 standard
+    args.push_back("/clang:-std=c++23");
+    // force to use the icpp integrated C/C++ runtime header
+    args.push_back("/clang:-nostdinc++");
+    args.push_back("/clang:-nostdlib++");
     args.push_back(wininc.data());
-    cppminc = std::format("-fprebuilt-module-path={}/win/module", rtinc);
+    cppminc = std::format("/clang:-fprebuilt-module-path={}/win/module", rtinc);
+
+    // MultiThreadedDLL
+    args.push_back("/MD");
+    // enable exception
+    args.push_back("/EHsc");
+    
+    cl = true; // clang-cl mode
   }
 #else
   for (int i = 0; i < argc - 1; i++) {
@@ -158,7 +174,7 @@ int compile_source_icpp(int argc, const char **argv) {
   auto icppinc = std::format("-I{}", RuntimeLib::inst().includeFull().string());
   args.push_back(icppinc.data());
 
-  return compile_source_clang(static_cast<int>(args.size()), &args[0]);
+  return compile_source_clang(static_cast<int>(args.size()), &args[0], cl);
 }
 
 fs::path compile_source_icpp(const char *argv0, std::string_view path,
