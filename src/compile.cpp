@@ -139,8 +139,8 @@ int compile_source_icpp(int argc, const char **argv) {
     args.push_back("/MD");
     // enable exception
     args.push_back("/EHsc");
-    
-    cl = true; // clang-cl mode
+
+    cl = true; // set as clang-cl mode
   }
 #else
   for (int i = 0; i < argc - 1; i++) {

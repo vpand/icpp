@@ -1481,11 +1481,12 @@ void Object::parseSections() {
     vmrva_updator update{s.getSize(), vmrva};
     if (ofile_->isMachO())
       vmrva = s.getAddress();
-
+    if (!update.size)
+      continue; // empty section
     auto expName = s.getName();
-    if (!expName) {
+    if (!expName)
       continue;
-    }
+
     auto name = expName.get();
     if (s.isText()) {
       auto expContent = s.getContents();
@@ -1560,6 +1561,20 @@ void Object::parseSections() {
         }
         continue;
       }
+      auto sectBuff = expContent.get();
+#if _WIN32 && ARCH_ARM64
+      if (!s.relocations().empty() &&
+          (reinterpret_cast<uint64_t>(sectBuff.data()) & 1)) {
+        // move this section to dynamic sections as we need it to be 4/8 bytes
+        // aligned for .text reference
+        auto &dyns = dynsects_.emplace_back(
+            DynSection{static_cast<uint32_t>(s.getIndex()),
+                       std::string(sectBuff.size(), 0)});
+        std::memcpy(const_cast<char *>(dyns.buffer.data()), sectBuff.data(),
+                    sectBuff.size());
+        sectBuff = dyns.buffer;
+      }
+#endif
       for (auto r : s.relocations()) {
         auto sym = r.getSymbol();
         auto expFlags = sym->getFlags();
@@ -1579,7 +1594,7 @@ void Object::parseSections() {
         auto rsym = get_symbol(0, *sym, r.getType());
         if (rsym.stype == SymbolRef::ST_File)
           continue;
-        relocateData(expContent.get(), r.getOffset(), &rsym);
+        relocateData(sectBuff, r.getOffset(), &rsym);
       }
     }
   }

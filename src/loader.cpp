@@ -48,12 +48,21 @@ extern uint64_t __security_cookie;
 namespace icpp {
 
 // some simulated system global variables
-static uint64_t __dso_handle = 0;
-
 #if ON_WINDOWS
 static uint64_t _tls_index = 0;
 static uint64_t _init_thread_epoch = 0;
+#else
+static uint64_t __dso_handle = 0;
 #endif
+
+static uint64_t *global_locals[] = {
+#if ON_WINDOWS
+    &_tls_index,
+    &_init_thread_epoch,
+#else
+    &__dso_handle,
+#endif
+};
 
 libcpp_thread_create_t libcpp_thread_create = nullptr;
 
@@ -95,7 +104,7 @@ struct ModuleLoader {
     syms_.insert({"__security_cookie",
                   reinterpret_cast<const void *>(&__security_cookie)});
     syms_.insert({"__security_check_cookie",
-                  reinterpret_cast<const void *>(&__security_check_cookie)});
+                  reinterpret_cast<const void *>(&nop_function)});
     syms_.insert({"_tls_index", &_tls_index});
     syms_.insert({"_Init_thread_epoch", &_init_thread_epoch});
     syms_.insert({"_Init_thread_header",
@@ -208,6 +217,7 @@ struct ModuleLoader {
   }
 
 private:
+  const void *resolveInCache(std::string_view name, bool data);
   const void *lookup(std::string_view name, bool data);
 #if __linux__
   friend int iter_so_callback(dl_phdr_info *info, size_t size, void *data);
@@ -265,15 +275,26 @@ const void *ModuleLoader::loadLibrary(std::string_view path) {
   return found->second;
 }
 
+const void *ModuleLoader::resolveInCache(std::string_view name, bool data) {
+  auto found = syms_.find(name.data());
+  if (found == syms_.end())
+    return nullptr;
+  for (auto loc : global_locals) {
+    // return the simulated global locals directly
+    if (found->second == loc)
+      return loc;
+  }
+  // return a second level pointer if applying data type symbol
+  return data ? &found->second : found->second;
+}
+
 const void *ModuleLoader::resolve(const void *handle, std::string_view name,
                                   bool data) {
   LockGuard lock(this, mutex_);
-  auto found = syms_.find(name.data());
-  if (found != syms_.end()) {
-    return data ? &found->second : found->second;
-  }
 
-  const void *target = nullptr;
+  const void *target = resolveInCache(name, data);
+  if (target)
+    return target;
 
   // check it in iobject modules
   for (auto io : imods_) {
@@ -293,17 +314,15 @@ const void *ModuleLoader::resolve(const void *handle, std::string_view name,
 
   if (!target)
     return nullptr;
-  found = syms_.insert({name.data(), target}).first;
-  return data ? &found->second : found->second;
+  auto newit = syms_.insert({name.data(), target}).first;
+  return data ? &newit->second : newit->second;
 }
 
 const void *ModuleLoader::resolve(std::string_view name, bool data) {
   LockGuard lock(this, mutex_);
-  auto found = syms_.find(name.data());
-  if (found != syms_.end()) {
-    return data ? &found->second : found->second;
-  }
-  return lookup(name, data);
+
+  const void *target = resolveInCache(name, data);
+  return target ? target : lookup(name, data);
 }
 
 const void *ModuleLoader::lookup(std::string_view name, bool data) {
