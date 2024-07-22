@@ -35,9 +35,19 @@ void __aarch64_ldadd8_relax(void);
 #endif
 #elif ON_WINDOWS
 void _CxxThrowException(void);
-void _Init_thread_header(void);
-void _Init_thread_footer(void);
-void _Init_thread_abort(void);
+
+/*
+A thread unsafe simulation of msvc tls initialization
+*/
+// copied from crt\src\vcruntime\thread_safe_statics.cpp
+static int const uninitialized = 0;
+static int const being_initialized = -1;
+static int const epoch_start = INT_MIN;
+static void icpp_Init_thread_header(int *const pOnce) {
+  *pOnce = being_initialized;
+}
+static void icpp_Init_thread_footer(int *const pOnce) { *pOnce = epoch_start; }
+static void icpp_Init_thread_abort(int *const pOnce) { *pOnce = uninitialized; }
 #endif
 }
 
@@ -49,13 +59,13 @@ namespace icpp {
 
 // some simulated system global variables
 #if ON_WINDOWS
-static uint64_t _tls_index = 0;
-static uint64_t _init_thread_epoch = 0;
+static const int _tls_index = 0;
+static const int _init_thread_epoch = epoch_start;
 #else
 static uint64_t __dso_handle = 0;
 #endif
 
-static uint64_t *global_locals[] = {
+static const void *global_locals[] = {
 #if ON_WINDOWS
     &_tls_index,
     &_init_thread_epoch,
@@ -108,11 +118,11 @@ struct ModuleLoader {
     syms_.insert({"_tls_index", &_tls_index});
     syms_.insert({"_Init_thread_epoch", &_init_thread_epoch});
     syms_.insert({"_Init_thread_header",
-                  reinterpret_cast<const void *>(&_Init_thread_header)});
+                  reinterpret_cast<const void *>(&icpp_Init_thread_header)});
     syms_.insert({"_Init_thread_footer",
-                  reinterpret_cast<const void *>(&_Init_thread_footer)});
+                  reinterpret_cast<const void *>(&icpp_Init_thread_footer)});
     syms_.insert({"_Init_thread_abort",
-                  reinterpret_cast<const void *>(&_Init_thread_abort)});
+                  reinterpret_cast<const void *>(&icpp_Init_thread_abort)});
 #endif
 
 #if __APPLE__
@@ -507,6 +517,14 @@ bool Loader::globalLocal(uint64_t vm) {
       return true;
   }
   return false;
+}
+
+const int *Loader::simulateTlsEpoch() {
+#if ON_WINDOWS
+  return &_init_thread_epoch;
+#else
+  return nullptr;
+#endif
 }
 
 } // namespace icpp

@@ -5,6 +5,7 @@
 */
 
 #include "exec.h"
+#include "arch.h"
 #include "debugger.h"
 #include "loader.h"
 #include "object.h"
@@ -20,6 +21,10 @@
 #include <unicorn/unicorn.h>
 
 #define LOG_EXECUTION 0
+
+#if ON_WINDOWS && ARCH_ARM64
+#define WIN_ARM64 1
+#endif
 
 namespace icpp {
 
@@ -272,6 +277,10 @@ private:
   // <stub, vm> caches
   std::map<uint64_t, uint64_t> stubvms_;
   void *topreturn_ = nullptr; // return address when called from stub
+
+#if WIN_ARM64
+  char *wintls_ = nullptr;
+#endif
 };
 
 void ExecEngine::run(uint64_t pc, ContextICPP *regs) {
@@ -338,6 +347,9 @@ void ExecEngine::init() {
   host_context(&initctx);
 #if ARCH_ARM64
   saveRegisterAArch64(initctx);
+#if WIN_ARM64
+  wintls_ = reinterpret_cast<char *>(initctx.r[18]);
+#endif
 #else
   saveRegisterX64(initctx);
 #endif
@@ -368,8 +380,8 @@ bool ExecEngine::execCtor() {
     // make function stub, the vm function called from host side must
     // be in stub mode, because the page it belongs to doesn't have the
     // executable permission
-    for (auto spot : stubpots) {
-      auto target = *reinterpret_cast<uint64_t *>(spot);
+    for (auto &spot : stubpots) {
+      auto target = *reinterpret_cast<uint64_t *>(spot.vm);
       auto found = vmstubs_.find(target);
       if (found == vmstubs_.end()) {
         // create a new stub for this iobject vm target function
@@ -390,8 +402,9 @@ bool ExecEngine::execCtor() {
         }
       }
       // redirect to the exeuctable stub
-      *reinterpret_cast<uint64_t *>(spot) = found->second;
+      *reinterpret_cast<uint64_t *>(spot.vm) = found->second;
     }
+    stubpots.clear();
 
     // set the stub page in read&exec mode
     page_executable(page);
@@ -687,8 +700,10 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
     std::exit(-1);
   } else if (reinterpret_cast<uint64_t>(__cxa_throw) == target) {
 #if ON_WINDOWS || __APPLE__
-    log_print(Runtime, "Exception thrown in script: exception={:x}, rtti={:x}.",
-              args[0], args[1]);
+    log_print(Runtime,
+              "Exception thrown in script: exception={:x}, rtti={:x}, "
+              "caller.rva={:x}.",
+              args[0], args[1], robject_->vm2rva(retaddr));
 #else
     auto typeinfo = reinterpret_cast<std::type_info *>(args[1]);
     // char * exception
@@ -1453,6 +1468,12 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
 }
 
 bool ExecEngine::execLoop(uint64_t pc) {
+#if WIN_ARM64
+  auto epochptr = Loader::simulateTlsEpoch();
+  auto tlsepoch = reinterpret_cast<uint64_t *>(wintls_ + 0x58);
+  auto oldepochptr = tlsepoch[0];
+#endif
+
   // debugger internal thread
   Debugger::Thread *dbgthread = nullptr;
   if (debugger_)
@@ -1498,8 +1519,20 @@ bool ExecEngine::execLoop(uint64_t pc) {
     log_print(Develop, "Emulation {:x}", inst->rva);
 #endif
 
+#if WIN_ARM64
+    // as we haven't relocated the real relocation for tls epoch,
+    // herein give it the simulated address
+    *tlsepoch = reinterpret_cast<uint64_t>(&epochptr);
+#endif
+
     // running instructions by unicorn engine
     auto err = uc_emu_start(uc_, pc, -1, 0, step);
+
+#if WIN_ARM64
+    // restore the original epoch pointer
+    *tlsepoch = oldepochptr;
+#endif
+
     if (err != UC_ERR_OK) {
       log_print(Runtime, "Fatal error occurred: {}.", uc_strerror(err));
       dump();

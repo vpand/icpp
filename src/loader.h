@@ -53,6 +53,9 @@ public:
   // check whether is a global local variable
   static bool globalLocal(uint64_t vm);
 
+  // get the simulated tls epoch address
+  static const int *simulateTlsEpoch();
+
 private:
   Object *object_ = nullptr;
   const void *handle_;

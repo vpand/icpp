@@ -1442,6 +1442,16 @@ static uint64_t relocate_data(StringRef content, uint64_t offset,
     }
     break;
   }
+  case AArch64: {
+    switch (rtype) {
+#undef IMAGE_REL_ARM64_ADDR32NB
+    case COFF::RelocationTypesARM64::IMAGE_REL_ARM64_ADDR32NB | COFF_MAGIC_BIT:
+      return 0; // ignore this kind of reloc currently
+    default:
+      break;
+    }
+    break;
+  }
   default:
     break;
   }
@@ -1454,13 +1464,13 @@ static uint64_t relocate_data(StringRef content, uint64_t offset,
   return istext ? relocpot : 0;
 }
 
-void Object::relocateData(const StringRef &content, uint64_t offset,
-                          const void *rsym) {
-  auto spot = relocate_data(content, offset,
-                            *reinterpret_cast<const RelocSymbol *>(rsym),
-                            dynsects_, type(), arch());
+void Object::relocateData(uint32_t index, const StringRef &content,
+                          uint64_t offset, const void *prsym) {
+  auto rsym = reinterpret_cast<const RelocSymbol *>(prsym);
+  auto spot = relocate_data(content, offset, *rsym, dynsects_, type(), arch());
   if (spot)
-    stubspots_.push_back(spot);
+    stubspots_.push_back(
+        {index, static_cast<uint32_t>(offset), spot, rsym->name.data()});
 }
 
 void Object::parseSections() {
@@ -1552,7 +1562,7 @@ void Object::parseSections() {
             auto rsym = get_symbol(addr, sym, r.getType(false));
             if (rsym.name.size()) {
               rsym.addend = r.r_addend;
-              relocateData(expContent.get(), r.r_offset, &rsym);
+              relocateData(s.getIndex(), expContent.get(), r.r_offset, &rsym);
             }
           }
         } else {
@@ -1594,7 +1604,7 @@ void Object::parseSections() {
         auto rsym = get_symbol(0, *sym, r.getType());
         if (rsym.stype == SymbolRef::ST_File)
           continue;
-        relocateData(sectBuff, r.getOffset(), &rsym);
+        relocateData(s.getIndex(), sectBuff, r.getOffset(), &rsym);
       }
     }
   }
