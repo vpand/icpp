@@ -8,6 +8,27 @@
 
 #pragma once
 
+// architecture type
+#if __arm64__ || __aarch64__
+#define __ARM64__ 1
+#elif __x86_64__ || __x64__ || _M_AMD64 || _M_X64
+#define __X64__ 1
+#endif
+
+// os type
+#if defined(_WIN32) || defined(_WIN64)
+#define __WIN__ 1
+#else
+#define __UNIX__ 1
+#if __linux__
+#define __LINUX__ 1
+#endif
+#if ANDROID
+#define __ANDROID__ 1
+#endif
+// __APPLE__ on macOS/iOS
+#endif
+
 // for boost definitions
 #include <boost/process.hpp>
 

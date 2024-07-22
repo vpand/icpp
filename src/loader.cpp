@@ -501,4 +501,12 @@ bool Loader::executable(uint64_t vm, Object **iobject) {
 
 bool Loader::belong(uint64_t vm) { return moloader->belong(vm); }
 
+bool Loader::globalLocal(uint64_t vm) {
+  for (auto loc : global_locals) {
+    if (vm == reinterpret_cast<uint64_t>(loc))
+      return true;
+  }
+  return false;
+}
+
 } // namespace icpp

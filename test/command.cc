@@ -1,10 +1,14 @@
 #include <icpp.hpp>
 #include <icppex.hpp>
 
-void __declspec(dllexport) test() { boost::process::codecvt(); }
+#if __WIN__
+#define arg_count "-n"s, "1"s
+#else
+#define arg_count "-c"s, "1"s
+#endif
 
 int main(int argc, const char *argv[]) {
   icpp::prints("Command result: {}\n",
-               icppex::command("echo", {"Hello"s, "world"s, "."s}));
+               icppex::command("ping"s, {arg_count, "vpand.com"s}));
   return 0;
 }

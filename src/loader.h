@@ -50,6 +50,9 @@ public:
   // check whether the vm address belongs to a iobject module
   static bool belong(uint64_t vm);
 
+  // check whether is a global local variable
+  static bool globalLocal(uint64_t vm);
+
 private:
   Object *object_ = nullptr;
   const void *handle_;

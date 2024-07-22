@@ -33,13 +33,15 @@ using string_views = std::vector<std::string_view>;
 static inline void
 execute(const std::string &program, const strings &args,
         const std::function<void(std::string_view)> &procline) {
-  bp::ipstream is; // reading pipe-stream
-  // cmd args > is
-  bp::child(program, args, bp::std_out > is).wait();
+  bp::ipstream out, err; // reading pipe-stream
+  // cmd args > out/err
+  bp::child(program, args, bp::std_out > out, bp::std_err > err).wait();
 
   std::string line;
-  // read the output lines
-  while (std::getline(is, line))
+  // read the output/error lines
+  while (std::getline(out, line))
+    procline(line);
+  while (std::getline(err, line))
     procline(line);
 }
 

@@ -341,6 +341,8 @@ bool Object::belong(uint64_t vm, size_t *di) {
 }
 
 const void *RelocInfo::realTarget() {
+  if (Loader::globalLocal(reinterpret_cast<uint64_t>(target)))
+    return target;
   return type == CSymbolRef::ST_Data
              ? *reinterpret_cast<void **>(const_cast<void *>(target))
              : target;
