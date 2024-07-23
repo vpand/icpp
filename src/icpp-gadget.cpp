@@ -59,6 +59,16 @@ private:
   bool running_ = true;
 } icppsvr;
 
+// Don't need these implementations at all in icpp-gadget
+int exec_string(const char *argv0, std::string_view snippet, bool whole,
+                int argc, const char **argv) {
+  return -1;
+}
+int exec_source(const char *argv0, std::string_view path, int argc,
+                const char **argv) {
+  return -1;
+}
+
 static void send_buffer(ip::tcp::socket *s, iopad::CommandID id,
                         const std::string_view &respbuf) {
   std::string buff;

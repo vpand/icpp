@@ -49,7 +49,10 @@ execute(const std::string &program, const strings &args,
 static inline std::string execute(const std::string &program,
                                   const strings &args) {
   std::string output;
-  execute(program, args, [&output](std::string_view line) { output += line; });
+  execute(program, args, [&output](std::string_view line) {
+    output += line;
+    output += "\n";
+  });
   return output;
 }
 

@@ -137,8 +137,12 @@ static auto pack_file(const fs::path &srcfile, const fs::path &dstdir,
 }
 
 static auto pack_dir(const fs::path &srcdir, const fs::path &dstroot,
-                     bool symlink = false) {
-  auto dstdir = dstroot / srcdir.filename();
+                     std::string_view dstname = "", bool symlink = false) {
+  auto dstdir = dstroot / (dstname.size() ? dstname : srcdir.filename());
+  if (!dstname.size() && fs::exists(dstdir))
+    log_return(std::format("Ignored packing {}, {} exists.", srcdir.string(),
+                           dstdir.string()),
+               return);
   std::error_code err;
   auto option =
       fs::copy_options::overwrite_existing | fs::copy_options::recursive;
@@ -167,9 +171,9 @@ int main(int argc, char **argv) {
   auto dstroot = fs::path(argv[2]);
   create_dir(dstroot);
   // create icpp package layout
-  auto icpproot =
-      dstroot / std::format("icpp-v{}.{}.{}-{}-{}", icpp::version_major,
+  auto pkgdir = std::format("icpp-v{}.{}.{}-{}-{}", icpp::version_major,
                             icpp::version_minor, icpp::version_patch, os, arch);
+  auto icpproot = dstroot / pkgdir;
   auto bin = icpproot / "bin";
   auto include = icpproot / "include";
   auto lib = icpproot / "lib";
@@ -218,7 +222,7 @@ int main(int argc, char **argv) {
   for (auto &name : incnames) {
     auto srcdir = srcroot / "../../runtime" / name;
     if (fs::exists(srcdir))
-      pack_dir(srcdir, include, true);
+      pack_dir(srcdir, include, "", true);
     else
       log(std::format("There's no {}, ignored packing it.", srcdir.string()));
   }
@@ -238,15 +242,19 @@ int main(int argc, char **argv) {
   auto boostlib = boost / "lib";
 #endif
   if (fs::exists(boostinc) && fs::exists(boostlib)) {
-    auto icppboostlib = lib / "boost";
-    create_dir(icppboostlib);
-    pack_dir(boostinc / ".", icpproot);
-    pack_dir(boostlib / ".", icppboostlib);
+    create_dir(lib / "boost");
+    pack_dir(boostinc / "boost", include);
+    pack_dir(boostlib / ".", lib, "boost");
   } else {
     log(std::format("Can't find boost in {}, skipped packing boost.",
                     boost.string()));
   }
 
-  std::puts("Done.");
+  auto targz = pkgdir + ".tar.gz";
+  log(std::format("Packing icpp release package {}...", targz));
+  std::system(
+      std::format("cd {} && tar czf {} {}", dstroot.string(), targz, pkgdir)
+          .data());
+  log(std::format("Created icpp package {}.", targz));
   return 0;
 }

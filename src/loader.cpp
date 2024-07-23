@@ -130,6 +130,13 @@ struct ModuleLoader {
     // currently, the clang cpp module initializer is a nop function,
     // and we will skip to call it in ctor caller
     syms_.insert({"__ZGIW3std", reinterpret_cast<const void *>(&nop_function)});
+
+    syms_.insert(
+        {"___cxa_atexit", reinterpret_cast<const void *>(&__cxa_atexit)});
+    syms_.insert(
+        {"___cxa_throw", reinterpret_cast<const void *>(&__cxa_throw)});
+    syms_.insert({"___stack_chk_fail",
+                  reinterpret_cast<const void *>(&__stack_chk_fail)});
 #else
     syms_.insert({"_ZGIW3std", reinterpret_cast<const void *>(&nop_function)});
 #endif
@@ -222,55 +229,64 @@ struct ModuleLoader {
 #else
 #define apisym(n) #n + 1
 #endif
-    syms_.insert({apisym(__ZN4icpp7programEv), api::program});
-    syms_.insert({apisym(__ZN4icpp7versionEv), api::version});
-    syms_.insert({apisym(__ZN4icpp14home_directoryEv), api::home_directory});
+    syms_.insert({apisym(__ZN4icpp7programEv),
+                  reinterpret_cast<const void *>(&api::program)});
+    syms_.insert({apisym(__ZN4icpp7versionEv),
+                  reinterpret_cast<const void *>(&api::version)});
+    syms_.insert({apisym(__ZN4icpp14home_directoryEv),
+                  reinterpret_cast<const void *>(&api::home_directory)});
     syms_.insert(
         {apisym(
              __ZN4icpp15exec_expressionENSt3__117basic_string_viewIcNS0_11char_traitsIcEEEE),
-         api::exec_expression});
+         reinterpret_cast<const void *>(&api::exec_expression)});
     syms_.insert(
         {apisym(
              __ZN4icpp11exec_stringENSt3__117basic_string_viewIcNS0_11char_traitsIcEEEEiPPKc),
-         api::exec_string});
+         reinterpret_cast<const void *>(&api::exec_string)});
     syms_.insert(
         {apisym(
              __ZN4icpp11exec_sourceENSt3__117basic_string_viewIcNS0_11char_traitsIcEEEEiPPKc),
-         api::exec_source});
+         reinterpret_cast<const void *>(&api::exec_source)});
     syms_.insert(
         {apisym(
              __ZN4icpp11exec_moduleENSt3__117basic_string_viewIcNS0_11char_traitsIcEEEEiPPKc),
-         api::exec_module});
-    syms_.insert({apisym(__ZN4icpp10result_getEv), api::result_get});
-    syms_.insert({apisym(__ZN4icpp11result_getsEv), api::result_gets});
+         reinterpret_cast<const void *>(&api::exec_module)});
+    syms_.insert({apisym(__ZN4icpp10result_getEv),
+                  reinterpret_cast<const void *>(&api::result_get)});
+    syms_.insert({apisym(__ZN4icpp11result_getsEv),
+                  reinterpret_cast<const void *>(&api::result_gets)});
     syms_.insert(
         {apisym(
              __ZN4icpp13is_cpp_sourceENSt3__117basic_string_viewIcNS0_11char_traitsIcEEEE),
-         api::is_cpp_source});
-    syms_.insert({apisym(__ZN4icpp10rand_valueEv), api::rand_value});
-    syms_.insert({apisym(__ZN4icpp11rand_stringEi), api::rand_string});
+         reinterpret_cast<const void *>(&api::is_cpp_source)});
+    syms_.insert({apisym(__ZN4icpp10rand_valueEv),
+                  reinterpret_cast<const void *>(&api::rand_value)});
+    syms_.insert({apisym(__ZN4icpp11rand_stringEi),
+                  reinterpret_cast<const void *>(&api::rand_string)});
     syms_.insert(
         {apisym(
              __ZN4icpp13rand_filenameEiNSt3__117basic_string_viewIcNS0_11char_traitsIcEEEE),
-         api::rand_filename});
+         reinterpret_cast<const void *>(&api::rand_filename)});
     syms_.insert(
         {apisym(
              __ZN4icpp12load_libraryENSt3__117basic_string_viewIcNS0_11char_traitsIcEEEE),
-         api::load_library});
-    syms_.insert({apisym(__ZN4icpp14unload_libraryEPv), api::unload_library});
+         reinterpret_cast<const void *>(&api::load_library)});
+    syms_.insert({apisym(__ZN4icpp14unload_libraryEPv),
+                  reinterpret_cast<const void *>(&api::unload_library)});
     syms_.insert(
         {apisym(
              __ZN4icpp14resolve_symbolENSt3__117basic_string_viewIcNS0_11char_traitsIcEEEEPv),
-         api::resolve_symbol});
+         reinterpret_cast<const void *>(&api::resolve_symbol)});
     syms_.insert(
         {apisym(
              __ZN4icpp15iterate_modulesERKNSt3__18functionIFbyNS0_17basic_string_viewIcNS0_11char_traitsIcEEEEEEE),
-         api::iterate_modules});
-    syms_.insert({apisym(__ZN4icpp10result_setEl), api::result_set});
+         reinterpret_cast<const void *>(&api::iterate_modules)});
+    syms_.insert({apisym(__ZN4icpp10result_setEl),
+                  reinterpret_cast<const void *>(&api::result_set)});
     syms_.insert(
         {apisym(
              __ZN4icpp10result_setERKNSt3__112basic_stringIcNS0_11char_traitsIcEENS0_9allocatorIcEEEE),
-         api::result_sets});
+         reinterpret_cast<const void *>(&api::result_sets)});
 #endif
   }
 

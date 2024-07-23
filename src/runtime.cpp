@@ -125,7 +125,7 @@ int exec_module(std::string_view module, int argc, const char **argv) {
       iarg = argv;
     }
     bool validcache;
-    return icpp::exec_main(omain.string(), deps, module, iargc,
+    return icpp::exec_main(omain.string(), deps, omain.string(), iargc,
                            const_cast<char **>(iarg), validcache);
   }
   icpp::log_print(

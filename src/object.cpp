@@ -434,7 +434,7 @@ std::string Object::generateCache() {
   // set the original object buffer
   auto errBuff = llvm::MemoryBuffer::getFile(path_);
   if (!errBuff) {
-    log_print(Runtime, "Failed to read when caching '{}' : {}.", path_,
+    log_print(Develop, "Failed to read when caching '{}' : {}.", path_,
               errBuff.getError().message());
     return "";
   }

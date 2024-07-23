@@ -76,6 +76,19 @@ void ObjectDisassembler::init(CObjectFile *, std::string_view) {}
 void Object::decodeInsns(TextSection &) {}
 void Object::parseSections(void) {}
 extern "C" void exec_engine_main(StubContext *ctx, ContextICPP *regs) {}
+int exec_main(std::string_view path, const std::vector<std::string> &deps,
+              std::string_view srcpath, int iargc, char **iargv,
+              bool &validcache) {
+  return -1;
+}
+int exec_string(const char *argv0, std::string_view snippet, bool whole,
+                int argc, const char **argv) {
+  return -1;
+}
+int exec_source(const char *argv0, std::string_view path, int argc,
+                const char **argv) {
+  return -1;
+}
 } // namespace icpp
 
 template <typename FILTER, typename PACKER>
