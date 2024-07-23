@@ -253,10 +253,7 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
                                    &argv[idoubledash + 1], validcache);
       } else {
         // execute as a dynamic code snippet
-        auto dyncode = std::string("#include <icpp.hpp>\n"
-                                   "int main(void) {") +
-                       std::string(sp) + "; return 0;}";
-        exitcode = icpp::exec_string(argv[0], dyncode, true);
+        exitcode = icpp::exec_string(argv[0], std::string(sp));
         if (exitcode)
           icpp::log_print(
               icpp::Raw,

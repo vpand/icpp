@@ -8,6 +8,7 @@
 #include "exec.h"
 #include "icpp.h"
 #include "log.h"
+#include "object.h"
 #include "runcfg.h"
 #include "utils.h"
 #include <boost/algorithm/string.hpp>
@@ -18,7 +19,8 @@
 
 namespace icpp {
 
-int exec_string(const char *argv0, std::string_view snippet, bool whole) {
+int exec_string(const char *argv0, std::string_view snippet, bool whole,
+                int argc, const char **argv) {
   RunConfig::repl = true;
 
   // construct a temporary source path
@@ -32,7 +34,8 @@ int exec_string(const char *argv0, std::string_view snippet, bool whole) {
   if (whole)
     outf << snippet.data();
   else
-    outf << "int main(void) {" << snippet.data() << ";return 0;}";
+    outf << "#include <icpp.hpp>\nint main(void) {" << snippet.data()
+         << ";return 0;}";
   outf.close();
 
   std::vector<const char *> incs;
@@ -42,11 +45,58 @@ int exec_string(const char *argv0, std::string_view snippet, bool whole) {
 
   std::vector<std::string> deps;
   int iargc = 1;
-  const char *iarg[] = {""};
+  const char **iarg = &argv0;
+  if (argc) {
+    iargc = argc;
+    iarg = argv;
+  }
   bool validcache;
   int exitcode = exec_main(opath.string(), deps, srcpath.string(), iargc,
-                           reinterpret_cast<char **>(&iarg), validcache);
+                           const_cast<char **>(iarg), validcache);
   fs::remove(opath);
+  return exitcode;
+}
+
+int exec_source(const char *argv0, std::string_view path, int argc,
+                const char **argv) {
+  std::vector<std::string> deps;
+  std::vector<const char *> incs;
+  bool validcache;
+  int exitcode = -1;
+  while (true) {
+    // compile the input source to be as the running host object file(.o,
+    // .obj)
+    auto opath = icpp::compile_source_icpp(argv0, path, "-O1", incs);
+    if (fs::exists(opath)) {
+      int iargc = 1;
+      const char **iarg = &argv0;
+      if (argc) {
+        iargc = argc;
+        iarg = argv;
+      }
+      exitcode = icpp::exec_main(opath.string(), deps, path, iargc,
+                                 const_cast<char **>(iarg), validcache);
+      if (opath.extension() != icpp::iobj_ext) {
+        // remove the temporary intermediate object file
+        fs::remove(opath);
+        // done
+        break;
+      } else if (validcache) {
+        // done
+        break;
+      } else {
+        // remove the version miss-matched iobject cache file
+        fs::remove(opath);
+        icpp::log_print(icpp::Develop,
+                        "Removed the old iobject cache file: {}.",
+                        opath.string());
+      }
+    } else {
+      // if failed to compile the input source, clang has already printed
+      // the errors
+      break;
+    }
+  }
   return exitcode;
 }
 

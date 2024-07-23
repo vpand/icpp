@@ -20,8 +20,12 @@ int exec_main(std::string_view path, const std::vector<std::string> &deps,
               bool &validcache);
 
 // execute with a small code snippet
-int exec_string(const char *argv0, std::string_view snippet,
-                bool whole = false);
+int exec_string(const char *argv0, std::string_view snippet, bool whole = false,
+                int argc = 0, const char **argv = nullptr);
+
+// execute with a c++ source file
+int exec_source(const char *argv0, std::string_view path, int argc = 0,
+                const char **argv = nullptr);
 
 // the Read-Evaluate-Print-Loop Implementation of ICPP
 int exec_repl(const char *argv0);

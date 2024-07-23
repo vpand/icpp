@@ -240,7 +240,7 @@ int main(int argc, char **argv) {
   if (fs::exists(boostinc) && fs::exists(boostlib)) {
     auto icppboostlib = lib / "boost";
     create_dir(icppboostlib);
-    pack_dir(boostinc, icpproot);
+    pack_dir(boostinc / ".", icpproot);
     pack_dir(boostlib / ".", icppboostlib);
   } else {
     log(std::format("Can't find boost in {}, skipped packing boost.",

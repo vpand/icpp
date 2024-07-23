@@ -162,6 +162,116 @@ struct ModuleLoader {
     // initialize the symbol hashes for the third-party modules lazy loading
     if (fs::exists(RuntimeLib::inst().repo(false)))
       RuntimeLib::inst().initHashes();
+
+    // cache the apis
+#if ON_WINDOWS
+    syms_.insert({"?home_directory@icpp@@YA?AV?$basic_string@DU?$char_traits@D@"
+                  "__1@std@@V?$allocator@D@23@@__1@std@@XZ",
+                  api::home_directory});
+    syms_.insert({"?version@icpp@@YA?AV?$basic_string@DU?$char_traits@D@__1@"
+                  "std@@V?$allocator@D@23@@__1@std@@XZ",
+                  api::version});
+    syms_.insert({"?program@icpp@@YA?AV?$basic_string_view@DU?$char_traits@D@__"
+                  "1@std@@@__1@std@@XZ",
+                  api::program});
+    syms_.insert({"?exec_expression@icpp@@YAHV?$basic_string_view@DU?$char_"
+                  "traits@D@__1@std@@@__1@std@@@Z",
+                  api::exec_expression});
+    syms_.insert({"?exec_string@icpp@@YAHV?$basic_string_view@DU?$char_traits@"
+                  "D@__1@std@@@__1@std@@HPEAPEBD@Z",
+                  api::exec_string});
+    syms_.insert({"?exec_source@icpp@@YAHV?$basic_string_view@DU?$char_traits@"
+                  "D@__1@std@@@__1@std@@HPEAPEBD@Z",
+                  api::exec_source});
+    syms_.insert({"?exec_module@icpp@@YAHV?$basic_string_view@DU?$char_traits@"
+                  "D@__1@std@@@__1@std@@HPEAPEBD@Z",
+                  api::exec_module});
+    syms_.insert({"?result_gets@icpp@@YA?AV?$basic_string_view@DU?$char_traits@"
+                  "D@__1@std@@@__1@std@@XZ",
+                  api::result_gets});
+    syms_.insert({"?result_get@icpp@@YAJXZ", api::result_get});
+    syms_.insert({"?is_cpp_source@icpp@@YA_NV?$basic_string_view@DU?$char_"
+                  "traits@D@__1@std@@@__1@std@@@Z",
+                  api::is_cpp_source});
+    syms_.insert({"?rand_filename@icpp@@YA?AV?$basic_string@DU?$char_traits@D@_"
+                  "_1@std@@V?$allocator@D@23@@__1@std@@HV?$basic_string_view@"
+                  "DU?$char_traits@D@__1@std@@@34@@Z",
+                  api::rand_filename});
+    syms_.insert({"?rand_string@icpp@@YA?AV?$basic_string@DU?$char_traits@D@__"
+                  "1@std@@V?$allocator@D@23@@__1@std@@H@Z",
+                  api::rand_string});
+    syms_.insert({"?rand_value@icpp@@YAHXZ", api::rand_value});
+    syms_.insert({"?load_library@icpp@@YAPEAXV?$basic_string_view@DU?$char_"
+                  "traits@D@__1@std@@@__1@std@@@Z",
+                  api::load_library});
+    syms_.insert({"?unload_library@icpp@@YAPEAXPEAX@Z", api::unload_library});
+    syms_.insert({"?resolve_symbol@icpp@@YAPEAXV?$basic_string_view@DU?$char_"
+                  "traits@D@__1@std@@@__1@std@@PEAX@Z",
+                  api::resolve_symbol});
+    syms_.insert(
+        {"?iterate_modules@icpp@@YAXAEBV?$function@$$A6A_N_KV?$basic_string_"
+         "view@DU?$char_traits@D@__1@std@@@__1@std@@@Z@__1@std@@@Z",
+         api::iterate_modules});
+    syms_.insert({"?result_set@icpp@@YAXJ@Z", api::result_set});
+    syms_.insert({"?result_set@icpp@@YAXAEBV?$basic_string@DU?$char_traits@D@__"
+                  "1@std@@V?$allocator@D@23@@__1@std@@@Z",
+                  api::result_sets});
+#else
+#if __APPLE__
+#define apisym(n) #n
+#else
+#define apisym(n) #n + 1
+#endif
+    syms_.insert({apisym(__ZN4icpp7programEv), api::program});
+    syms_.insert({apisym(__ZN4icpp7versionEv), api::version});
+    syms_.insert({apisym(__ZN4icpp14home_directoryEv), api::home_directory});
+    syms_.insert(
+        {apisym(
+             __ZN4icpp15exec_expressionENSt3__117basic_string_viewIcNS0_11char_traitsIcEEEE),
+         api::exec_expression});
+    syms_.insert(
+        {apisym(
+             __ZN4icpp11exec_stringENSt3__117basic_string_viewIcNS0_11char_traitsIcEEEEiPPKc),
+         api::exec_string});
+    syms_.insert(
+        {apisym(
+             __ZN4icpp11exec_sourceENSt3__117basic_string_viewIcNS0_11char_traitsIcEEEEiPPKc),
+         api::exec_source});
+    syms_.insert(
+        {apisym(
+             __ZN4icpp11exec_moduleENSt3__117basic_string_viewIcNS0_11char_traitsIcEEEEiPPKc),
+         api::exec_module});
+    syms_.insert({apisym(__ZN4icpp10result_getEv), api::result_get});
+    syms_.insert({apisym(__ZN4icpp11result_getsEv), api::result_gets});
+    syms_.insert(
+        {apisym(
+             __ZN4icpp13is_cpp_sourceENSt3__117basic_string_viewIcNS0_11char_traitsIcEEEE),
+         api::is_cpp_source});
+    syms_.insert({apisym(__ZN4icpp10rand_valueEv), api::rand_value});
+    syms_.insert({apisym(__ZN4icpp11rand_stringEi), api::rand_string});
+    syms_.insert(
+        {apisym(
+             __ZN4icpp13rand_filenameEiNSt3__117basic_string_viewIcNS0_11char_traitsIcEEEE),
+         api::rand_filename});
+    syms_.insert(
+        {apisym(
+             __ZN4icpp12load_libraryENSt3__117basic_string_viewIcNS0_11char_traitsIcEEEE),
+         api::load_library});
+    syms_.insert({apisym(__ZN4icpp14unload_libraryEPv), api::unload_library});
+    syms_.insert(
+        {apisym(
+             __ZN4icpp14resolve_symbolENSt3__117basic_string_viewIcNS0_11char_traitsIcEEEEPv),
+         api::resolve_symbol});
+    syms_.insert(
+        {apisym(
+             __ZN4icpp15iterate_modulesERKNSt3__18functionIFbyNS0_17basic_string_viewIcNS0_11char_traitsIcEEEEEEE),
+         api::iterate_modules});
+    syms_.insert({apisym(__ZN4icpp10result_setEl), api::result_set});
+    syms_.insert(
+        {apisym(
+             __ZN4icpp10result_setERKNSt3__112basic_stringIcNS0_11char_traitsIcEENS0_9allocatorIcEEEE),
+         api::result_sets});
+#endif
   }
 
   ~ModuleLoader() {}
