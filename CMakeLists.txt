@@ -41,7 +41,7 @@ if(LINUX)
   # apply our custom built libc++ compile/link flags
   add_compile_options(-nostdinc++ -nostdlib++ -fPIC -I${ICXXINCLUDE}/c++/v1 
     -I${ICXXINCLUDE}/${CMAKE_HOST_SYSTEM_PROCESSOR}-unknown-linux-gnu/c++/v1)
-  add_link_options(-L${ICXXLIB} -Wl,-rpath,${ICXXLIB} -lc -lm -lc++)
+  add_link_options(-L${ICXXLIB} -lc -lm -lc++ @${CMAKE_SOURCE_DIR}/config/ld-${CMAKE_HOST_SYSTEM_PROCESSOR}.txt)
   # as we're already using the latest clang, any further checks are redundant
   set(LLVM_COMPILER_CHECKED TRUE)
   # set this variable to disable llvm's cmake to do any more checks, it's really annoying...

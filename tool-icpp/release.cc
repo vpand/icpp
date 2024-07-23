@@ -86,11 +86,15 @@ constexpr const std::string_view arch = "x86_64";
 // the final libc++ dynamic library name used by icpp runtime
 #if _WIN32
 constexpr const std::string_view libcpp_name = "c++" LIBEXT;
-#else
-constexpr const std::string_view libcpp_name = "libc++" LIBEXT;
-#endif
+#elif __APPLE__
+constexpr const std::string_view libcpp_name = "libc++.1" LIBEXT;
 constexpr const std::string_view libcppabi_name = "libc++abi.1" LIBEXT;
 constexpr const std::string_view libunwind_name = "libunwind.1" LIBEXT;
+#else
+constexpr const std::string_view libcpp_name = "libc++" LIBEXT ".1";
+constexpr const std::string_view libcppabi_name = "libc++abi" LIBEXT ".1";
+constexpr const std::string_view libunwind_name = "libunwind" LIBEXT ".1";
+#endif
 
 static auto log(const std::string &text) { std::puts(text.data()); }
 
@@ -201,9 +205,6 @@ int main(int argc, char **argv) {
   pack_file(libcxx / libcpp, lib, true, libcpp_name);
   pack_file(libcxx / libcppabi, lib, true, libcppabi_name);
   pack_file(libcxx / libunwind, lib, true, libunwind_name);
-  std::system(
-      std::format("cd {}; ln -s {} {}", lib.string(), libcpp_name, libcpp)
-          .data());
 #else
   pack_file(srcroot / "../libcxx/Release/lib/Release" / libcpp, lib, false);
   pack_file(srcroot / "../../cmake/boost/demangle/build/demangle.dll", lib,

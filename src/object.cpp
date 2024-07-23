@@ -280,7 +280,7 @@ uint64_t Object::vm2rva(uint64_t vm, size_t *ti) {
       if (ti) {
         ti[0] = i;
       }
-      return s.vmrva + vm - s.vm;
+      return s.frva + vm - s.vm;
     }
   }
   for (auto &s : ofile_->sections()) {
@@ -299,7 +299,7 @@ uint64_t Object::vm2rva(uint64_t vm, size_t *ti) {
         abort();
       }
       // return rva to text section
-      return textsects_[0].vmrva + vm - textsects_[0].vm;
+      return textsects_[0].frva + vm - textsects_[0].vm;
     }
   }
   return -1;

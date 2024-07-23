@@ -72,9 +72,9 @@ struct TextSection {
   // this kind of section contains instructions
   uint32_t index;
   uint32_t size;
-  uint32_t frva;  // file buffer rva from .text[0]
-  uint64_t vmrva; // vm address rva like in VMPStudio or IDA
-  uint64_t vm;    // runtime address in iobject instance
+  uint32_t frva; // file buffer rva from .text[0]
+  uint64_t vrva; // vm address rva like in VMPStudio or IDA
+  uint64_t vm;   // runtime address in iobject instance
   // instruction informations
   std::vector<InsnInfo> iinfs;
 };

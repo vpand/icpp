@@ -130,13 +130,6 @@ struct ModuleLoader {
     // currently, the clang cpp module initializer is a nop function,
     // and we will skip to call it in ctor caller
     syms_.insert({"__ZGIW3std", reinterpret_cast<const void *>(&nop_function)});
-
-    syms_.insert(
-        {"___cxa_atexit", reinterpret_cast<const void *>(&__cxa_atexit)});
-    syms_.insert(
-        {"___cxa_throw", reinterpret_cast<const void *>(&__cxa_throw)});
-    syms_.insert({"___stack_chk_fail",
-                  reinterpret_cast<const void *>(&__stack_chk_fail)});
 #else
     syms_.insert({"_ZGIW3std", reinterpret_cast<const void *>(&nop_function)});
 #endif
@@ -155,14 +148,21 @@ struct ModuleLoader {
         mcxx, "?__libcpp_thread_create@__1@std@@YAHPEAPEAXP6APEAXPEAX@Z1@Z",
         false));
 #else
-    auto mcxx = loadLibrary((libpath / "libc++" LLVM_PLUGIN_EXT).string());
+    syms_.insert(
+        {"___cxa_atexit", reinterpret_cast<const void *>(&__cxa_atexit)});
+    syms_.insert(
+        {"___cxa_throw", reinterpret_cast<const void *>(&__cxa_throw)});
+    syms_.insert({"___stack_chk_fail",
+                  reinterpret_cast<const void *>(&__stack_chk_fail)});
 
 #if __APPLE__
-    // although these library have already loaded when loading libc++, but
-    // in order to make sure all the c++ symbols resolved in them, so cache
-    // them herein
+    loadLibrary((libpath / "libc++.1" LLVM_PLUGIN_EXT).string());
     loadLibrary((libpath / "libc++abi.1" LLVM_PLUGIN_EXT).string());
     loadLibrary((libpath / "libunwind.1" LLVM_PLUGIN_EXT).string());
+#else
+    loadLibrary((libpath / "libc++" LLVM_PLUGIN_EXT ".1").string());
+    loadLibrary((libpath / "libc++abi" LLVM_PLUGIN_EXT ".1").string());
+    loadLibrary((libpath / "libunwind" LLVM_PLUGIN_EXT ".1").string());
 #endif
 #endif
 
@@ -227,7 +227,7 @@ struct ModuleLoader {
 #if __APPLE__
 #define apisym(n) #n
 #else
-#define apisym(n) #n + 1
+#define apisym(n) (const char *)#n + 1
 #endif
     syms_.insert({apisym(__ZN4icpp7programEv),
                   reinterpret_cast<const void *>(&api::program)});
