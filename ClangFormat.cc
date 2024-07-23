@@ -45,21 +45,22 @@ int main(int argc, const char *argv[]) {
   // build % cmake --build . -- clang-format
   auto clang_format_path =
       thisdir / "build/third/llvm-project/llvm/bin/clang-format";
-  if (!fs::exists(clang_format_path)) {
-    auto env = std::getenv("CLANG_FORMAT");
-    if (!env) {
-      // CLANG_FORMAT env is missing, make sure clang-format is in your system
-      // PATH environment.
-      clang_format_path = "clang-format";
-    }
-  }
-
   // the final formatter path
 #if _WIN32
   auto clang_format = clang_format_path.string() + ".exe";
 #else
   auto clang_format = clang_format_path.string();
 #endif
+  if (!fs::exists(clang_format)) {
+    auto env = std::getenv("CLANG_FORMAT");
+    if (!env || !fs::exists(env)) {
+      // CLANG_FORMAT env is missing, make sure clang-format is in your system
+      // PATH environment.
+      clang_format = "clang-format";
+    } else {
+      clang_format = env;
+    }
+  }
 
   // make sure git is in your system PATH environment when running this script.
   auto gitlines = command(bp::search_path("git").string(),

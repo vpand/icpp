@@ -17,14 +17,14 @@ if len(thisdir) == 0:
 # you can use the following build command to generate clang-format:
 # build % cmake --build . -- clang-format
 clang_format = thisdir + '/build/third/llvm-project/llvm/bin/clang-format'
+if platform.system() == 'Windows':
+    # construct the right full path of clang-format.exe
+    clang_format += '.exe'
 if not os.path.exists(clang_format):
     clang_format = os.getenv('CLANG_FORMAT')
     if not clang_format or not os.path.exists(clang_format):
         # CLANG_FORMAT env is missing, make sure clang-format is in your system PATH environment.
         clang_format = 'clang-format'
-elif platform.system() == 'Windows':
-    # construct the right full path of clang-format.exe
-    clang_format += '.exe'
 
 src_exts = ['.c', '.cc', '.cpp', '.h', '.hpp']
 

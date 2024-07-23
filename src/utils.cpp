@@ -39,7 +39,7 @@ bool is_interpretable(std::string_view path) {
     }
     return is_cpp_source(path);
   }
-  return true; // unix like exe file ?
+  return fs::is_regular_file(path); // unix like exe file ?
 }
 
 int rand_value() {

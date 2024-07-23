@@ -51,6 +51,10 @@ using namespace std::literals::string_view_literals;
 
 namespace icpp {
 
+/*
+Common Utilities
+*/
+
 // string list type
 using strings = std::vector<std::string>;
 using string_views = std::vector<std::string_view>;
@@ -69,5 +73,62 @@ static inline strings split(const std::string &str,
   boost::iter_split(parts, str, boost::first_finder(delimiter));
   return parts;
 }
+
+/*
+ICPP Specification
+*/
+
+// the icpp interpreter version
+std::string version();
+
+// the icpp main program argv[0] path
+std::string_view program();
+
+// the current user home directory, e.g.: ~, C:/Users/icpp
+std::string home_directory();
+
+// execute a c++ expression
+int exec_expression(std::string_view expr);
+
+// execute a c++ source from string
+int exec_string(std::string_view code, int argc = 0, const char **argv = nullptr);
+
+// execute a c++ source file
+int exec_source(std::string_view path, int argc = 0, const char **argv = nullptr);
+
+// execute an icpp module installed by imod
+int exec_module(std::string_view module, int argc = 0, const char **argv = nullptr);
+
+// result setter/getter for main script and its sub script
+// which is executed by exec_* api
+/*
+e.g.:
+  icpp::exec_expression("result_set(520)");
+  icpp::prints("Result: {}", result_get());
+*/
+void result_set(long result);
+void result_set(const std::string &result);
+long result_get();
+std::string_view result_gets();
+
+// load a native library
+void *load_library(std::string_view path);
+// unload a native library
+void *unload_library(void *handle);
+// lookup a native symbol
+// default search in the whole program
+void *resolve_symbol(std::string_view name, void *handle = nullptr);
+// iterate all the native modules in this running process,
+// return true to break iterating
+void iterate_modules(
+    const std::function<bool(uint64_t base, std::string_view path)> &callback);
+
+// check whether the given path ends with a c++ source file extension or not
+bool is_cpp_source(std::string_view path);
+
+// random value or string generator
+int rand_value();
+std::string rand_string(int length);
+std::string rand_filename(int length, std::string_view ext = "");
 
 } // namespace icpp

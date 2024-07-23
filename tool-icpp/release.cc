@@ -84,22 +84,28 @@ constexpr const std::string_view arch = "x86_64";
 #endif
 
 // the final libc++ dynamic library name used by icpp runtime
+#if _WIN32
+constexpr const std::string_view libcpp_name = "c++" LIBEXT;
+#else
 constexpr const std::string_view libcpp_name = "libc++" LIBEXT;
+#endif
 constexpr const std::string_view libcppabi_name = "libc++abi.1" LIBEXT;
 constexpr const std::string_view libunwind_name = "libunwind.1" LIBEXT;
 
 static auto log(const std::string &text) { std::puts(text.data()); }
 
-static auto log_exit(const std::string &text) {
-  log(text.data());
-  std::exit(-1);
-}
+#define log_return(text, stmt)                                                 \
+  {                                                                            \
+    log(text.data());                                                          \
+    stmt;                                                                      \
+  }
 
 static auto create_dir(const fs::path &path) {
   if (fs::exists(path))
     return;
   if (!fs::create_directory(path))
-    log_exit(std::format("Failed to create directory: {}.", path.string()));
+    log_return(std::format("Failed to create directory: {}.", path.string()),
+               return);
   log(std::format("Created directory {}.", path.string()));
 }
 
@@ -115,8 +121,9 @@ static auto pack_file(const fs::path &srcfile, const fs::path &dstdir,
   std::error_code err;
   fs::copy_file(srcfile, dstfile, fs::copy_options::overwrite_existing, err);
   if (err)
-    log_exit(std::format("Failed to copy file: {} ==> {}, {}.",
-                         srcfile.string(), dstfile.string(), err.message()));
+    log_return(std::format("Failed to copy file: {} ==> {}, {}.",
+                           srcfile.string(), dstfile.string(), err.message()),
+               return);
 
 #if __APPLE__ || __linux__
   if (strip) {
@@ -141,8 +148,8 @@ static auto pack_dir(const fs::path &srcdir, const fs::path &dstroot,
     option |= fs::copy_options::skip_symlinks;
   fs::copy(srcdir, dstdir, option, err);
   if (err)
-    log_exit(std::format("Failed to copy directory: {} ==> {}, {}.",
-                         srcdir.string(), dstdir.string(), err.message()));
+    log(std::format("Failed to copy directory: {} ==> {}, {}.", srcdir.string(),
+                    dstdir.string(), err.message()));
   else
     log(std::format("Packed directory {} from {}.", dstdir.string(),
                     srcdir.string()));
@@ -150,7 +157,9 @@ static auto pack_dir(const fs::path &srcdir, const fs::path &dstroot,
 
 int main(int argc, char **argv) {
   if (argc != 3)
-    log_exit(std::format("Usage: {} /path/to/build /path/to/prefix.", argv[0]));
+    log_return(
+        std::format("Usage: {} /path/to/build /path/to/prefix.", argv[0]),
+        return -1);
 
   // where the built outputs placed
   auto srcroot = fs::path(argv[1]) / "src";
@@ -178,11 +187,9 @@ int main(int argc, char **argv) {
   for (auto &name : names)
     pack_file(srcroot / name, bin, true);
 
-    // copy libc++ file
-#if __APPLE__ || _WIN32
-  pack_file(srcroot / "../libcxx/lib" / libcpp, lib, true, libcpp_name);
-#endif
+  // copy libc++ file
 #if __APPLE__
+  pack_file(srcroot / "../libcxx/lib" / libcpp, lib, true, libcpp_name);
   pack_file(srcroot / "../libcxx/lib" / libcppabi, lib, true, libcppabi_name);
   pack_file(srcroot / "../libcxx/lib" / libunwind, lib, true, libunwind_name);
 #elif __linux__
@@ -193,6 +200,13 @@ int main(int argc, char **argv) {
   std::system(
       std::format("cd {}; ln -s {} {}", lib.string(), libcpp_name, libcpp)
           .data());
+#else
+  pack_file(srcroot / "../libcxx/Release/lib/Release" / libcpp, lib, false);
+  pack_file(srcroot / "../../cmake/boost/demangle/build/demangle.dll", lib,
+            false);
+  // create the clang-cl magic file for msvc cl building
+  std::ofstream outf(lib / "clang-cl");
+  outf << "icpp internal flag file for windows platform.";
 #endif
 
   // copy c/c++/os headers
@@ -216,8 +230,13 @@ int main(int argc, char **argv) {
 
   // copy boost files
   auto boost = srcroot / "../boost";
+#if _WIN32
+  auto boostinc = boost / "include/boost-1_86";
+  auto boostlib = boost / "bin";
+#else
   auto boostinc = boost / "include";
   auto boostlib = boost / "lib";
+#endif
   if (fs::exists(boostinc) && fs::exists(boostlib)) {
     auto icppboostlib = lib / "boost";
     create_dir(icppboostlib);
