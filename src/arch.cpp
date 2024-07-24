@@ -443,9 +443,9 @@ void __NAKED__ host_context(ContextICPP *ctx) {
   __ASM__("ret");
 #else
 #if ON_WINDOWS
-  save_gpr(rcx);
+  save_gpr(% rcx);
 #else
-  save_gpr(rdi);
+  save_gpr(% rdi);
 #endif
   __ASM__("retq");
 #endif
