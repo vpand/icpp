@@ -73,7 +73,7 @@ struct TextSection {
   uint32_t index;
   uint32_t size;
   uint32_t frva; // file buffer rva from .text[0]
-  uint64_t vrva; // vm address rva like in VMPStudio or IDA
+  uint64_t vrva; // vm address rva like in VMPStudio and IDA
   uint64_t vm;   // runtime address in iobject instance
   // instruction informations
   std::vector<InsnInfo> iinfs;
@@ -111,13 +111,14 @@ public:
 
   constexpr std::string_view path() { return path_; }
   constexpr bool isCache() { return path_.ends_with(iobj_ext); }
-  constexpr uint64_t vm2rvaSimple(uint64_t vm) {
-    return vm - textsects_[0].vm;
-  };
+  constexpr uint64_t vm2rvaSimple(uint64_t vm) { return vm - textsects_[0].vm; }
 
   constexpr std::vector<StubSpot> &stubSpots() { return stubspots_; }
 
+  // vm to text[0].vm file buffer rva
   uint64_t vm2rva(uint64_t vm, size_t *ti = nullptr);
+  // vm to virtual address rva like in VMPStudio and IDA
+  uint64_t vm2vrva(uint64_t vm);
 
   // check whether vm belongs to text section
   bool executable(uint64_t vm, Object **iobject);

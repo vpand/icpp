@@ -688,6 +688,10 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
       args[0] = reinterpret_cast<uint64_t>(nop_function);
       target = args[0];
     }
+  } else if (reinterpret_cast<uint64_t>(exit) == target) {
+    exitcode_ = args[0]; // save script's exit code
+    target = reinterpret_cast<uint64_t>(nop_function);
+    retaddr = reinterpret_cast<uint64_t>(topReturn());
   } else if (reinterpret_cast<uint64_t>(abort) == target) {
     log_print(Runtime, "Abort called in script.");
     dump();
@@ -1105,7 +1109,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
   // interpret the pre-decoded instructions
   for (unsigned i = 0; i < origstep && inst->type != INSN_HARDWARE; i++) {
 #if LOG_EXECUTION
-    log_print(Develop, "Interpret {:x} I{}", inst->rva, inst->type);
+    log_print(Develop, "Interpret {:x} I{}", robject_->vm2vrva(pc), inst->type);
 #endif
 
     // call and return within object should update this to true
@@ -1502,7 +1506,7 @@ bool ExecEngine::execLoop(uint64_t pc) {
   while (pc != reinterpret_cast<uint64_t>(topReturn())) {
     // debugging
     if (debugger_) {
-      debugger_->entry(dbgthread, inst->rva, inst);
+      debugger_->entry(dbgthread, robject_->vm2vrva(pc), inst);
       if (debugger_->stopped()) {
         // stop executing by user request
         break;
@@ -1516,7 +1520,7 @@ bool ExecEngine::execLoop(uint64_t pc) {
     }
 
 #if LOG_EXECUTION
-    log_print(Develop, "Emulation {:x}", inst->rva);
+    log_print(Develop, "Emulation {:x}", robject_->vm2vrva(pc));
 #endif
 
 #if WIN_ARM64
@@ -1674,7 +1678,9 @@ int ExecEngine::run(bool lib) {
   if (execCtor()) {
     if (!lib && execMain()) {
       if (!robject_->isCache() && !RunConfig::repl && !RunConfig::gadget &&
-          !exitcode_) {
+          !exitcode_ &&
+          !robject_->cachePath().starts_with(
+              fs::temp_directory_path().string())) {
         // generate the interpretable object file if everthing went well
         robject_->generateCache();
       }

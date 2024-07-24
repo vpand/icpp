@@ -214,7 +214,7 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
     if (sp == "-c" || sp == "-o") {
       icpp::RunConfig::inst(argv[0], "");
       // let clang do the compilation task directly
-      return icpp::compile_source_icpp(argc, const_cast<const char **>(argv));
+      return icpp::compile_source_clang(argc, const_cast<const char **>(argv));
     }
     if (sp.starts_with("-I")) {
       // forward to clang

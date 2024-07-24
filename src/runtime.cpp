@@ -88,13 +88,13 @@ fs::path RuntimeLib::find(std::string_view symbol) {
 namespace api {
 
 // the icpp interpreter version
-std::string version() { return icpp::version_string(); }
+std::string_view version() { return icpp::version_string(); }
 
 // the icpp main program argv[0] path
 std::string_view program() { return icpp::RunConfig::inst()->program; }
 
 // the current user home directory, e.g.: ~, C:/Users/icpp
-std::string home_directory() { return icpp::home_directory(); }
+std::string_view home_directory() { return icpp::home_directory(); }
 
 // execute a c++ expression
 int exec_expression(std::string_view expr) {
@@ -145,7 +145,7 @@ static std::string result_s;
 
 void result_set(long result) { result_i = result; }
 
-void result_sets(const std::string &result) { result_s = result; }
+void result_sets(const std::string_view &result) { result_s = result; }
 
 long result_get() { return result_i; }
 
@@ -182,10 +182,10 @@ bool is_cpp_source(std::string_view path) { return icpp::is_cpp_source(path); }
 // random value or string generator
 int rand_value() { return icpp::rand_value(); }
 
-std::string rand_string(int length) { return icpp::rand_string(length); }
-
-std::string rand_filename(int length, std::string_view ext) {
-  return icpp::rand_filename(length, ext);
+std::string_view rand_string(char *buff, int length) {
+  auto str = icpp::rand_string(length);
+  std::memcpy(buff, str.data(), length);
+  return {buff, static_cast<size_t>(length)};
 }
 
 } // namespace api

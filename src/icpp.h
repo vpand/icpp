@@ -7,7 +7,7 @@
 #pragma once
 
 #include <cstdint>
-#include <string>
+#include <string_view>
 
 namespace icpp {
 
@@ -27,7 +27,7 @@ union version_t {
   };
 };
 
-std::string version_string();
+std::string_view version_string();
 version_t version_value();
 
 } // namespace icpp

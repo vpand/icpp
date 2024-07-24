@@ -46,7 +46,7 @@ bool is_interpretable(std::string_view path);
 int rand_value();
 std::string rand_string(int length);
 std::string rand_filename(int length, std::string_view ext = "");
-std::string home_directory();
+std::string_view home_directory();
 fs::path must_exist(const fs::path &path);
 fs::path convert_file(std::string_view path, std::string_view newext);
 int repl_entry(const std::function<void(std::string_view)> &exec);

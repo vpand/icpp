@@ -62,7 +62,10 @@ std::string rand_filename(int length, std::string_view ext) {
   return rand_string(length) + std::string(ext);
 }
 
-std::string home_directory() { return std::getenv(env_home.data()); }
+std::string_view home_directory() {
+  static auto home = std::getenv(env_home.data());
+  return home;
+}
 
 fs::path must_exist(const fs::path &path) {
   if (!fs::exists(path)) {

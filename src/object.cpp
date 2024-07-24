@@ -305,6 +305,15 @@ uint64_t Object::vm2rva(uint64_t vm, size_t *ti) {
   return -1;
 }
 
+uint64_t Object::vm2vrva(uint64_t vm) {
+  for (size_t i = 0; i < textsects_.size(); i++) {
+    auto &s = textsects_[i];
+    if (s.vm <= vm && vm < s.vm + s.size)
+      return s.vrva + vm - s.vm;
+  }
+  return -1;
+}
+
 bool Object::executable(uint64_t vm, Object **iobject) {
   for (size_t i = 0; i < textsects_.size(); i++) {
     auto &s = textsects_[i];
@@ -679,7 +688,8 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
               ? textsects_[0].vm
               : reinterpret_cast<uint64_t>(dynsects_[r.dindex()].buffer.data());
       irelocs_.push_back(RelocInfo{
-          r.symbol(), reinterpret_cast<void *>(r.rva() + basevm), r.type()});
+          r.symbol(), reinterpret_cast<void *>((int64_t)(int)r.rva() + basevm),
+          r.type()});
       continue;
     }
     Loader loader(module);

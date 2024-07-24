@@ -9,8 +9,8 @@ int main(int argc, const char *argv[]) {
   icpp::prints("The {} is a c++ source? {}.\n", argv[0],
                icpp::is_cpp_source(argv[0]));
 
-  icpp::prints("Random values: {}, {}, {}.\n", icpp::rand_value(),
-               icpp::rand_string(16), icpp::rand_filename(8, ".cc"));
+  icpp::prints("Random values: i={}, s={}.\n", icpp::rand_value(),
+               icpp::rand_string<16>());
 
   std::puts("Executing a c code...");
   icpp::exec_string("#include <stdio.h>\n"

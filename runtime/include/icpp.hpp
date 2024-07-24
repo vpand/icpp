@@ -79,25 +79,28 @@ ICPP Specification
 */
 
 // the icpp interpreter version
-std::string version();
+std::string_view version();
 
 // the icpp main program argv[0] path
 std::string_view program();
 
 // the current user home directory, e.g.: ~, C:/Users/icpp
-std::string home_directory();
+std::string_view home_directory();
 
 // execute a c++ expression
 int exec_expression(std::string_view expr);
 
 // execute a c++ source from string
-int exec_string(std::string_view code, int argc = 0, const char **argv = nullptr);
+int exec_string(std::string_view code, int argc = 0,
+                const char **argv = nullptr);
 
 // execute a c++ source file
-int exec_source(std::string_view path, int argc = 0, const char **argv = nullptr);
+int exec_source(std::string_view path, int argc = 0,
+                const char **argv = nullptr);
 
 // execute an icpp module installed by imod
-int exec_module(std::string_view module, int argc = 0, const char **argv = nullptr);
+int exec_module(std::string_view module, int argc = 0,
+                const char **argv = nullptr);
 
 // result setter/getter for main script and its sub script
 // which is executed by exec_* api
@@ -107,7 +110,7 @@ e.g.:
   icpp::prints("Result: {}", result_get());
 */
 void result_set(long result);
-void result_set(const std::string &result);
+void result_set(const std::string_view &result);
 long result_get();
 std::string_view result_gets();
 
@@ -128,7 +131,25 @@ bool is_cpp_source(std::string_view path);
 
 // random value or string generator
 int rand_value();
-std::string rand_string(int length);
-std::string rand_filename(int length, std::string_view ext = "");
+/*
+The better prototype should be: std::string rand_string(int length = 8);
+But on Windows, icpp itself is built by clang-cl in Visual Studio, icpp.hpp
+will be built by clang-icpp, so the std::string may be defined in a different
+way, to avoid the type mismatch, herein gives it an old C style one.
+
+As of this, if you want to extend icpp runtime with native modules, the type
+mismatch situation must be considered on Windows.
+*/
+std::string_view rand_string(char *buff, int length);
+
+/*
+Wrapper Utilities
+*/
+
+template <size_t N> std::string rand_string() {
+  char buff[N];
+  auto tstr = rand_string(buff, N);
+  return {tstr.data(), N};
+}
 
 } // namespace icpp

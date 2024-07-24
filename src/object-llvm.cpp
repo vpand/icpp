@@ -1505,6 +1505,9 @@ void Object::parseSections() {
       continue;
     auto name = expName.get();
     if (s.isText()) {
+      if (!update.size)
+        continue; // empty section
+
       auto expContent = s.getContents();
       if (!expContent) {
         log_print(Develop,

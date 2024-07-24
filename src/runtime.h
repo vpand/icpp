@@ -71,13 +71,13 @@ private:
 namespace api {
 
 // the icpp interpreter version
-std::string version();
+std::string_view version();
 
 // the icpp main program argv[0] path
 std::string_view program();
 
 // the current user home directory, e.g.: ~, C:/Users/icpp
-std::string home_directory();
+std::string_view home_directory();
 
 // execute a c++ expression
 int exec_expression(std::string_view expr);
@@ -102,7 +102,7 @@ e.g.:
   icpp::prints("Result: {}", result_get());
 */
 void result_set(long result);
-void result_sets(const std::string &result);
+void result_sets(const std::string_view &result);
 long result_get();
 std::string_view result_gets();
 
@@ -123,8 +123,16 @@ bool is_cpp_source(std::string_view path);
 
 // random value or string generator
 int rand_value();
-std::string rand_string(int length);
-std::string rand_filename(int length, std::string_view ext = "");
+/*
+The better prototype should be: std::string rand_string(int length = 8);
+But on Windows, icpp itself is built by clang-cl in Visual Studio, icpp.hpp
+will be built by clang-icpp, so the std::string may be defined in a different
+way, to avoid the type mismatch, herein gives it an old C style one.
+
+As of this, if you want to extend icpp runtime with native modules, the type
+mismatch situation must be considered  on Windows.
+*/
+std::string_view rand_string(char *buff, int length);
 
 } // namespace api
 

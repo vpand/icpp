@@ -172,11 +172,11 @@ struct ModuleLoader {
 
     // cache the apis
 #if ON_WINDOWS
-    syms_.insert({"?home_directory@icpp@@YA?AV?$basic_string@DU?$char_traits@D@"
-                  "__1@std@@V?$allocator@D@23@@__1@std@@XZ",
+    syms_.insert({"?home_directory@icpp@@YA?AV?$basic_string_view@DU?$char_"
+                  "traits@D@__1@std@@@__1@std@@XZ",
                   api::home_directory});
-    syms_.insert({"?version@icpp@@YA?AV?$basic_string@DU?$char_traits@D@__1@"
-                  "std@@V?$allocator@D@23@@__1@std@@XZ",
+    syms_.insert({"?version@icpp@@YA?AV?$basic_string_view@DU?$char_traits@D@__"
+                  "1@std@@@__1@std@@XZ",
                   api::version});
     syms_.insert({"?program@icpp@@YA?AV?$basic_string_view@DU?$char_traits@D@__"
                   "1@std@@@__1@std@@XZ",
@@ -200,12 +200,8 @@ struct ModuleLoader {
     syms_.insert({"?is_cpp_source@icpp@@YA_NV?$basic_string_view@DU?$char_"
                   "traits@D@__1@std@@@__1@std@@@Z",
                   api::is_cpp_source});
-    syms_.insert({"?rand_filename@icpp@@YA?AV?$basic_string@DU?$char_traits@D@_"
-                  "_1@std@@V?$allocator@D@23@@__1@std@@HV?$basic_string_view@"
-                  "DU?$char_traits@D@__1@std@@@34@@Z",
-                  api::rand_filename});
-    syms_.insert({"?rand_string@icpp@@YA?AV?$basic_string@DU?$char_traits@D@__"
-                  "1@std@@V?$allocator@D@23@@__1@std@@H@Z",
+    syms_.insert({"?rand_string@icpp@@YA?AV?$basic_string_view@DU?$char_traits@"
+                  "D@__1@std@@@__1@std@@PEADH@Z",
                   api::rand_string});
     syms_.insert({"?rand_value@icpp@@YAHXZ", api::rand_value});
     syms_.insert({"?load_library@icpp@@YAPEAXV?$basic_string_view@DU?$char_"
@@ -220,8 +216,8 @@ struct ModuleLoader {
          "view@DU?$char_traits@D@__1@std@@@__1@std@@@Z@__1@std@@@Z",
          api::iterate_modules});
     syms_.insert({"?result_set@icpp@@YAXJ@Z", api::result_set});
-    syms_.insert({"?result_set@icpp@@YAXAEBV?$basic_string@DU?$char_traits@D@__"
-                  "1@std@@V?$allocator@D@23@@__1@std@@@Z",
+    syms_.insert({"?result_set@icpp@@YAXAEBV?$basic_string_view@DU?$char_"
+                  "traits@D@__1@std@@@__1@std@@@Z",
                   api::result_sets});
 #else
 #if __APPLE__
@@ -261,12 +257,8 @@ struct ModuleLoader {
          reinterpret_cast<const void *>(&api::is_cpp_source)});
     syms_.insert({apisym(__ZN4icpp10rand_valueEv),
                   reinterpret_cast<const void *>(&api::rand_value)});
-    syms_.insert({apisym(__ZN4icpp11rand_stringEi),
+    syms_.insert({apisym(__ZN4icpp11rand_stringEPci),
                   reinterpret_cast<const void *>(&api::rand_string)});
-    syms_.insert(
-        {apisym(
-             __ZN4icpp13rand_filenameEiNSt3__117basic_string_viewIcNS0_11char_traitsIcEEEE),
-         reinterpret_cast<const void *>(&api::rand_filename)});
     syms_.insert(
         {apisym(
              __ZN4icpp12load_libraryENSt3__117basic_string_viewIcNS0_11char_traitsIcEEEE),
@@ -285,7 +277,7 @@ struct ModuleLoader {
                   reinterpret_cast<const void *>(&api::result_set)});
     syms_.insert(
         {apisym(
-             __ZN4icpp10result_setERKNSt3__112basic_stringIcNS0_11char_traitsIcEENS0_9allocatorIcEEEE),
+             __ZN4icpp10result_setERKNSt3__117basic_string_viewIcNS0_11char_traitsIcEEEE),
          reinterpret_cast<const void *>(&api::result_sets)});
 #endif
   }

@@ -9,9 +9,11 @@
 
 namespace icpp {
 
-std::string version_string() {
-  return std::format("v{}.{}.{}.{}", version_major, version_minor,
-                     version_patch, version_extra);
+std::string_view version_string() {
+  static auto version =
+      std::format("v{}.{}.{}.{}", version_major, version_minor, version_patch,
+                  version_extra);
+  return version;
 }
 
 version_t version_value() {
