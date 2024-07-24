@@ -159,6 +159,37 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
   int idoubledash = argc, ilastfile = -1;
   for (int i = 1; i < argc; i++) {
     std::string_view arg{argv[i]};
+
+    /*
+    the highest priority argument
+    */
+    if (arg == "-v" || arg == "-version") {
+      print_version();
+      return 0; // return to main to exit this program
+    }
+    if (arg == "--version") {
+      print_version();
+      // continuing let clang print its version
+      return icpp::compile_source_clang(argc, const_cast<const char **>(argv));
+    }
+    if (arg == "-h" || arg == "-help") {
+      print_help();
+      return 0;
+    }
+    if (arg == "--help") {
+      print_help();
+      // continuing let clang print its help list
+      return icpp::compile_source_clang(argc, const_cast<const char **>(argv));
+    }
+    if (arg == "-c" || arg == "-o") {
+      icpp::RunConfig::inst(argv[0], "");
+      // let clang do the compilation task directly
+      return icpp::compile_source_clang(argc, const_cast<const char **>(argv));
+    }
+
+    /*
+    calculate the script argument explicit or implicit separator index
+    */
     if (arg == "--") {
       idoubledash = i;
       break;
@@ -193,29 +224,6 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
   // parse the command line arguments for icpp options
   for (auto p : args) {
     auto sp = std::string_view(p);
-    if (sp == "-v" || sp == "-version") {
-      print_version();
-      return 0; // return to main to exit this program
-    }
-    if (sp == "--version") {
-      print_version();
-      // continuing let clang print its version
-      return icpp::compile_source_clang(argc, const_cast<const char **>(argv));
-    }
-    if (sp == "-h" || sp == "-help") {
-      print_help();
-      return 0;
-    }
-    if (sp == "--help") {
-      print_help();
-      // continuing let clang print its help list
-      return icpp::compile_source_clang(argc, const_cast<const char **>(argv));
-    }
-    if (sp == "-c" || sp == "-o") {
-      icpp::RunConfig::inst(argv[0], "");
-      // let clang do the compilation task directly
-      return icpp::compile_source_clang(argc, const_cast<const char **>(argv));
-    }
     if (sp.starts_with("-I")) {
       // forward to clang
       icpp_option_incdirs.push_back(sp.data());
