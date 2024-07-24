@@ -30,7 +30,7 @@
 #endif
 
 // for boost definitions
-#include <boost/process.hpp>
+#include <boost/algorithm/string.hpp>
 
 // for standard c++ definitions
 #if 0

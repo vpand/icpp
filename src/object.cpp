@@ -367,6 +367,7 @@ std::string Object::generateCache() {
   iobject.set_version(version_value().value);
   iobject.set_arch(static_cast<iobj::ArchType>(arch_));
   iobject.set_otype(static_cast<iobj::ObjectType>(type_));
+  iobject.set_icpp(main_program());
 
   auto iins = iobject.mutable_instinfos();
   for (auto &ts : textsects_) {
@@ -634,6 +635,13 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
               "The file {} does be an icpp interpretable object, but its "
               "version doesn't match this icpp (expected {}).",
               path_, version_string());
+    return;
+  }
+  if (iobject.icpp() != main_program()) {
+    log_print(Develop,
+              "The file {} does be an icpp interpretable object, but its "
+              "generator doesn't match this icpp.",
+              path_);
     return;
   }
 

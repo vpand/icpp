@@ -64,18 +64,21 @@ message InterpObject {
   ArchType arch = 3;
   ObjectType otype = 4;
 
+  // cache file generator main program path
+  string icpp = 5;
+
   // instruction details, e.g.: type, reloc, length, etc.
-  repeated InsnInfos instinfos = 5;
+  repeated InsnInfos instinfos = 6;
 
   // decoded instruction operand meta datas
-  map<string, bytes> instmetas = 6;
+  map<string, bytes> instmetas = 7;
 
   // module list referenced by relocation symbol
-  repeated string modules = 7;
+  repeated string modules = 8;
   
   // details of the instruction relocation symbol
-  repeated RelocInfo irefsyms = 8;
+  repeated RelocInfo irefsyms = 9;
 
   // the original object buffer
-  bytes objbuf = 9;
+  bytes objbuf = 10;
 }

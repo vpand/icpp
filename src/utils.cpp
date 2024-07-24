@@ -6,6 +6,7 @@
 
 #include "utils.h"
 #include "platform.h"
+#include "runcfg.h"
 #include <array>
 #include <boost/algorithm/string.hpp>
 #include <cstdlib>
@@ -65,6 +66,10 @@ std::string rand_filename(int length, std::string_view ext) {
 std::string_view home_directory() {
   static auto home = std::getenv(env_home.data());
   return home;
+}
+
+std::string main_program() {
+  return fs::absolute(RunConfig::inst()->program).string();
 }
 
 fs::path must_exist(const fs::path &path) {

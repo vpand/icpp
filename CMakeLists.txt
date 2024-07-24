@@ -99,6 +99,11 @@ if(MSVC)
   execute_process(COMMAND ${PYTHON}
     ${CMAKE_CURRENT_SOURCE_DIR}/tool/llvm_unicode_patcher.py
     ${CMAKE_CURRENT_SOURCE_DIR}/third/llvm-project/clang/lib/Lex/UnicodeCharSets.h)
+
+  # avoid finding vctool multiple times
+  execute_process(COMMAND ${PYTHON}
+    ${CMAKE_CURRENT_SOURCE_DIR}/tool/llvm_vctool_patcher.py
+    ${CMAKE_CURRENT_SOURCE_DIR}/third/llvm-project/llvm/lib/WindowsDriver/MSVCPaths.cpp)
 endif()
 add_subdirectory(third/llvm-project/llvm)
 

@@ -5,6 +5,7 @@
 */
 
 #include "compile.h"
+#include "arch.h"
 #include "object.h"
 #include "platform.h"
 #include "runcfg.h"
@@ -35,6 +36,14 @@ int compile_source_clang(int argc, const char **argv, bool cl) {
     echocc = false;
     log_print(Develop, "{}", argv_string(argc, argv));
     return 0;
+  }
+  if (!cl) {
+    for (int i = 0; i < argc; i++) {
+      if (std::string_view(argv[i]).starts_with("/clang")) {
+        cl = true;
+        break;
+      }
+    }
   }
 
   // construct a full path which the last element must be "clang" to make clang
@@ -112,7 +121,8 @@ int compile_source_icpp(int argc, const char **argv) {
     cppminc = std::format("-fprebuilt-module-path={}/apple/module", rtinc);
   }
 #elif ON_WINDOWS
-  auto wininc = std::format("-I{}/win/ucrt", rtinc);
+  auto ucrtinc = std::format("-I{}/win/ucrt", rtinc);
+  auto vcinc = std::format("-I{}/win/vc", rtinc);
   std::string sysroot;
   for (int i = 0; i < argc - 1; i++) {
     if (std::string_view(argv[i]) == "-target") {
@@ -120,19 +130,28 @@ int compile_source_icpp(int argc, const char **argv) {
       if (target.find("apple") != std::string_view::npos ||
           target.find("linux") != std::string_view::npos ||
           target.find("android") != std::string_view::npos) {
-        wininc = "";
+        ucrtinc = "";
         cross_compile = true;
       }
       break;
     }
   }
-  if (wininc.size()) {
+  if (ucrtinc.size()) {
     // use C++23 standard
     args.push_back("/clang:-std=c++23");
     // force to use the icpp integrated C/C++ runtime header
     args.push_back("/clang:-nostdinc++");
     args.push_back("/clang:-nostdlib++");
-    args.push_back(wininc.data());
+    args.push_back(vcinc.data());
+    args.push_back(ucrtinc.data());
+    args.push_back("-target");
+    args.push_back(
+#if ARCH_ARM64
+        "aarch64"
+#else
+        "x86_64"
+#endif
+        "-pc-windows-msvc19.33.0");
     cppminc = std::format("/clang:-fprebuilt-module-path={}/win/module", rtinc);
 
     // MultiThreadedDLL
