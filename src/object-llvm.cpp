@@ -1020,6 +1020,8 @@ static int reloc_addend(const CObjectFile *object,
 static RelocSymbol get_symbol(uint64_t addr, const SymbolRef &sym,
                               uint32_t rtype) {
   RelocSymbol rsym;
+  rsym.rtype = rtype;
+
   auto expName = sym.getName();
   auto expType = sym.getType();
   auto expFlags = sym.getFlags();
@@ -1039,7 +1041,6 @@ static RelocSymbol get_symbol(uint64_t addr, const SymbolRef &sym,
     rsym.name = expName.get();
     rsym.stype = expType.get();
     rsym.sflags = expFlags.get();
-    rsym.rtype = rtype;
 #if _WIN32
     // on windows, the printf is a local function in object file, in order
     // to redirect it easily in icpp-gadget, change it to an extern symbol.
@@ -1366,12 +1367,37 @@ void Object::decodeInsns(TextSection &text) {
 static uint64_t relocate_data(StringRef content, uint64_t offset,
                               const RelocSymbol &rsym,
                               const std::vector<DynSection> &dynsects,
-                              ObjectType otype, ArchType arch) {
-  uint64_t target;
+                              ObjectType otype, ArchType arch,
+                              CObjectFile *ofile) {
+  uint64_t target = 0;
   bool istext = false;
   if (rsym.sflags & SymbolRef::SF_Undefined) {
     // extern relocation
     target = reinterpret_cast<uint64_t>(Loader::locateSymbol(rsym.name, false));
+  } else if (!rsym.name.size()) {
+    if (!ofile->isMachO())
+      return 0;
+    if (rsym.rtype != MachO::X86_64_RELOC_UNSIGNED)
+      return 0;
+    auto saddr = *reinterpret_cast<const uint64_t *>(content.data() + offset);
+    for (auto &s : ofile->sections()) {
+      auto start = s.getAddress();
+      auto end = start + s.getSize();
+      if (start <= saddr && saddr < end) {
+        auto expContent = s.getContents();
+        if (!expContent) {
+          // never be here
+          log_print(Runtime, "Fatal error, the section content is "
+                             "missing for "
+                             "relocation.");
+          abort();
+        }
+        target = reinterpret_cast<uint64_t>(expContent->data() + saddr - start);
+        break;
+      }
+    }
+    if (!target)
+      return 0;
   } else {
     // local relocation
     auto expSect = rsym.sym.getSection();
@@ -1510,7 +1536,8 @@ static uint64_t relocate_data(StringRef content, uint64_t offset,
 void Object::relocateData(uint32_t index, const StringRef &content,
                           uint64_t offset, const void *prsym) {
   auto rsym = reinterpret_cast<const RelocSymbol *>(prsym);
-  auto spot = relocate_data(content, offset, *rsym, dynsects_, type(), arch());
+  auto spot = relocate_data(content, offset, *rsym, dynsects_, type(), arch(),
+                            ofile_.get());
   if (spot)
     stubspots_.push_back(
         {index, static_cast<uint32_t>(offset), spot, rsym->name.data()});
@@ -1643,14 +1670,6 @@ void Object::parseSections() {
         if (!expFlags) {
           log_print(Develop, "Bad symbol flags: {}.",
                     toString(expFlags.takeError()));
-          continue;
-        }
-        auto expName = sym->getName();
-        if (!expName) {
-          // on macOS, there'll be many this kind of errors,
-          // ignore it anyway, it doesn't matter at all
-          log_print(Ignore, "Bad symbol name: {}.",
-                    toString(expName.takeError()));
           continue;
         }
         auto rsym = get_symbol(0, *sym, r.getType());

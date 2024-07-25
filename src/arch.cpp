@@ -538,7 +538,7 @@ uint64_t __NAKED__ host_naked_test(uint64_t left, uint64_t right) {
 #endif
 }
 
-static void insn_rets(void) {
+static void __NAKED__ insn_rets(void) {
 #if ARCH_ARM64
   __ASM__("ret");
   __ASM__("ret");
