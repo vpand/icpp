@@ -949,7 +949,10 @@ uint64_t ExecEngine::interpretCalcMemX64(const InsnInfo *&inst, uint64_t &pc,
   int offimm_op_idx = expreg_op_idx + 1;
   uint64_t basereg = 0, expreg = 0;
   // read base and exponent register value
-  uc_reg_read(uc_, ops[basereg_op_idx], &basereg);
+  if (ops[basereg_op_idx] == UC_X86_REG_RIP)
+    basereg = pc;
+  else
+    uc_reg_read(uc_, ops[basereg_op_idx], &basereg);
   uc_reg_read(uc_, ops[expreg_op_idx], &expreg);
   // pickup exponent and offset value
   auto expimm = *reinterpret_cast<const int64_t *>(&ops[expimm_op_idx]);
@@ -1072,6 +1075,8 @@ static bool can_emulate(const InsnInfo *inst) {
   case INSN_X64_JUMP:
   case INSN_X64_JUMPREG:
   case INSN_X64_JUMPMEM:
+  case INSN_X64_LEA32:
+  case INSN_X64_LEA64:
     return false;
   case INSN_HARDWARE:
     return true;

@@ -33,7 +33,7 @@
 #include <boost/algorithm/string.hpp>
 
 // for standard c++ definitions
-#if 0
+#if __ICPP_CROSS__
 // c style
 #include <filesystem>
 #include <string>

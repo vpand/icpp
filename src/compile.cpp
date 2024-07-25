@@ -119,6 +119,14 @@ int compile_source_icpp(int argc, const char **argv) {
     args.push_back(argsysroot.data());
     args.push_back(isysroot.data());
     cppminc = std::format("-fprebuilt-module-path={}/apple/module", rtinc);
+    args.push_back("-target");
+    args.push_back(
+#if ARCH_ARM64
+        "arm64"
+#else
+        "x86_64"
+#endif
+        "-apple-darwin19.0.0");
   }
 #elif ON_WINDOWS
   auto ucrtinc = std::format("-I{}/win/ucrt", rtinc);
@@ -151,7 +159,7 @@ int compile_source_icpp(int argc, const char **argv) {
 #else
         "x86_64"
 #endif
-        "-pc-windows-msvc19.33.0");
+        "-pc-windows-msvc19.0.0");
     cppminc = std::format("/clang:-fprebuilt-module-path={}/win/module", rtinc);
 
     // MultiThreadedDLL
@@ -172,6 +180,16 @@ int compile_source_icpp(int argc, const char **argv) {
       break;
     }
   }
+  if (!cross_compile) {
+    args.push_back("-target");
+    args.push_back(
+#if ARCH_ARM64
+        "aarch64"
+#else
+        "x86_64"
+#endif
+        "-unknown-linux-gnu");
+  }
 #endif
   if (!cppminc.size()) {
     // set for linux/android
@@ -182,8 +200,10 @@ int compile_source_icpp(int argc, const char **argv) {
 
   // add libc include for cross compiling
   auto cinc = std::format("-I{}/c", rtinc);
-  if (cross_compile)
+  if (cross_compile) {
     args.push_back(cinc.data());
+    args.push_back("-D__ICPP_CROSS__=1");
+  }
 
   // add include itself, the boost library needs this
   auto inc = std::format("-I{}", rtinc);

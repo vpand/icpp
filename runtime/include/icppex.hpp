@@ -12,7 +12,7 @@
 #include <boost/process.hpp>
 
 // for standard c++ definitions
-#if 0
+#if __ICPP_CROSS__
 // c style
 #include <string>
 #include <string_view>
