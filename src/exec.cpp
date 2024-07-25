@@ -334,6 +334,10 @@ void ExecEngine::run(uint64_t pc, ContextICPP *regs) {
 
 extern "C" void exec_engine_main(StubContext *ctx, ContextICPP *regs) {
   auto engine = (ExecEngine *)(ctx->context);
+#if ARCH_X64
+  // stub code has set rax as rsp
+  regs->rsp = regs->rax;
+#endif
   engine->run(ctx->vmfunc, regs);
 }
 
@@ -625,13 +629,14 @@ uint64_t ExecEngine::createStub(uint64_t vmfunc) {
 
 bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
   uint64_t args[4], backups[4];
-  int rids[4]; // register id
+  int rids[4], retrid; // register id
   switch (robject_->arch()) {
   case AArch64:
     rids[0] = UC_ARM64_REG_X0;
     rids[1] = UC_ARM64_REG_X1;
     rids[2] = UC_ARM64_REG_X2;
     rids[3] = UC_ARM64_REG_X3;
+    retrid = UC_ARM64_REG_X0;
     break;
   case X86_64:
     switch (robject_->type()) {
@@ -651,6 +656,7 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
       rids[3] = UC_X86_REG_RCX;
       break;
     }
+    retrid = UC_X86_REG_RAX;
     break;
   default:
     UNIMPL_ABORT();
@@ -735,7 +741,17 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
     exitcode_ = -1;
     target = reinterpret_cast<uint64_t>(nop_function);
     retaddr = reinterpret_cast<uint64_t>(topReturn());
-  } else {
+  }
+#if ON_UNIX
+  else if (reinterpret_cast<uint64_t>(fork) == target) {
+    target = reinterpret_cast<uint64_t>(nop_function);
+
+    auto pid = fork();
+    log_print(Develop, "PID {}, fork result {}.", getpid(), pid);
+    uc_reg_write(uc_, retrid, &pid);
+  }
+#endif
+  else {
     for (size_t i = 0; i < std::size(args); i++) {
       Object *iobj;
       if (robject_->executable(args[i], &iobj)) {
@@ -923,6 +939,9 @@ bool ExecEngine::interpretJumpX64(const InsnInfo *&inst, uint64_t &pc,
 
       // return to caller
       pc = retaddr;
+      // pop return address
+      rsp += 8;
+      uc_reg_write(uc_, UC_X86_REG_RSP, &rsp);
       if (retaddr != reinterpret_cast<uint64_t>(topReturn())) {
         // update current inst
         inst = robject_->insnInfo(pc);
@@ -1075,14 +1094,12 @@ static bool can_emulate(const InsnInfo *inst) {
   case INSN_X64_JUMP:
   case INSN_X64_JUMPREG:
   case INSN_X64_JUMPMEM:
-  case INSN_X64_LEA32:
-  case INSN_X64_LEA64:
     return false;
   case INSN_HARDWARE:
     return true;
   default:
     // if the current instruction contains relocation, then it must
-    // be interpreted otherwise emulated.
+    // be interpreted otherwise can be emulated.
     return inst->rflag == 0;
   }
 }
@@ -1112,7 +1129,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     return false;
   }
   // interpret the pre-decoded instructions
-  for (unsigned i = 0; i < origstep && inst->type != INSN_HARDWARE; i++) {
+  for (unsigned i = 0; i < origstep && !can_emulate(inst); i++) {
 #if LOG_EXECUTION
     log_print(Develop, "Interpret {:x} I{}", robject_->vm2vrva(pc), inst->type);
 #endif
@@ -1335,7 +1352,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       interpretMovX64<uint64_t>(inst, pc, 0, 1, true);
       break;
     case INSN_X64_MOV64MR:
-      interpretMovX64<uint32_t>(inst, pc, 11, 0, false);
+      interpretMovX64<uint64_t>(inst, pc, 11, 0, false);
       break;
     case INSN_X64_MOV64MI32:
       interpretMovMIX64<uint64_t>(inst, pc);

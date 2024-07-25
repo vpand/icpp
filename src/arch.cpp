@@ -563,6 +563,7 @@ uint64_t host_insn_rets() {
 #if ARCH_X64
 
 static void __NAKED__ stub_exec_engine() {
+  __ASM__("movq %rsp, %rax"); // save host's current rsp
   __ASM__("subq $776, %rsp"); // gpr+xmm+st+rflags=8*16+16*16+10*8+8=472==>776
   save_gpr(% rsp);
   save_xmm_after_gpr(% rsp);
@@ -595,7 +596,7 @@ static void __NAKED__ stub_exec_engine() {
 }
 
 static void __NAKED__ stub_entry_host() {
-  __ASM__("leaq -0x27(%rip), %r11");
+  __ASM__("leaq -0x1f(%rip), %r11");
   __ASM__("nop");
   __ASM__("jmpq *-0x16(%rip)");
 }

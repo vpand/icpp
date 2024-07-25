@@ -1144,6 +1144,32 @@ static void reloc_symbols(ObjectFile *ofile, ArchType arch, TextSection &text,
   }
 }
 
+#if ARCH_X64
+static bool prefix_inst(const MCInst &inst) {
+  namespace INSN = llvm::X86;
+  switch (inst.getOpcode()) {
+  case INSN::ADDR16_PREFIX:
+  case INSN::ADDR32_PREFIX:
+  case INSN::CS_PREFIX:
+  case INSN::DATA16_PREFIX:
+  case INSN::DS_PREFIX:
+  case INSN::ES_PREFIX:
+  case INSN::FS_PREFIX:
+  case INSN::GS_PREFIX:
+  case INSN::LOCK_PREFIX:
+  case INSN::REPNE_PREFIX:
+  case INSN::REP_PREFIX:
+  case INSN::REX64_PREFIX:
+  case INSN::SS_PREFIX:
+  case INSN::XACQUIRE_PREFIX:
+  case INSN::XRELEASE_PREFIX:
+    return true;
+  default:
+    return false;
+  }
+}
+#endif
+
 void Object::decodeInsns(TextSection &text) {
   // load text relocation symbols
   std::map<uint64_t, RelocSymbol> rsyms;
@@ -1159,6 +1185,18 @@ void Object::decodeInsns(TextSection &text) {
         outs());
     InsnInfo iinfo{};
     iinfo.rva = text.frva + opc - text.vm;
+#if ARCH_X64
+    if (prefix_inst(inst)) {
+      uint64_t size2 = 0;
+      auto opc2 = opc + size;
+      // reset inst to the real instruction informtion
+      status = odiser_.DT->DisAsm->getInstruction(
+          inst, size2, BuildIDRef(reinterpret_cast<const uint8_t *>(opc2), 16),
+          opc2, outs());
+      // the composite opcode size = prefix + inst
+      size += size2;
+    }
+#endif
     switch (status) {
     case MCDisassembler::Fail: {
       iinfo.type = INSN_ABORT;
