@@ -16,10 +16,8 @@ __declspec(dllexport) char *__cxa_demangle(const char *MangledName, char *Buf,
   return Buf;
 }
 
-#if __aarch64__ || __arm64__
-
 /*
-implement the unresolved symbols when linking boost libraries on arm64 windows
+implement the unresolved symbols when linking boost libraries on windows
 */
 
 #undef InterlockedCompareExchange
@@ -61,5 +59,3 @@ __declspec(dllexport) PVOID InterlockedExchangePointer(PVOID volatile *Target,
                                                        PVOID Value) {
   return _InterlockedExchangePointer(Target, Value);
 }
-
-#endif
