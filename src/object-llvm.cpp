@@ -843,6 +843,24 @@ static void parseInstX64(const MCInst &inst, uint64_t opcptr,
   case INSN::MOVSX64rm32:
     iinfo.type = INSN_X64_MOVSX64RM32;
     break;
+  case INSN::MOVZX16rm8:
+    iinfo.type = INSN_X64_MOVZX16RM8;
+    break;
+  case INSN::MOVZX16rm16:
+    iinfo.type = INSN_X64_MOVZX16RM16;
+    break;
+  case INSN::MOVZX32rm8:
+    iinfo.type = INSN_X64_MOVZX32RM8;
+    break;
+  case INSN::MOVZX32rm16:
+    iinfo.type = INSN_X64_MOVZX32RM16;
+    break;
+  case INSN::MOVZX64rm8:
+    iinfo.type = INSN_X64_MOVZX64RM8;
+    break;
+  case INSN::MOVZX64rm16:
+    iinfo.type = INSN_X64_MOVZX64RM16;
+    break;
   case INSN::TEST8mi:
     iinfo.type = INSN_X64_TEST8MI;
     break;
@@ -1377,8 +1395,10 @@ static uint64_t relocate_data(StringRef content, uint64_t offset,
   } else if (!rsym.name.size()) {
     if (!ofile->isMachO())
       return 0;
-    if (rsym.rtype != MachO::X86_64_RELOC_UNSIGNED)
+    if (rsym.rtype != MachO::X86_64_RELOC_UNSIGNED &&
+        rsym.rtype != MachO::X86_64_RELOC_SIGNED)
       return 0;
+    // macho local relocation
     auto saddr = *reinterpret_cast<const uint64_t *>(content.data() + offset);
     for (auto &s : ofile->sections()) {
       auto start = s.getAddress();

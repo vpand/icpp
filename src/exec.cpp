@@ -198,6 +198,8 @@ private:
   void interpretFlagsRegMem(const InsnInfo *&inst, uint64_t &pc, bool cmp);
   template <typename TSRC, typename TDES>
   void interpretSignExtendRegMem(const InsnInfo *&inst, uint64_t &pc);
+  template <typename TSRC, typename TDES>
+  void interpretZeroExtendRegMem(const InsnInfo *&inst, uint64_t &pc);
 
   /*
   register startup initializer
@@ -1077,6 +1079,16 @@ void ExecEngine::interpretSignExtendRegMem(const InsnInfo *&inst,
   uc_reg_write(uc_, ops[0], &result);
 }
 
+template <typename TSRC, typename TDES>
+void ExecEngine::interpretZeroExtendRegMem(const InsnInfo *&inst,
+                                           uint64_t &pc) {
+  const uint16_t *ops;
+  auto target = interpretCalcMemX64(inst, pc, 1, &ops);
+  // movzx reg, mem
+  auto result = static_cast<TSRC>(*reinterpret_cast<const TDES *>(target));
+  uc_reg_write(uc_, ops[0], &result);
+}
+
 static bool can_emulate(const InsnInfo *inst) {
   switch (inst->type) {
   case INSN_CONDJUMP:
@@ -1449,6 +1461,24 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       break;
     case INSN_X64_MOVSX64RM32:
       interpretSignExtendRegMem<int64_t, int32_t>(inst, pc);
+      break;
+    case INSN_X64_MOVZX16RM8:
+      interpretZeroExtendRegMem<uint16_t, uint8_t>(inst, pc);
+      break;
+    case INSN_X64_MOVZX16RM16:
+      interpretZeroExtendRegMem<uint16_t, uint16_t>(inst, pc);
+      break;
+    case INSN_X64_MOVZX32RM8:
+      interpretZeroExtendRegMem<uint32_t, uint8_t>(inst, pc);
+      break;
+    case INSN_X64_MOVZX32RM16:
+      interpretZeroExtendRegMem<uint32_t, uint16_t>(inst, pc);
+      break;
+    case INSN_X64_MOVZX64RM8:
+      interpretZeroExtendRegMem<uint64_t, uint8_t>(inst, pc);
+      break;
+    case INSN_X64_MOVZX64RM16:
+      interpretZeroExtendRegMem<uint64_t, uint16_t>(inst, pc);
       break;
     case INSN_X64_TEST8MI:
       interpretFlagsMemImm<uint8_t, uint8_t>(inst, pc, false);
