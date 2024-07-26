@@ -108,7 +108,7 @@ int compile_source_icpp(int argc, const char **argv) {
       auto target = std::string_view(argv[i + 1]);
       if (target.find("win") != std::string_view::npos ||
           target.find("linux") != std::string_view::npos ||
-          target.find("android") != std::string_view::npos) {
+          target.find("ios") != std::string_view::npos) {
         argsysroot = "";
         cross_compile = true;
       }
@@ -136,8 +136,7 @@ int compile_source_icpp(int argc, const char **argv) {
     if (std::string_view(argv[i]) == "-target") {
       auto target = std::string_view(argv[i + 1]);
       if (target.find("apple") != std::string_view::npos ||
-          target.find("linux") != std::string_view::npos ||
-          target.find("android") != std::string_view::npos) {
+          target.find("linux") != std::string_view::npos) {
         ucrtinc = "";
         cross_compile = true;
       }
@@ -174,7 +173,8 @@ int compile_source_icpp(int argc, const char **argv) {
     if (std::string_view(argv[i]) == "-target") {
       auto target = std::string_view(argv[i + 1]);
       if (target.find("apple") != std::string_view::npos ||
-          target.find("win") != std::string_view::npos) {
+          target.find("win") != std::string_view::npos ||
+          target.find("android") != std::string_view::npos) {
         cross_compile = true;
       }
       break;

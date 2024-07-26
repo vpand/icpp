@@ -109,6 +109,10 @@ struct LaunchPad {
 
   std::vector<std::string> cflags() {
     std::vector<std::string> args;
+    if (remote_arch_ == icpp::host_arch() &&
+        remote_system_ == icpp::host_system())
+      return args;
+
     // architecture, vender and environment of the remote running icpp-gadget
     std::string_view arch, vender, env;
     switch (remote_arch_) {
@@ -117,12 +121,11 @@ struct LaunchPad {
       break;
     default:
       switch (remote_system_) {
-      case icpp::Linux:
-      case icpp::Android:
-        arch = "aarch64";
+      case icpp::macOS:
+        arch = "arm64";
         break;
       default:
-        arch = "arm64";
+        arch = "aarch64";
         break;
       }
       break;
@@ -166,10 +169,10 @@ struct LaunchPad {
           osarch = "x86_64";
           break;
         default:
-          if (icpp::host_system() == icpp::Linux)
-            osarch = "aarch64";
-          else
+          if (icpp::host_system() == icpp::macOS)
             osarch = "arm64";
+          else
+            osarch = "aarch64";
           break;
         }
         args.push_back("--sysroot");
@@ -347,9 +350,9 @@ static void exec_code(std::string_view icpp, std::string_view code) {
   ccargs.push_back(srcpath);
   ccargs.push_back("-o");
   ccargs.push_back(objpath);
-  for (auto inc : Incdirs)
+  for (auto &inc : Incdirs)
     ccargs.push_back(std::format("-I{}", inc.data()));
-  for (auto spec : launchpad.cflags())
+  for (auto &spec : launchpad.cflags())
     ccargs.push_back(spec.data());
   ccargs.push_back("-O2");
 

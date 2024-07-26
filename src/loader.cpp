@@ -103,8 +103,11 @@ struct ModuleLoader {
     // clang libc++: operator delete(void *,unsigned __int64)
     // msvc: operator delete(void *)
     // redirect new/delete to malloc/free
-    syms_.insert({"??2@YAPEAX_K@Z", reinterpret_cast<const void *>(&malloc)});
-    syms_.insert({"??3@YAXPEAX_K@Z", reinterpret_cast<const void *>(&free)});
+    auto ucrt = ::LoadLibraryA("ucrtbase.dll");
+    syms_.insert({"??2@YAPEAX_K@Z", reinterpret_cast<const void *>(
+                                        ::GetProcAddress(ucrt, "malloc"))});
+    syms_.insert({"??3@YAXPEAX_K@Z", reinterpret_cast<const void *>(
+                                         ::GetProcAddress(ucrt, "free"))});
     // rtti type info vtable
     auto rtti = &typeid(char *);
     syms_.insert({"??_7type_info@@6B@", *(const void **)(rtti)});
