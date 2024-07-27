@@ -117,8 +117,7 @@ static void precompile(const fs::path &root, const fs::path &cppm) {
 }
 
 int main(int argc, const char *argv[]) {
-  auto thisfile =
-      fs::path(R"(G:\icpp\tool-icpp\build_pcm.cc)"); // fs::absolute(argv[0]);
+  auto thisfile = fs::absolute(argv[0]);
   log("Running {}...", thisfile.string());
 
   auto icpproot = thisfile.parent_path().parent_path();

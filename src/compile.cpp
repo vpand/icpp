@@ -103,19 +103,20 @@ int compile_source_icpp(int argc, const char **argv) {
 #if __APPLE__
   std::string_view argsysroot = "-isysroot";
   auto isysroot = std::format("{}/apple", rtinc);
+  bool ios = false;
   for (int i = 0; i < argc - 1; i++) {
     if (std::string_view(argv[i]) == "-target") {
       auto target = std::string_view(argv[i + 1]);
       if (target.find("win") != std::string_view::npos ||
           target.find("linux") != std::string_view::npos ||
           target.find("ios") != std::string_view::npos) {
-        argsysroot = "";
         cross_compile = true;
+        ios = target.find("ios") != std::string_view::npos;
       }
       break;
     }
   }
-  if (argsysroot.size()) {
+  if (!cross_compile) {
     args.push_back(argsysroot.data());
     args.push_back(isysroot.data());
     cppminc = std::format("-fprebuilt-module-path={}/apple/module", rtinc);
@@ -127,6 +128,9 @@ int compile_source_icpp(int argc, const char **argv) {
         "x86_64"
 #endif
         "-apple-darwin19.0.0");
+  } else if (ios) {
+    args.push_back(argsysroot.data());
+    args.push_back(isysroot.data());
   }
 #elif ON_WINDOWS
   auto ucrtinc = std::format("-I{}/win/ucrt", rtinc);
@@ -201,7 +205,15 @@ int compile_source_icpp(int argc, const char **argv) {
   // add libc include for cross compiling
   auto cinc = std::format("-I{}/c", rtinc);
   if (cross_compile) {
-    args.push_back(cinc.data());
+    bool sysroot = false;
+    for (int i = 0; i < argc; i++) {
+      if (std::string_view(argv[i]).find("sysroot") != std::string_view::npos) {
+        sysroot = true;
+        break;
+      }
+    }
+    if (!sysroot)
+      args.push_back(cinc.data());
     args.push_back("-D__ICPP_CROSS__=1");
   }
 

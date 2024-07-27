@@ -887,7 +887,22 @@ static void parseInstX64(const MCInst &inst, uint64_t opcptr,
     break;
   default:
     iinfo.type = INSN_HARDWARE;
-    break;
+    return;
+  }
+  for (unsigned i = 0; i < inst.getNumOperands(); i++) {
+    auto opr = inst.getOperand(i);
+    if (opr.isReg()) {
+      switch (opr.getReg()) {
+      case INSN::DS:
+      case INSN::FS:
+      case INSN::GS:
+      case INSN::SS:
+        iinfo.segflag = 1;
+        break;
+      default:
+        break;
+      }
+    }
   }
 }
 
@@ -1211,6 +1226,7 @@ void Object::decodeInsns(TextSection &text) {
         outs());
     InsnInfo iinfo{};
     iinfo.rva = text.frva + opc - text.vm;
+
 #if ARCH_X64
     if (prefix_inst(inst)) {
       uint64_t size2 = 0;
@@ -1223,6 +1239,7 @@ void Object::decodeInsns(TextSection &text) {
       size += size2;
     }
 #endif
+
     switch (status) {
     case MCDisassembler::Fail: {
       iinfo.type = INSN_ABORT;
@@ -1374,16 +1391,6 @@ void Object::decodeInsns(TextSection &text) {
             auto reg = llvm2uc_register(opr.getReg());
             optr->append(
                 std::string(reinterpret_cast<char *>(&reg), sizeof(reg)));
-            switch (reg) {
-            case UC_X86_REG_DS:
-            case UC_X86_REG_FS:
-            case UC_X86_REG_GS:
-            case UC_X86_REG_SS:
-              iinfo.segflag = 1;
-              break;
-            default:
-              break;
-            }
           } else {
             // nerver be here
             log_print(Runtime, "Fatal error when decoding instruction at {:x}.",
@@ -1529,10 +1536,10 @@ static uint64_t relocate_data(StringRef content, uint64_t offset,
       auto addend = relocpot[0];
       /*
       the same formula used by ELF::R_X86_64_PC32 on Linux, but it needs to
-      minus an extra 4. I didn't find the documentation to explain this constant
-      value, but I found the worked magic at llvm lld's coff linker code:
-      SectionChunk::applyRelX64:
-        case IMAGE_REL_AMD64_REL32: add32(off, s - p - 4);
+      minus an extra 4. I didn't find the documentation to explain this
+      constant value, but I found the worked magic at llvm lld's coff linker
+      code: SectionChunk::applyRelX64: case IMAGE_REL_AMD64_REL32: add32(off,
+      s - p - 4);
       */
       uint32_t rel32 = static_cast<uint32_t>(
           target + addend -

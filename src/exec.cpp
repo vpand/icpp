@@ -781,7 +781,7 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
     log_print(Runtime,
               "Exception thrown in script: exception={:x}, rtti={:x}, "
               "caller.rva={:x}.",
-              args[0], args[1], robject_->vm2rva(retaddr));
+              args[0], args[1], robject_->vm2vrva(retaddr));
 #else
     auto typeinfo = reinterpret_cast<std::type_info *>(args[1]);
     // char * exception
@@ -1280,7 +1280,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     case INSN_ABORT:
       log_print(Runtime,
                 "Breakpoint or trap instruction hit at rva {:x}. Aborting...",
-                robject_->vm2rva(pc));
+                robject_->vm2vrva(pc));
       dump();
       std::exit(-1);
       break;
@@ -1633,7 +1633,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       break;
     default:
       log_print(Runtime, "Unknown instruction type {} at rva {:x}.", inst->type,
-                robject_->vm2rva(pc));
+                robject_->vm2vrva(pc));
       abort();
       break;
     }
@@ -1813,19 +1813,19 @@ void ExecEngine::dump() {
             "\nICPP crashed when running {}, here's some details:\n"
             "Current pc=0x{:x}, rva=0x{:x}, "
             "opc={:016x}.\n",
-            iargs_[0], pc, robject_->vm2rva(pc),
+            iargs_[0], pc, robject_->vm2vrva(pc),
             *reinterpret_cast<uint64_t *>(pc));
   robject_->dump();
 
   Debugger debugger(Stopped);
-  debugger.dump(robject_->arch(), uc_, robject_->vm2rva(pc));
+  debugger.dump(robject_->arch(), uc_, robject_->vm2vrva(pc));
 
   log_print(Raw, "Address Details:");
   for (uint64_t i = 0; i < regsz; i++) {
     if (robject_->executable(regs[i], nullptr)) {
       auto info = robject_->sourceInfo(regs[i]);
       log_print(Raw, "{:08x}: {}",
-                static_cast<uint32_t>(robject_->vm2rva(regs[i])), info);
+                static_cast<uint32_t>(robject_->vm2vrva(regs[i])), info);
     }
   }
 
