@@ -816,6 +816,18 @@ static void parseInstX64(const MCInst &inst, uint64_t opcptr,
   case INSN::CMP64rm:
     iinfo.type = INSN_X64_CMP64RM;
     break;
+  case INSN::CMP8mr:
+    iinfo.type = INSN_X64_CMP8MR;
+    break;
+  case INSN::CMP16mr:
+    iinfo.type = INSN_X64_CMP16MR;
+    break;
+  case INSN::CMP32mr:
+    iinfo.type = INSN_X64_CMP32MR;
+    break;
+  case INSN::CMP64mr:
+    iinfo.type = INSN_X64_CMP64MR;
+    break;
   case INSN::MOVSX16rm8:
     iinfo.type = INSN_X64_MOVSX16RM8;
     break;
@@ -1696,7 +1708,7 @@ void Object::parseSections() {
         continue; // empty section
 
       auto sectBuff = expContent.get();
-#if _WIN32 && ARCH_ARM64
+#if _WIN32
       if (!s.relocations().empty() &&
           (reinterpret_cast<uint64_t>(sectBuff.data()) & 1)) {
         // move this section to dynamic sections as we need it to be 4/8 bytes

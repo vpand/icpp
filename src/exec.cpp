@@ -248,6 +248,8 @@ private:
   void interpretFlagsMemImm(const InsnInfo *&inst, uint64_t &pc, bool cmp);
   template <typename T>
   void interpretFlagsRegMem(const InsnInfo *&inst, uint64_t &pc, bool cmp);
+  template <typename T>
+  void interpretFlagsMemReg(const InsnInfo *&inst, uint64_t &pc, bool cmp);
   template <typename TSRC, typename TDES>
   void interpretSignExtendRegMem(const InsnInfo *&inst, uint64_t &pc);
   template <typename TSRC, typename TDES>
@@ -1171,6 +1173,22 @@ void ExecEngine::interpretFlagsRegMem(const InsnInfo *&inst, uint64_t &pc,
   uc_reg_write(uc_, UC_X86_REG_RFLAGS, &rflags);
 }
 
+template <typename T>
+void ExecEngine::interpretFlagsMemReg(const InsnInfo *&inst, uint64_t &pc,
+                                      bool cmp) {
+  const uint16_t *ops;
+  auto target = interpretCalcMemX64(inst, pc, 0, &ops);
+  // cmp/test instruction
+  auto updator = cmp ? host_compare<T> : host_test<T>;
+  uint64_t value;
+  uc_reg_read(uc_, ops[11], &value);
+  // calculate the new rflags
+  auto rflags =
+      updator(*reinterpret_cast<const T *>(target), static_cast<T>(value));
+  // update rflags
+  uc_reg_write(uc_, UC_X86_REG_RFLAGS, &rflags);
+}
+
 template <typename TSRC, typename TDES>
 void ExecEngine::interpretSignExtendRegMem(const InsnInfo *&inst,
                                            uint64_t &pc) {
@@ -1220,6 +1238,10 @@ static bool can_emulate(const InsnInfo *inst) {
   case INSN_X64_CMP16RM:
   case INSN_X64_CMP32RM:
   case INSN_X64_CMP64RM:
+  case INSN_X64_CMP8MR:
+  case INSN_X64_CMP16MR:
+  case INSN_X64_CMP32MR:
+  case INSN_X64_CMP64MR:
   case INSN_X64_TEST8MI:
   case INSN_X64_TEST8MR:
   case INSN_X64_TEST16MI:
@@ -1607,29 +1629,41 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     case INSN_X64_CMP64RM:
       interpretFlagsRegMem<int64_t>(inst, pc, true);
       break;
+    case INSN_X64_CMP8MR:
+      interpretFlagsMemReg<int8_t>(inst, pc, true);
+      break;
+    case INSN_X64_CMP16MR:
+      interpretFlagsMemReg<int16_t>(inst, pc, true);
+      break;
+    case INSN_X64_CMP32MR:
+      interpretFlagsMemReg<int32_t>(inst, pc, true);
+      break;
+    case INSN_X64_CMP64MR:
+      interpretFlagsMemReg<int64_t>(inst, pc, true);
+      break;
     case INSN_X64_TEST8MI:
       interpretFlagsMemImm<int8_t, int8_t>(inst, pc, false);
       break;
     case INSN_X64_TEST8MR:
-      interpretFlagsRegMem<int8_t>(inst, pc, false);
+      interpretFlagsMemReg<int8_t>(inst, pc, false);
       break;
     case INSN_X64_TEST16MI:
       interpretFlagsMemImm<int16_t, int8_t>(inst, pc, false);
       break;
     case INSN_X64_TEST16MR:
-      interpretFlagsRegMem<int16_t>(inst, pc, false);
+      interpretFlagsMemReg<int16_t>(inst, pc, false);
       break;
     case INSN_X64_TEST32MI:
       interpretFlagsMemImm<int32_t, int8_t>(inst, pc, false);
       break;
     case INSN_X64_TEST32MR:
-      interpretFlagsRegMem<int32_t>(inst, pc, false);
+      interpretFlagsMemReg<int32_t>(inst, pc, false);
       break;
     case INSN_X64_TEST64MI32:
       interpretFlagsMemImm<int64_t, int32_t>(inst, pc, false);
       break;
     case INSN_X64_TEST64MR:
-      interpretFlagsRegMem<int64_t>(inst, pc, false);
+      interpretFlagsMemReg<int64_t>(inst, pc, false);
       break;
     default:
       log_print(Runtime, "Unknown instruction type {} at rva {:x}.", inst->type,

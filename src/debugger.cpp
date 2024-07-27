@@ -366,13 +366,13 @@ void Debugger::procBreakpoint(uint64_t addr, bool set, bool oneshot) {
   } else {
     auto found = breakpoint_.find({addr, false});
     if (found != breakpoint_.end()) {
-      breakpoint_.erase(found);
       if (!found->oneshot) {
         foreach_client({
           send_respose(s, icppdbg::DELBKPT,
                        std::format("Removed breakpoint at {:x}.", addr));
         });
       }
+      breakpoint_.erase(found);
     } else {
       foreach_client({
         send_respose(

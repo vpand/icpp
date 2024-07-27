@@ -238,6 +238,11 @@ int main(int argc, char **argv) {
 #if _WIN32
   auto boostinc = boost / "include/boost-1_86";
   auto boostlib = boost / "bin";
+
+  // copy msvc files
+  auto msvc = srcroot / "../msvc";
+  if (fs::exists(msvc))
+    pack_dir(msvc / ".", bin);
 #else
   auto boostinc = boost / "include";
   auto boostlib = boost / "lib";
