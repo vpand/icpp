@@ -99,6 +99,58 @@ struct UnicornEngine {
           reinterpret_cast<void *>(uc));
   }
 
+  int parentRegisterAArch64(int reg) {
+    if (UC_ARM64_REG_W0 <= reg && reg <= UC_ARM64_REG_W30)
+      return UC_ARM64_REG_X0 + reg - UC_ARM64_REG_W0;
+    return reg;
+  }
+
+  int parentRegisterX64(int reg) {
+    if (UC_X86_REG_AH == reg || UC_X86_REG_AL == reg || UC_X86_REG_AX == reg ||
+        UC_X86_REG_EAX == reg)
+      return UC_X86_REG_RAX;
+    if (UC_X86_REG_BH == reg || UC_X86_REG_BL == reg || UC_X86_REG_BX == reg ||
+        UC_X86_REG_EBX == reg)
+      return UC_X86_REG_RBX;
+    if (UC_X86_REG_CH == reg || UC_X86_REG_CL == reg || UC_X86_REG_CX == reg ||
+        UC_X86_REG_ECX == reg)
+      return UC_X86_REG_RCX;
+    if (UC_X86_REG_DH == reg || UC_X86_REG_DL == reg || UC_X86_REG_DX == reg ||
+        UC_X86_REG_EDX == reg)
+      return UC_X86_REG_RDX;
+    if (UC_X86_REG_BP == reg || UC_X86_REG_BPL == reg || UC_X86_REG_EBP == reg)
+      return UC_X86_REG_RBP;
+    if (UC_X86_REG_DI == reg || UC_X86_REG_DIL == reg || UC_X86_REG_EDI == reg)
+      return UC_X86_REG_RDI;
+    if (UC_X86_REG_SI == reg || UC_X86_REG_SIL == reg || UC_X86_REG_ESI == reg)
+      return UC_X86_REG_RSI;
+    if (UC_X86_REG_SP == reg || UC_X86_REG_SPL == reg || UC_X86_REG_ESP == reg)
+      return UC_X86_REG_RSP;
+    if (UC_X86_REG_R8B == reg || UC_X86_REG_R8W == reg || UC_X86_REG_R8D == reg)
+      return UC_X86_REG_R8;
+    if (UC_X86_REG_R9B == reg || UC_X86_REG_R9W == reg || UC_X86_REG_R9D == reg)
+      return UC_X86_REG_R9;
+    if (UC_X86_REG_R10B == reg || UC_X86_REG_R10W == reg ||
+        UC_X86_REG_R10D == reg)
+      return UC_X86_REG_R10;
+    if (UC_X86_REG_R11B == reg || UC_X86_REG_R11W == reg ||
+        UC_X86_REG_R11D == reg)
+      return UC_X86_REG_R11;
+    if (UC_X86_REG_R12B == reg || UC_X86_REG_R12W == reg ||
+        UC_X86_REG_R12D == reg)
+      return UC_X86_REG_R12;
+    if (UC_X86_REG_R13B == reg || UC_X86_REG_R13W == reg ||
+        UC_X86_REG_R13D == reg)
+      return UC_X86_REG_R13;
+    if (UC_X86_REG_R14B == reg || UC_X86_REG_R14W == reg ||
+        UC_X86_REG_R14D == reg)
+      return UC_X86_REG_R14;
+    if (UC_X86_REG_R15B == reg || UC_X86_REG_R15W == reg ||
+        UC_X86_REG_R15D == reg)
+      return UC_X86_REG_R15;
+    return reg;
+  }
+
 private:
   // available uc instance
   std::set<uc_engine *> free;
@@ -235,6 +287,20 @@ private:
   uint64_t checkStub(uint64_t target) {
     auto found = stubvms_.find(target);
     return found != stubvms_.end() ? found->second : target;
+  }
+
+  /*
+  unicorn only writes exactly register size bytes to the destination register,
+  clear away the high bit fields before committing the real writing.
+  */
+  void writeRegister(int reg, const void *pvalue) {
+    auto parent = robject_->arch() == AArch64 ? ue.parentRegisterAArch64(reg)
+                                              : ue.parentRegisterX64(reg);
+    if (parent != reg) {
+      uint64_t zero = 0;
+      uc_reg_write(uc_, parent, &zero);
+    }
+    uc_reg_write(uc_, reg, pvalue);
   }
 
 private:
@@ -877,7 +943,7 @@ void ExecEngine::interpretPCLdrAArch64(const InsnInfo *&inst, uint64_t &pc) {
   else
     target = pc;
   target += (*reinterpret_cast<const uint64_t *>(&metaptr[1]) << 2);
-  uc_reg_write(uc_, metaptr[0], reinterpret_cast<const void *>(target));
+  writeRegister(metaptr[0], reinterpret_cast<const void *>(target));
 }
 
 bool ExecEngine::interpretCallX64(const InsnInfo *&inst, uint64_t &pc,
@@ -968,6 +1034,7 @@ uint64_t ExecEngine::interpretCalcMemX64(const InsnInfo *&inst, uint64_t &pc,
   int expimm_op_idx = basereg_op_idx + 1;
   int expreg_op_idx = expimm_op_idx + 4;
   int offimm_op_idx = expreg_op_idx + 1;
+  int segreg_op_idx = offimm_op_idx + 4;
   uint64_t basereg = 0, expreg = 0;
   // read base and exponent register value
   if (ops[basereg_op_idx] == UC_X86_REG_RIP)
@@ -983,12 +1050,47 @@ uint64_t ExecEngine::interpretCalcMemX64(const InsnInfo *&inst, uint64_t &pc,
   if (ops[basereg_op_idx] == UC_X86_REG_RIP) {
     // rip related memory reference
     if (inst->rflag) {
+      // FIXME:: should dynamically calculate this offimm with relocation ?
+      if (offimm == -1)
+        offimm = 0;
+
       // relocate to other runtime address
       memaddr = reinterpret_cast<uint64_t>(robject_->relocTarget(inst->reloc)) +
                 offimm;
     } else {
       // adjust location with instruction length
       memaddr += inst->len;
+    }
+  } else if (inst->segflag) {
+    // process segment register value
+    switch (ops[segreg_op_idx]) {
+    case UC_X86_REG_GS:
+#if ON_WINDOWS
+      switch (offimm) {
+      case 0x58: {
+        /*
+        65 4C 8B 0C 25  | movq %gs:0x58, %r9
+        4F 8B 04 C1     | movq (%r9,%r8,8), %r8
+        41 3B 88 00 00  | cmpl (%r8), %ecx
+        */
+        // simulate a three level pointer
+        static auto epochspot1 = Loader::simulateTlsEpoch();
+        static auto epochspot2 = &epochspot1;
+        return reinterpret_cast<uint64_t>(&epochspot2);
+      }
+      default:
+        UNIMPL_ABORT();
+        break;
+      }
+      break;
+#endif
+    case UC_X86_REG_DS:
+    case UC_X86_REG_FS:
+    case UC_X86_REG_SS:
+      UNIMPL_ABORT();
+      break;
+    default:
+      break;
     }
   }
   return memaddr;
@@ -1001,7 +1103,7 @@ void ExecEngine::interpretMovX64(const InsnInfo *&inst, uint64_t &pc, int regop,
   auto target = interpretCalcMemX64(inst, pc, memop, &ops);
   if (movrm) {
     // mov reg, mem
-    uc_reg_write(uc_, ops[regop], reinterpret_cast<const void *>(target));
+    writeRegister(ops[regop], reinterpret_cast<const void *>(target));
   } else {
     // mov mem, reg
     uint64_t value[4];
@@ -1044,7 +1146,7 @@ void ExecEngine::interpretFlagsMemImm(const InsnInfo *&inst, uint64_t &pc,
   const uint16_t *ops;
   auto target = interpretCalcMemX64(inst, pc, 0, &ops);
   // cmp/test instruction
-  auto updator = cmp ? host_naked_compare : host_naked_test;
+  auto updator = cmp ? host_compare<TDES> : host_test<TDES>;
   // calculate the new rflags
   auto rflags =
       updator(*reinterpret_cast<const TSRC *>(target),
@@ -1059,7 +1161,7 @@ void ExecEngine::interpretFlagsRegMem(const InsnInfo *&inst, uint64_t &pc,
   const uint16_t *ops;
   auto target = interpretCalcMemX64(inst, pc, 1, &ops);
   // cmp/test instruction
-  auto updator = cmp ? host_naked_compare : host_naked_test;
+  auto updator = cmp ? host_compare<T> : host_test<T>;
   uint64_t value;
   uc_reg_read(uc_, ops[0], &value);
   // calculate the new rflags
@@ -1076,7 +1178,7 @@ void ExecEngine::interpretSignExtendRegMem(const InsnInfo *&inst,
   auto target = interpretCalcMemX64(inst, pc, 1, &ops);
   // movsx reg, mem
   auto result = static_cast<TSRC>(*reinterpret_cast<const TDES *>(target));
-  uc_reg_write(uc_, ops[0], &result);
+  writeRegister(ops[0], &result);
 }
 
 template <typename TSRC, typename TDES>
@@ -1086,7 +1188,7 @@ void ExecEngine::interpretZeroExtendRegMem(const InsnInfo *&inst,
   auto target = interpretCalcMemX64(inst, pc, 1, &ops);
   // movzx reg, mem
   auto result = static_cast<TSRC>(*reinterpret_cast<const TDES *>(target));
-  uc_reg_write(uc_, ops[0], &result);
+  writeRegister(ops[0], &result);
 }
 
 static bool can_emulate(const InsnInfo *inst) {
@@ -1106,12 +1208,37 @@ static bool can_emulate(const InsnInfo *inst) {
   case INSN_X64_JUMP:
   case INSN_X64_JUMPREG:
   case INSN_X64_JUMPMEM:
+  case INSN_X64_CMP8MI:
+  case INSN_X64_CMP8MI8:
+  case INSN_X64_CMP16MI:
+  case INSN_X64_CMP16MI8:
+  case INSN_X64_CMP32MI:
+  case INSN_X64_CMP32MI8:
+  case INSN_X64_CMP64MI32:
+  case INSN_X64_CMP64MI8:
+  case INSN_X64_CMP8RM:
+  case INSN_X64_CMP16RM:
+  case INSN_X64_CMP32RM:
+  case INSN_X64_CMP64RM:
+  case INSN_X64_TEST8MI:
+  case INSN_X64_TEST8MR:
+  case INSN_X64_TEST16MI:
+  case INSN_X64_TEST16MR:
+  case INSN_X64_TEST32MI:
+  case INSN_X64_TEST32MR:
+  case INSN_X64_TEST64MI32:
+  case INSN_X64_TEST64MR:
     return false;
   case INSN_HARDWARE:
     return true;
   default:
-    // if the current instruction contains relocation, then it must
-    // be interpreted otherwise can be emulated.
+    // if the current instruction contains relocation or non-code
+    // segment register, then it must be interpreted otherwise can
+    // be emulated.
+#if ARCH_X64
+    if (inst->segflag)
+      return false;
+#endif
     return inst->rflag == 0;
   }
 }
@@ -1374,7 +1501,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     case INSN_X64_LEA64: {
       const uint16_t *ops;
       auto target = interpretCalcMemX64(inst, pc, 1, &ops);
-      uc_reg_write(uc_, ops[0], reinterpret_cast<const void *>(&target));
+      writeRegister(ops[0], reinterpret_cast<const void *>(&target));
       break;
     }
     case INSN_X64_MOVAPSRM:
@@ -1400,40 +1527,6 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       break;
     case INSN_X64_MOVUPDMR:
       interpretMovMRX64(inst, pc, 16);
-      break;
-    case INSN_X64_CMP8MI:
-    case INSN_X64_CMP8MI8:
-      interpretFlagsMemImm<uint8_t, uint8_t>(inst, pc, true);
-      break;
-    case INSN_X64_CMP16MI:
-      interpretFlagsMemImm<uint16_t, uint16_t>(inst, pc, true);
-      break;
-    case INSN_X64_CMP16MI8:
-      interpretFlagsMemImm<uint16_t, uint8_t>(inst, pc, true);
-      break;
-    case INSN_X64_CMP32MI:
-      interpretFlagsMemImm<uint32_t, uint32_t>(inst, pc, true);
-      break;
-    case INSN_X64_CMP32MI8:
-      interpretFlagsMemImm<uint32_t, uint8_t>(inst, pc, true);
-      break;
-    case INSN_X64_CMP64MI32:
-      interpretFlagsMemImm<uint64_t, uint32_t>(inst, pc, true);
-      break;
-    case INSN_X64_CMP64MI8:
-      interpretFlagsMemImm<uint64_t, uint8_t>(inst, pc, true);
-      break;
-    case INSN_X64_CMP8RM:
-      interpretFlagsRegMem<uint8_t>(inst, pc, true);
-      break;
-    case INSN_X64_CMP16RM:
-      interpretFlagsRegMem<uint16_t>(inst, pc, true);
-      break;
-    case INSN_X64_CMP32RM:
-      interpretFlagsRegMem<uint32_t>(inst, pc, true);
-      break;
-    case INSN_X64_CMP64RM:
-      interpretFlagsRegMem<uint64_t>(inst, pc, true);
       break;
     case INSN_X64_MOVSX16RM8:
       interpretSignExtendRegMem<int16_t, int8_t>(inst, pc);
@@ -1480,29 +1573,63 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     case INSN_X64_MOVZX64RM16:
       interpretZeroExtendRegMem<uint64_t, uint16_t>(inst, pc);
       break;
+    case INSN_X64_CMP8MI:
+    case INSN_X64_CMP8MI8:
+      interpretFlagsMemImm<int8_t, int8_t>(inst, pc, true);
+      break;
+    case INSN_X64_CMP16MI:
+      interpretFlagsMemImm<int16_t, int16_t>(inst, pc, true);
+      break;
+    case INSN_X64_CMP16MI8:
+      interpretFlagsMemImm<int16_t, int8_t>(inst, pc, true);
+      break;
+    case INSN_X64_CMP32MI:
+      interpretFlagsMemImm<int32_t, int32_t>(inst, pc, true);
+      break;
+    case INSN_X64_CMP32MI8:
+      interpretFlagsMemImm<int32_t, int8_t>(inst, pc, true);
+      break;
+    case INSN_X64_CMP64MI32:
+      interpretFlagsMemImm<int64_t, int32_t>(inst, pc, true);
+      break;
+    case INSN_X64_CMP64MI8:
+      interpretFlagsMemImm<int64_t, int8_t>(inst, pc, true);
+      break;
+    case INSN_X64_CMP8RM:
+      interpretFlagsRegMem<int8_t>(inst, pc, true);
+      break;
+    case INSN_X64_CMP16RM:
+      interpretFlagsRegMem<int16_t>(inst, pc, true);
+      break;
+    case INSN_X64_CMP32RM:
+      interpretFlagsRegMem<int32_t>(inst, pc, true);
+      break;
+    case INSN_X64_CMP64RM:
+      interpretFlagsRegMem<int64_t>(inst, pc, true);
+      break;
     case INSN_X64_TEST8MI:
-      interpretFlagsMemImm<uint8_t, uint8_t>(inst, pc, false);
+      interpretFlagsMemImm<int8_t, int8_t>(inst, pc, false);
       break;
     case INSN_X64_TEST8MR:
-      interpretFlagsRegMem<uint8_t>(inst, pc, false);
+      interpretFlagsRegMem<int8_t>(inst, pc, false);
       break;
     case INSN_X64_TEST16MI:
-      interpretFlagsMemImm<uint16_t, uint8_t>(inst, pc, false);
+      interpretFlagsMemImm<int16_t, int8_t>(inst, pc, false);
       break;
     case INSN_X64_TEST16MR:
-      interpretFlagsRegMem<uint16_t>(inst, pc, false);
+      interpretFlagsRegMem<int16_t>(inst, pc, false);
       break;
     case INSN_X64_TEST32MI:
-      interpretFlagsMemImm<uint32_t, uint8_t>(inst, pc, false);
+      interpretFlagsMemImm<int32_t, int8_t>(inst, pc, false);
       break;
     case INSN_X64_TEST32MR:
-      interpretFlagsRegMem<uint32_t>(inst, pc, false);
+      interpretFlagsRegMem<int32_t>(inst, pc, false);
       break;
     case INSN_X64_TEST64MI32:
-      interpretFlagsMemImm<uint64_t, uint32_t>(inst, pc, false);
+      interpretFlagsMemImm<int64_t, int32_t>(inst, pc, false);
       break;
     case INSN_X64_TEST64MR:
-      interpretFlagsRegMem<uint64_t>(inst, pc, false);
+      interpretFlagsRegMem<int64_t>(inst, pc, false);
       break;
     default:
       log_print(Runtime, "Unknown instruction type {} at rva {:x}.", inst->type,

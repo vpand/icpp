@@ -56,9 +56,19 @@ constexpr auto envname = "msvc19.0.0"s;
 #endif
 
 #if _WIN32
-#define EXE ".exe"
+#define CLANG "clang-cl.exe"
+
+constexpr auto ucrtinc = "runtime/win/ucrt"sv;
+constexpr auto vcinc = "runtime/win/vc"sv;
+
+constexpr std::string win_include(const fs::path &root) {
+  return "-I"s + (root / ucrtinc).string() +
+         " "
+         "-I" +
+         (root / vcinc).string();
+}
 #else
-#define EXE ""
+#define CLANG "clang"
 #endif
 
 constexpr auto cppinc = "runtime/include/c++/v1"sv;
@@ -87,14 +97,15 @@ static void precompile(const fs::path &root, const fs::path &cppm) {
   auto pcmpath = pcmroot / (cppm.stem().string() + ".pcm");
 
   std::string cmd =
-      (root / "build/third/llvm-project/llvm/bin/clang" EXE).string() +
-      " -target " + triple() + " " + cpp_include(root) + " --precompile " +
-      cppmpath.string() + " -o " + pcmpath.string();
+      (root / "build/third/llvm-project/llvm/bin/" CLANG).string() +
+      " -target " + triple() + " " + cpp_include(root) + " " +
+      cppmpath.string() + " -o " + pcmpath.string() + " ";
 #if _WIN32
-  cmd += " /clang:-std=c++23 /clang:-nostdinc++ /clang:-nostdlib++ /MD /EHsc "
-         "/clang:";
+  cmd += win_include(root) + " /clang:--precompile /clang:-std=c++23 "
+                             "/clang:-nostdinc++ /clang:-nostdlib++ /MD /EHsc "
+                             "/clang:";
 #else
-  cmd += " -std=c++23 -nostdinc++ -nostdlib++ ";
+  cmd += "--precompile -std=c++23 -nostdinc++ -nostdlib++ ";
 #if __APPLE__
   cmd += "-isysroot " + apple_sysroot(root) + " ";
 #endif
@@ -106,7 +117,8 @@ static void precompile(const fs::path &root, const fs::path &cppm) {
 }
 
 int main(int argc, const char *argv[]) {
-  auto thisfile = fs::absolute(argv[0]);
+  auto thisfile =
+      fs::path(R"(G:\icpp\tool-icpp\build_pcm.cc)"); // fs::absolute(argv[0]);
   log("Running {}...", thisfile.string());
 
   auto icpproot = thisfile.parent_path().parent_path();

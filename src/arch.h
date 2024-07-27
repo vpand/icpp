@@ -217,8 +217,40 @@ void host_naked_syscall();
 
 // execute a host cmp/test instruction,
 // return the updated rflags
-uint64_t host_naked_compare(uint64_t left, uint64_t right);
-uint64_t host_naked_test(uint64_t left, uint64_t right);
+uint64_t host_naked_compare1(uint64_t left, uint64_t right);
+uint64_t host_naked_compare2(uint64_t left, uint64_t right);
+uint64_t host_naked_compare4(uint64_t left, uint64_t right);
+uint64_t host_naked_compare8(uint64_t left, uint64_t right);
+uint64_t host_naked_test1(uint64_t left, uint64_t right);
+uint64_t host_naked_test2(uint64_t left, uint64_t right);
+uint64_t host_naked_test4(uint64_t left, uint64_t right);
+uint64_t host_naked_test8(uint64_t left, uint64_t right);
+
+template <typename T> uint64_t host_compare(uint64_t left, uint64_t right) {
+  switch (sizeof(T)) {
+  case 1:
+    return host_naked_compare1(left, right);
+  case 2:
+    return host_naked_compare2(left, right);
+  case 4:
+    return host_naked_compare4(left, right);
+  default:
+    return host_naked_compare8(left, right);
+  }
+}
+
+template <typename T> uint64_t host_test(uint64_t left, uint64_t right) {
+  switch (sizeof(T)) {
+  case 1:
+    return host_naked_test1(left, right);
+  case 2:
+    return host_naked_test2(left, right);
+  case 4:
+    return host_naked_test4(left, right);
+  default:
+    return host_naked_test8(left, right);
+  }
+}
 
 // fill the host return instruction's opcode into an int64_t
 uint64_t host_insn_rets();

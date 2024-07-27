@@ -504,7 +504,58 @@ void __NAKED__ host_naked_syscall() {
 #endif
 }
 
-uint64_t __NAKED__ host_naked_compare(uint64_t left, uint64_t right) {
+uint64_t __NAKED__ host_naked_compare1(uint64_t left, uint64_t right) {
+#if ARCH_ARM64
+  __ASM__("brk #0");
+#elif ARCH_X64
+#if ON_WINDOWS
+  __ASM__("cmpb %dl, %cl");
+#else
+  __ASM__("cmpb %sil, %dil");
+#endif
+  __ASM__("pushfq");
+  __ASM__("popq %rax");
+  __ASM__("retq");
+#else
+#error Unsupported host architecture.
+#endif
+}
+
+uint64_t __NAKED__ host_naked_compare2(uint64_t left, uint64_t right) {
+#if ARCH_ARM64
+  __ASM__("brk #0");
+#elif ARCH_X64
+#if ON_WINDOWS
+  __ASM__("cmpw %dx, %cx");
+#else
+  __ASM__("cmpw %si, %di");
+#endif
+  __ASM__("pushfq");
+  __ASM__("popq %rax");
+  __ASM__("retq");
+#else
+#error Unsupported host architecture.
+#endif
+}
+
+uint64_t __NAKED__ host_naked_compare4(uint64_t left, uint64_t right) {
+#if ARCH_ARM64
+  __ASM__("brk #0");
+#elif ARCH_X64
+#if ON_WINDOWS
+  __ASM__("cmpl %edx, %ecx");
+#else
+  __ASM__("cmpl %esi, %edi");
+#endif
+  __ASM__("pushfq");
+  __ASM__("popq %rax");
+  __ASM__("retq");
+#else
+#error Unsupported host architecture.
+#endif
+}
+
+uint64_t __NAKED__ host_naked_compare8(uint64_t left, uint64_t right) {
 #if ARCH_ARM64
   __ASM__("brk #0");
 #elif ARCH_X64
@@ -521,7 +572,58 @@ uint64_t __NAKED__ host_naked_compare(uint64_t left, uint64_t right) {
 #endif
 }
 
-uint64_t __NAKED__ host_naked_test(uint64_t left, uint64_t right) {
+uint64_t __NAKED__ host_naked_test1(uint64_t left, uint64_t right) {
+#if ARCH_ARM64
+  __ASM__("brk #0");
+#elif ARCH_X64
+#if ON_WINDOWS
+  __ASM__("testb %dl, %cl");
+#else
+  __ASM__("testb %sil, %dil");
+#endif
+  __ASM__("pushfq");
+  __ASM__("popq %rax");
+  __ASM__("retq");
+#else
+#error Unsupported host architecture.
+#endif
+}
+
+uint64_t __NAKED__ host_naked_test2(uint64_t left, uint64_t right) {
+#if ARCH_ARM64
+  __ASM__("brk #0");
+#elif ARCH_X64
+#if ON_WINDOWS
+  __ASM__("testw %dx, %cx");
+#else
+  __ASM__("testw %si, %di");
+#endif
+  __ASM__("pushfq");
+  __ASM__("popq %rax");
+  __ASM__("retq");
+#else
+#error Unsupported host architecture.
+#endif
+}
+
+uint64_t __NAKED__ host_naked_test4(uint64_t left, uint64_t right) {
+#if ARCH_ARM64
+  __ASM__("brk #0");
+#elif ARCH_X64
+#if ON_WINDOWS
+  __ASM__("testl %edx, %ecx");
+#else
+  __ASM__("testl %esi, %edi");
+#endif
+  __ASM__("pushfq");
+  __ASM__("popq %rax");
+  __ASM__("retq");
+#else
+#error Unsupported host architecture.
+#endif
+}
+
+uint64_t __NAKED__ host_naked_test8(uint64_t left, uint64_t right) {
 #if ARCH_ARM64
   __ASM__("brk #0");
 #elif ARCH_X64

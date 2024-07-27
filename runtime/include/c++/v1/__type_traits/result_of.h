@@ -20,7 +20,7 @@ _LIBCPP_BEGIN_NAMESPACE_STD
 
 // result_of
 
-#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_TYPE_TRAITS)
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_TYPE_TRAITS) || defined(_WIN32) /*added by icpp, boost depends on result_of on windows*/
 template <class _Callable>
 class _LIBCPP_DEPRECATED_IN_CXX17 result_of;
 

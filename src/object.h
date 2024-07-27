@@ -35,11 +35,12 @@ constexpr const std::string_view iobj_ext{".io"};
 constexpr const std::string_view obj_ext{".o"};
 
 struct InsnInfo {
-  uint32_t type : 8, // instruction type
-      len : 5,       // opcode length
-      rflag : 1,     // relocation flag, 1 indicates a valid reloc index
-      reloc : 18;    // relocation index
-  uint32_t rva;      // instruction vm address rva
+  uint32_t type : 8,    // instruction type
+      len : 5,          // opcode length
+      rflag : 1,        // relocation flag, 1 indicates a valid reloc index
+      reloc : 18;       // relocation index
+  uint32_t segflag : 1, // gs,ss,etc. of x86_64, segment register flag
+      rva : 31;         // instruction vm address rva
 
   bool operator<(const InsnInfo &right) const { return rva < right.rva; }
   bool operator==(const InsnInfo &right) const { return rva == right.rva; }

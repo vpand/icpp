@@ -138,6 +138,12 @@ gadget::gadget() {
   Loader::initialize();
   Loader::cacheSymbol("printf", reinterpret_cast<const void *>(gadget_printf));
   Loader::cacheSymbol("puts", reinterpret_cast<const void *>(gadget_puts));
+#if ON_WINDOWS
+  Loader::cacheSymbol("__imp_printf",
+                      reinterpret_cast<const void *>(gadget_printf));
+  Loader::cacheSymbol("__imp_puts",
+                      reinterpret_cast<const void *>(gadget_puts));
+#endif
 }
 
 gadget::~gadget() {

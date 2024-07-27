@@ -994,6 +994,12 @@ static SymbolRef::Type reloc_symtype(const InsnInfo &inst, ArchType arch,
       case INSN_X64_MOVSX64RM8:
       case INSN_X64_MOVSX64RM16:
       case INSN_X64_MOVSX64RM32:
+      case INSN_X64_MOVZX16RM8:
+      case INSN_X64_MOVZX16RM16:
+      case INSN_X64_MOVZX32RM8:
+      case INSN_X64_MOVZX32RM16:
+      case INSN_X64_MOVZX64RM8:
+      case INSN_X64_MOVZX64RM16:
       case INSN_X64_TEST8MI:
       case INSN_X64_TEST8MR:
       case INSN_X64_TEST16MI:
@@ -1002,7 +1008,8 @@ static SymbolRef::Type reloc_symtype(const InsnInfo &inst, ArchType arch,
       case INSN_X64_TEST32MR:
       case INSN_X64_TEST64MI32:
       case INSN_X64_TEST64MR:
-        return SymbolRef::ST_Data;
+        return (rsym.sflags & SymbolRef::SF_Undefined) ? SymbolRef::ST_Data
+                                                       : SymbolRef::ST_Function;
       default:
         return SymbolRef::ST_Function;
       }
@@ -1335,7 +1342,8 @@ void Object::decodeInsns(TextSection &text) {
                                           static_cast<uint32_t>(symtype)});
         }
         if (0) {
-          log_print(Develop, "Relocated {:06x}.{} symbol {} at {}.", iinfo.rva,
+          log_print(Develop, "Relocated {:06x}.{} symbol {} at {}.",
+                    (int)iinfo.rva,
                     symtype == SymbolRef::ST_Data ? "data" : "func", rit->name,
                     rit->target);
         }
@@ -1366,6 +1374,16 @@ void Object::decodeInsns(TextSection &text) {
             auto reg = llvm2uc_register(opr.getReg());
             optr->append(
                 std::string(reinterpret_cast<char *>(&reg), sizeof(reg)));
+            switch (reg) {
+            case UC_X86_REG_DS:
+            case UC_X86_REG_FS:
+            case UC_X86_REG_GS:
+            case UC_X86_REG_SS:
+              iinfo.segflag = 1;
+              break;
+            default:
+              break;
+            }
           } else {
             // nerver be here
             log_print(Runtime, "Fatal error when decoding instruction at {:x}.",
