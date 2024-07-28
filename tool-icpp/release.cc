@@ -242,7 +242,7 @@ int main(int argc, char **argv) {
   // copy msvc files
   auto msvc = srcroot / "../msvc";
   if (fs::exists(msvc))
-    pack_dir(msvc / ".", bin);
+    pack_dir(msvc / ".", bin, ".");
 #else
   auto boostinc = boost / "include";
   auto boostlib = boost / "lib";

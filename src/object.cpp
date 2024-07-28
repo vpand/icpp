@@ -394,22 +394,51 @@ std::string Object::generateCache() {
   auto imods = iobject.mutable_modules();
   auto irefs = iobject.mutable_irefsyms();
   std::set<std::string> refmods;
+  std::vector<RelocInfo *> misbelong;
   Loader::locateModule("", true); // update loader's module list
   for (auto &r : irelocs_) {
     // collect referenced modules
     if (!belong(reinterpret_cast<uint64_t>(r.realTarget())) &&
         !belong(reinterpret_cast<uint64_t>(r.target))) {
-      refmods.insert(Loader::locateModule(r.realTarget()).data());
+      auto module = Loader::locateModule(r.realTarget());
+      if (!module.size()) {
+        misbelong.push_back(&r);
+        continue;
+      }
+      refmods.insert(module.data());
     }
+  }
+  if (misbelong.size()) {
+    log_print(Runtime, "Failed to generate interpretable iobject cache file:");
+    for (auto &ts : textsects_) {
+      log_print(Runtime, "text{} {:x} {:x} {}", ts.index, ts.vm,
+                ts.vm + ts.size, ts.size);
+    }
+    for (auto &ds : dynsects_) {
+      auto start = reinterpret_cast<uint64_t>(ds.buffer.data());
+      auto end = start + ds.buffer.size();
+      log_print(Runtime, "dyns{} {:x} {:x} {}", ds.index, start, end,
+                ds.buffer.size());
+    }
+    for (auto r : misbelong) {
+      log_print(Runtime, "symbol {}, type {}, target {}, real target {}",
+                r->name, r->type, r->target, r->realTarget());
+    }
+    return "";
   }
   imods->Add("self");
   for (auto &m : refmods) {
     imods->Add(m.data());
   }
   for (auto &r : irelocs_) {
-    auto target = reinterpret_cast<uint64_t>(r.target);
+    auto target = reinterpret_cast<uint64_t>(r.realTarget());
     size_t di = -1;
     bool self = belong(target, &di);
+    if (!self) {
+      self = belong(reinterpret_cast<uint64_t>(r.target), &di);
+      if (self)
+        target = reinterpret_cast<uint64_t>(r.target);
+    }
 
     iobj::RelocInfo ri;
     ri.set_symbol(r.name);
@@ -429,7 +458,8 @@ std::string Object::generateCache() {
     } else {
       ri.set_dindex(-1);
       ri.set_rva(-1);
-      auto tarmod = Loader::locateModule(r.realTarget());
+      auto tarmod =
+          Loader::locateModule(reinterpret_cast<const void *>(target));
       for (size_t i = 1; i < imods->size(); i++) {
         if (imods->at(i) == tarmod) {
           // set external module index

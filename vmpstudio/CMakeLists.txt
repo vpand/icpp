@@ -22,6 +22,11 @@ add_library(visualicpp SHARED
   icppdbg.pb.cc
 )
 
+if(LINUX)
+  target_link_options(visualicpp PRIVATE
+    -Wl,-rpath,${CMAKE_SOURCE_DIR}/build/llvm/lib/${CMAKE_HOST_SYSTEM_PROCESSOR}-unknown-linux-gnu)
+endif()
+
 target_link_libraries(visualicpp PRIVATE
   boost_asio
   libprotobuf

@@ -4,7 +4,7 @@
    See LICENSE in root directory for more details
 */
 
-// modified from llvm-objdump
+// The disassembler related stuff is modified from llvm-objdump.
 
 //===-- llvm-objdump.cpp - Object file dumping utility for llvm -----------===//
 //
@@ -1158,10 +1158,15 @@ static void reloc_symbols(ObjectFile *ofile, ArchType arch, TextSection &text,
             rsym.addend = r.r_addend;
             /*
             I don't know why there's always a -4 addend on x86_64 linux,
-            and it doesn't make any sense in icpp, so reset to 0.
+            and it doesn't make any sense in icpp, so restore it to 0.
             */
-            if (rsym.addend < 0)
-              rsym.addend = 0;
+            // FIXME:: calucalte the real addend with relocation ?
+            if (arch == X86_64) {
+              if (rsym.addend < 0)
+                rsym.addend = 0;
+              else
+                rsym.addend += 4;
+            }
             rsyms.insert({addr, rsym});
           }
         }

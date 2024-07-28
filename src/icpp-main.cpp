@@ -249,6 +249,7 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
   // Executable-MachO/Executable-ELF/Executable-PE files
   int exitcode = 0;
   bool validcache = true;
+  std::vector<fs::path> tmpofs;
   for (auto p : args) {
     auto sp = std::string_view(p);
     if (sp[0] == '-')
@@ -282,8 +283,7 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
               icpp::exec_main(opath.string(), deps, sp, argc - idoubledash,
                               &argv[idoubledash + 1], validcache);
           if (opath.extension() != icpp::iobj_ext) {
-            // remove the temporary intermediate object file
-            fs::remove(opath);
+            tmpofs.push_back(opath);
             // done
             break;
           } else if (validcache) {
@@ -309,5 +309,8 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
     }
   }
   icpp::Loader::deinitialize(exitcode);
+  // remove the temporary intermediate object file
+  for (auto &opath : tmpofs)
+    fs::remove(opath);
   return exitcode;
 }

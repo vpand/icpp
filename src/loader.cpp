@@ -276,6 +276,10 @@ struct ModuleLoader {
         {apisym(
              __ZN4icpp15iterate_modulesERKNSt3__18functionIFbyNS0_17basic_string_viewIcNS0_11char_traitsIcEEEEEEE),
          reinterpret_cast<const void *>(&api::iterate_modules)});
+    syms_.insert(
+        {apisym(
+             __ZN4icpp15iterate_modulesERKNSt3__18functionIFbmNS0_17basic_string_viewIcNS0_11char_traitsIcEEEEEEE),
+         reinterpret_cast<const void *>(&api::iterate_modules)});
     syms_.insert({apisym(__ZN4icpp10result_setEl),
                   reinterpret_cast<const void *>(&api::result_set)});
     syms_.insert(
@@ -376,9 +380,10 @@ const void *ModuleLoader::loadLibrary(std::string_view path) {
   LockGuard lock(this, mutex_);
   auto found = mhandles_.find(path.data());
   if (found == mhandles_.end()) {
-    auto addr = load_library(path.data());
+    bool iobj = path.ends_with(obj_ext) || path.ends_with(iobj_ext);
+    auto addr = iobj ? nullptr : load_library(path.data());
     if (!addr) {
-      if (path.ends_with(obj_ext) || path.ends_with(iobj_ext)) {
+      if (iobj) {
         // check the already loaded/cached iobject module
         auto found = mhandles_.find(path.data());
         if (found != mhandles_.end()) {
@@ -490,17 +495,16 @@ const void *ModuleLoader::lookup(std::string_view name, bool data) {
 
   // check it in iobject modules
   for (auto io : imods_) {
-    auto t = io->locateSymbol(name);
-    if (t) {
-      target = t;
+    if ((target = io->locateSymbol(name)))
       break;
-    }
   }
 
   // check it in loaded modules
-  for (auto &m : mhandles_) {
-    if ((target = find_symbol(m.second, name)))
-      break;
+  if (!target) {
+    for (auto &m : mhandles_) {
+      if ((target = find_symbol(m.second, name)))
+        break;
+    }
   }
 
   // check it in native system modules
