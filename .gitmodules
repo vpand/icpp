@@ -16,6 +16,3 @@
 [submodule "third/ios-cmake"]
 	path = third/ios-cmake
 	url = https://github.com/leetal/ios-cmake.git
-[submodule "ios-cmake"]
-	path = ios-cmake
-	url = https://github.com/leetal/ios-cmake.git
