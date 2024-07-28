@@ -30,8 +30,8 @@ int main(int argc, const char *argv[]) {
       if (argc >= 3)
         arch = argv[2];
       args.push_back(std::format("-DANDROID_ABI={}", arch));
-    }
-    else {
+      args.push_back(std::format("-DANDROID_STL=c++_shared"));
+    } else {
       args.push_back("-DPLATFORM=OS64");
     }
 

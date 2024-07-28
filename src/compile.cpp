@@ -88,9 +88,6 @@ int compile_source_icpp(int argc, const char **argv) {
 
   // use C++23 standard
   args.push_back("-std=c++23");
-  // force to use the icpp integrated C/C++ runtime header
-  args.push_back("-nostdinc++");
-  args.push_back("-nostdlib++");
 
   /*
   The header search paths should contain the C++ Standard Library headers before
@@ -99,6 +96,9 @@ int compile_source_icpp(int argc, const char **argv) {
   // add libc++ include
   auto cxxinc = std::format("-I{}/c++/v1", rtinc);
   args.push_back(cxxinc.data());
+  // force to use the icpp integrated C/C++ runtime header
+  args.push_back("-nostdinc++");
+  args.push_back("-nostdlib++");
 
 #if __APPLE__
   std::string_view argsysroot = "-isysroot";

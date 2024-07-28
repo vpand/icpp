@@ -14,7 +14,6 @@ icpp release package in the following layout, icpp-vx.x.x-os-arch:
 ------icpp-server
 ------imod
 ------iopad
-------libc++.so/dll/dylib
 ---include
 ------apple/win
 ------boost
@@ -25,6 +24,7 @@ icpp release package in the following layout, icpp-vx.x.x-os-arch:
 ---lib
 ------clang
 ------boost
+------libc++.so/dll/dylib
 
 Usage: icpp release.cc /path/to/build /path/to/prefix
 

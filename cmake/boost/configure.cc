@@ -15,10 +15,11 @@ int main(int argc, const char *argv[]) {
   }
 
   auto thisfile = fs::absolute(argv[0]);
-  auto thisdir = thisfile.parent_path().string();
+  auto thisdir = thisfile.parent_path();
   icpp::strings args;
   args.push_back(std::format("-DCMAKE_TOOLCHAIN_FILE={}", argv[1]));
   args.push_back(std::format("-DCMAKE_BUILD_TYPE=Release"));
+  args.push_back("-DBUILD_SHARED_LIBS=ON");
   args.push_back("-G");
   args.push_back("Ninja");
 
@@ -29,14 +30,14 @@ int main(int argc, const char *argv[]) {
     if (argc >= 3)
       arch = argv[2];
     args.push_back(std::format("-DANDROID_ABI={}", arch));
-  }
-  else {
+    args.push_back(std::format("-DANDROID_STL=c++_shared"));
+  } else {
     args.push_back("-DPLATFORM=OS64");
   }
 
   args.push_back("-B");
-  args.push_back(std::format("{}/build-{}", thisdir, arch));
-  args.push_back(thisdir);
+  args.push_back(std::format("{}/build-{}", thisdir.string(), arch));
+  args.push_back((thisdir / "../../third/boost").string());
   bp::child(bp::search_path("cmake"), args).wait();
 
   std::puts("Done.");

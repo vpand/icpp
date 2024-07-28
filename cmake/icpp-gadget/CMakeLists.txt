@@ -77,7 +77,7 @@ if(APPLE)
                    -Wl,-rpath,@executable_path/../lib
                    -Wl,-rpath,@executable_path/../lib/boost)
 else()
-  add_link_options(@${ICPP_ROOT}/ld.txt)
+  add_link_options(@${ICPP_SRCROOT}/ld.txt)
 endif()
 
 set(THIRD_ROOT ${ICPP_ROOT}/third)
@@ -87,6 +87,7 @@ set(LLVM_OBJDUMP_ROOT ${THIRD_ROOT}/llvm-project/llvm/tools/llvm-objdump)
 add_custom_command(
   OUTPUT 
     icppdbg.pb.cc icppiobj.pb.cc isymhash.pb.cc
+    icpppad.pb.cc
   COMMAND ${CMAKE_BINARY_DIR}/third/protobuf/protoc 
     -I=${ICPP_ROOT}/proto --cpp_out=${CMAKE_BINARY_DIR} 
        ${ICPP_ROOT}/proto/icppdbg.proto
@@ -96,9 +97,13 @@ add_custom_command(
   COMMAND ${CMAKE_BINARY_DIR}/third/protobuf/protoc 
     -I=${ICPP_ROOT}/proto --cpp_out=${CMAKE_BINARY_DIR} 
        ${ICPP_ROOT}/proto/isymhash.proto
+  COMMAND ${CMAKE_BINARY_DIR}/third/protobuf/protoc 
+    -I=${ICPP_ROOT}/proto --cpp_out=${CMAKE_CURRENT_BINARY_DIR} 
+       ${ICPP_ROOT}/proto/icpppad.proto
   DEPENDS ${ICPP_ROOT}/proto/icppdbg.proto
           ${ICPP_ROOT}/proto/icppiobj.proto
           ${ICPP_ROOT}/proto/isymhash.proto
+          ${ICPP_ROOT}/proto/icpppad.proto
   VERBATIM)
 
 file(GLOB ICPP_CORE_SOURCES
@@ -143,6 +148,7 @@ add_llvm_library(icpp-gadget SHARED
   icppdbg.pb.cc
   icppiobj.pb.cc
   isymhash.pb.cc
+  icpppad.pb.cc
 
   PARTIAL_SOURCES_INTENDED
 )
@@ -176,7 +182,7 @@ endif()
 message(STATUS "Configuring icpp-server remote daemon...")
 add_executable(icpp-server ${ICPP_SRCROOT}/icpp-server.cpp)
 target_include_directories(icpp-server PRIVATE 
-  ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include
+  ${CMAKE_BINARY_DIR}/llvm/include
   boost_dll
 )
 target_link_libraries(icpp-server PRIVATE boost_dll)

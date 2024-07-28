@@ -24,6 +24,7 @@
 #pragma clang diagnostic pop
 #endif
 #include <boost/asio.hpp>
+#include <filesystem>
 #include <fstream>
 #include <icpppad.pb.h>
 #include <set>
@@ -33,6 +34,7 @@ namespace cl = llvm::cl;
 namespace iopad = com::vpand::iopad;
 namespace asio = boost::asio;
 namespace ip = asio::ip;
+namespace fs = std::filesystem;
 
 cl::OptionCategory IOPad("ICPP Interpretable Object Launch Pad Options");
 
@@ -175,9 +177,15 @@ struct LaunchPad {
             osarch = "aarch64";
           break;
         }
+        auto sysroot = std::format("{}/toolchains/llvm/prebuilt/{}-{}/sysroot",
+                                   ndk().data(), osname, osarch);
+        if (!fs::exists(sysroot) && std::string_view(osarch) != "x86_64")
+          sysroot = std::format("{}/toolchains/llvm/prebuilt/{}-x86_64/sysroot",
+                                ndk().data(), osname);
+        if (!fs::exists(sysroot))
+          icpp::log_print(icpp::Runtime, "Warning, {} doesn't exist.", sysroot);
         args.push_back("--sysroot");
-        args.push_back(std::format("{}/toolchains/llvm/prebuilt/{}-{}/sysroot",
-                                   ndk().data(), osname, osarch));
+        args.push_back(sysroot);
       }
       break;
     }
@@ -220,7 +228,7 @@ struct LaunchPad {
     boost::system::error_code error;
     asio::write(socket_, asio::buffer(buff), error);
     if (error) {
-      icpp::log_print(icpp::Runtime, "Failed to send command buffer {}.\n",
+      icpp::log_print(icpp::Runtime, "Failed to send command buffer {}.",
                       error.message());
     }
   }
@@ -237,7 +245,7 @@ struct LaunchPad {
           disconnect();
           icpp::log_print(
               icpp::Develop,
-              "Failed to read header buffer: {}.\nClosed connection.\n",
+              "Failed to read header buffer: {}.\nClosed connection.",
               error.message());
         }
         return false;
@@ -250,7 +258,7 @@ struct LaunchPad {
       asio::streambuf probuffer;
       asio::read(socket_, probuffer, asio::transfer_exactly(hdr->len), error);
       if (error && error != asio::error::eof) {
-        icpp::log_print(icpp::Develop, "Failed to read body buffer: {}.\n",
+        icpp::log_print(icpp::Develop, "Failed to read body buffer: {}.",
                         error.message());
         continue;
       }
@@ -283,9 +291,8 @@ struct LaunchPad {
     case iopad::SYNCENV: {
       iopad::CommandSyncEnv resp;
       if (!resp.ParseFromArray(body, size)) {
-        icpp::log_print(icpp::Runtime,
-                        "Failed to parse buffer cmd.{} size.{}\n", hdr->cmd,
-                        size);
+        icpp::log_print(icpp::Runtime, "Failed to parse buffer cmd.{} size.{}",
+                        hdr->cmd, size);
         break;
       }
       remote_arch_ = static_cast<icpp::ArchType>(resp.arch());
@@ -295,9 +302,8 @@ struct LaunchPad {
     case iopad::RESPONE: {
       iopad::Respond resp;
       if (!resp.ParseFromArray(body, size)) {
-        icpp::log_print(icpp::Runtime,
-                        "Failed to parse buffer cmd.{} size.{}\n", hdr->cmd,
-                        size);
+        icpp::log_print(icpp::Runtime, "Failed to parse buffer cmd.{} size.{}",
+                        hdr->cmd, size);
         break;
       }
       if (resp.result().length())

@@ -95,7 +95,7 @@ const void *find_symbol(const void *handle, std::string_view raw) {
 static int iter_so_callback(dl_phdr_info *info, size_t size, void *data) {
   auto callback = *reinterpret_cast<
       std::function<bool(uint64_t base, std::string_view path)> *>(data);
-  return callback(reinterpret_cast<uint64_t>(info->dlpi_addr), info->dlpi_name);
+  return callback(static_cast<uint64_t>(info->dlpi_addr), info->dlpi_name);
 }
 #endif
 
