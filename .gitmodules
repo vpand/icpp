@@ -13,3 +13,6 @@
 [submodule "third/brotli"]
 	path = third/brotli
 	url = https://github.com/google/brotli.git
+[submodule "third/ios-cmake"]
+	path = third/ios-cmake
+	url = https://github.com/leetal/ios-cmake.git

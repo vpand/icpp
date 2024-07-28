@@ -49,7 +49,7 @@ else()
 endif()
 
 # enable libc/libcxx for C/C++ runtime library
-if (WIN32)
+if (TRUE)
   set(LLVM_ENABLE_RUNTIMES "libcxx" CACHE STRING "" FORCE)
 else()
   set(LLVM_ENABLE_PROJECTS "libc" CACHE STRING "" FORCE)
