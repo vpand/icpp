@@ -158,7 +158,11 @@ struct ModuleLoader {
     syms_.insert({"___stack_chk_fail",
                   reinterpret_cast<const void *>(&__stack_chk_fail)});
 
-#if __APPLE__
+#if TARGET_OS_IOS || ANDROID
+    loadLibrary((libpath / "libc++" LLVM_PLUGIN_EXT).string());
+    loadLibrary((libpath / "libc++abi" LLVM_PLUGIN_EXT).string());
+    loadLibrary((libpath / "libunwind" LLVM_PLUGIN_EXT).string());
+#elif __APPLE__
     loadLibrary((libpath / "libc++.1" LLVM_PLUGIN_EXT).string());
     loadLibrary((libpath / "libc++abi.1" LLVM_PLUGIN_EXT).string());
     loadLibrary((libpath / "libunwind.1" LLVM_PLUGIN_EXT).string());

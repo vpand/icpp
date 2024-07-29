@@ -254,6 +254,7 @@ private:
   void interpretSignExtendRegMem(const InsnInfo *&inst, uint64_t &pc);
   template <typename TSRC, typename TDES>
   void interpretZeroExtendRegMem(const InsnInfo *&inst, uint64_t &pc);
+  void interpretCondMovRegMem(const InsnInfo *&inst, uint64_t &pc);
 
   /*
   register startup initializer
@@ -872,6 +873,11 @@ bool ExecEngine::executable(uint64_t target) {
 bool ExecEngine::interpretCallAArch64(const InsnInfo *&inst, uint64_t &pc,
                                       uint64_t target) {
   auto retaddr = pc + inst->len;
+#if LOG_EXECUTION
+  log_print(Develop, "Calling {:x} from {:x}", robject_->vm2vrva(target),
+            robject_->vm2vrva(retaddr));
+#endif
+
   if (executable(target)) {
     // call internal function
     // set return address
@@ -951,6 +957,11 @@ void ExecEngine::interpretPCLdrAArch64(const InsnInfo *&inst, uint64_t &pc) {
 bool ExecEngine::interpretCallX64(const InsnInfo *&inst, uint64_t &pc,
                                   uint64_t target) {
   auto retaddr = pc + inst->len;
+#if LOG_EXECUTION
+  log_print(Develop, "Calling {:x} from {:x}", robject_->vm2vrva(target),
+            robject_->vm2vrva(retaddr));
+#endif
+
   if (executable(target)) {
     uint64_t rsp;
     uc_reg_read(uc_, UC_X86_REG_RSP, &rsp);
@@ -1207,6 +1218,48 @@ void ExecEngine::interpretZeroExtendRegMem(const InsnInfo *&inst,
   // movzx reg, mem
   auto result = static_cast<TSRC>(*reinterpret_cast<const TDES *>(target));
   writeRegister(ops[0], &result);
+}
+
+void ExecEngine::interpretCondMovRegMem(const InsnInfo *&inst, uint64_t &pc) {
+  /*
+  <MCInst 1183
+    <MCOperand Reg>
+    <MCOperand Reg>
+    <MCOperand Reg> <MCOperand Imm> <MCOperand Reg> <MCOperand Imm>
+    <MCOperand Reg>
+    <MCOperand Imm>
+  >
+  */
+  constexpr int resultreg_op_idx = 0;
+  constexpr int cmpreg_op_idx = resultreg_op_idx + 1;
+  constexpr int basereg_op_idx = cmpreg_op_idx + 1;
+  constexpr int expimm_op_idx = basereg_op_idx + 1;
+  constexpr int expreg_op_idx = expimm_op_idx + 4;
+  constexpr int offimm_op_idx = expreg_op_idx + 1;
+  constexpr int segreg_op_idx = offimm_op_idx + 4;
+  constexpr int condimm_op_idx = segreg_op_idx + 1;
+  const uint16_t *ops;
+  auto target = interpretCalcMemX64(inst, pc, basereg_op_idx, &ops);
+  char dyncode[64];
+  char *ptr = &dyncode[0];
+  // set the target pointer
+  *(uint64_t *)ptr = target;
+  ptr += 8;
+  // copy opcode
+  char *opcode = ptr;
+  *(uint32_t *)ptr = *(uint32_t *)pc;
+  ptr += 4;
+  // set the new offset
+  *(int32_t *)ptr = -8 - inst->len;
+  // execute the new instruction
+  auto err = uc_emu_start(uc_, reinterpret_cast<uint64_t>(opcode), -1, 0, 1);
+  if (err != UC_ERR_OK) {
+    log_print(Runtime,
+              "Fatal error occurred when simuating cmov instruction: {}.",
+              uc_strerror(err));
+    dump();
+    std::exit(-1);
+  }
 }
 
 static bool can_emulate(const InsnInfo *inst) {
@@ -1664,6 +1717,13 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       break;
     case INSN_X64_TEST64MR:
       interpretFlagsMemReg<int64_t>(inst, pc, false);
+      break;
+    // encoded meta data layout:[uint16_t, uint16_t, [uint16_t-memory_items],
+    // uint64_t] i.e.: cmov reg0, reg1, [mem], cond
+    case INSN_X64_CMOV16RM:
+    case INSN_X64_CMOV32RM:
+    case INSN_X64_CMOV64RM:
+      interpretCondMovRegMem(inst, pc);
       break;
     default:
       log_print(Runtime, "Unknown instruction type {} at rva {:x}.", inst->type,

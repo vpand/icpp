@@ -897,6 +897,18 @@ static void parseInstX64(const MCInst &inst, uint64_t opcptr,
   case INSN::TEST64mr:
     iinfo.type = INSN_X64_TEST64MR;
     break;
+  case INSN::CMOV16rm:
+  case INSN::CMOV16rm_ND:
+    iinfo.type = INSN_X64_CMOV16RM;
+    break;
+  case INSN::CMOV32rm:
+  case INSN::CMOV32rm_ND:
+    iinfo.type = INSN_X64_CMOV32RM;
+    break;
+  case INSN::CMOV64rm:
+  case INSN::CMOV64rm_ND:
+    iinfo.type = INSN_X64_CMOV64RM;
+    break;
   default:
     iinfo.type = INSN_HARDWARE;
     return;
