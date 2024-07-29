@@ -14,12 +14,58 @@
 // there's an extra underscore character in macho symbol, skip it
 #define symbol_name(raw) (raw.data() + 1)
 
+#ifdef mmap
+// special implementations for unicorn engine on iphone os
+#undef mmap
+#undef munmap
+extern "C" {
+
+void *mmap(void *start, size_t length, int prot, int flags, int fd,
+           off_t offset);
+void *icpp_gadget_mmap(void *start, size_t length, int prot, int flags, int fd,
+                       off_t offset) {
+  if (length < mem_page_size)
+    return mmap(start, length, prot, flags, fd, offset);
+
+  void *result;
+  vm_allocate(mach_task_self(), (vm_address_t *)&result, length,
+              VM_FLAGS_ANYWHERE);
+  mprotect(result, length, prot);
+  return result;
+}
+
+int munmap(void *addr, size_t sz);
+int icpp_gadget_munmap(void *addr, size_t sz) {
+  if (sz < mem_page_size)
+    return munmap(addr, sz);
+
+  vm_deallocate(mach_thread_self(), (vm_address_t)addr, sz);
+  return 0;
+}
+
+void pthread_jit_write_protect_np(int enable) {
+  static bool tried = false;
+  static void (*fnptr)(int) = nullptr;
+  if (tried) {
+    if (fnptr)
+      fnptr(enable);
+    return;
+  }
+  tried = true;
+  fnptr = (void (*)(int))icpp::find_symbol(nullptr,
+                                           "_pthread_jit_write_protect_np");
+  if (fnptr)
+    fnptr(enable);
+}
+}
+#else
 #ifndef __MAC_11_3
 // qemu's tcg engine references this api, but:
 // pthread_jit_write_protect_np is only available on macOS 11.0 or newer, and:
 // qemu's configure script can't detect this situation properly, so:
 // we implement it as a nop function to make it working.
 extern "C" void pthread_jit_write_protect_np(int enable) {}
+#endif
 #endif
 #elif ON_WINDOWS
 static constexpr const char *symbol_name(std::string_view raw) {

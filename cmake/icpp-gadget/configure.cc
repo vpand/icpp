@@ -9,17 +9,21 @@
 
 int main(int argc, const char *argv[]) {
   if (argc == 1) {
-    icpp::prints("Usage: {} /path/to/toolchain.cmake [x86_64|arm64].\n",
-                 argv[0]);
+    icpp::prints("Usage: {} /path/to/toolchain.cmake [x86_64].\n", argv[0]);
     return 0;
   }
 
   auto thisfile = fs::absolute(argv[0]);
   auto thisdir = thisfile.parent_path().string();
+  std::string cxxlibs;
   for (auto &type : {"Debug"s, "Release"s}) {
     icpp::strings args;
     args.push_back(std::format("-DCMAKE_TOOLCHAIN_FILE={}", argv[1]));
+    args.push_back(std::format("-DCMAKE_CROSSCOMPILING=TRUE"));
     args.push_back(std::format("-DCMAKE_BUILD_TYPE={}", type));
+    args.push_back(std::format("-DLLVM_TABLEGEN={}/../../build/third/"
+                               "llvm-project/llvm/bin/llvm-tblgen",
+                               thisdir));
     args.push_back("-G");
     args.push_back("Ninja");
 
@@ -30,10 +34,37 @@ int main(int argc, const char *argv[]) {
       if (argc >= 3)
         arch = argv[2];
       args.push_back(std::format("-DANDROID_ABI={}", arch));
-      args.push_back(std::format("-DANDROID_STL=c++_shared"));
+      args.push_back(
+          std::format("-DCMAKE_CXX_FLAGS=-nostdinc++ -nostdlib++ -fPIC "
+                      "-I{}/../../runtime/include/c++/v1",
+                      thisdir));
+      cxxlibs =
+          std::format("-L{}/../cxxconf/build-{}/lib -lc++ -lc++abi -lunwind",
+                      thisdir, arch);
     } else {
+      args.push_back("-DCMAKE_MACOSX_BUNDLE=NO");
       args.push_back("-DPLATFORM=OS64");
+      args.push_back("-DDEPLOYMENT_TARGET=10.0");
+      args.push_back(
+          std::format("-DCMAKE_CXX_FLAGS=-nostdinc++ -nostdlib++ -fPIC "
+                      "-I{}/../../runtime/include/c++/v1 "
+                      "-isysroot {}/../../runtime/apple "
+                      "-F/Applications/Xcode.app/Contents/Developer/Platforms/"
+                      "iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/"
+                      "Library/Frameworks -Dmmap=icpp_gadget_mmap "
+                      "-Dmunmap=icpp_gadget_munmap",
+                      thisdir, thisdir));
+      cxxlibs = std::format(
+          "-L{}/../cxxconf/build-{}/lib -lc++.1 -lc++abi.1 -lunwind.1 "
+          "-L/Applications/Xcode.app/Contents/Developer/Platforms/"
+          "iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/usr/lib "
+          "-F/Applications/Xcode.app/Contents/Developer/Platforms/"
+          "iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/"
+          "Frameworks -framework Foundation",
+          thisdir, arch);
     }
+    args.push_back(std::format("-DCMAKE_SHARED_LINKER_FLAGS={}", cxxlibs));
+    args.push_back(std::format("-DCMAKE_EXE_LINKER_FLAGS={}", cxxlibs));
 
     args.push_back("-B");
     args.push_back(std::format("{}/build-{}.{}", thisdir, arch, type));

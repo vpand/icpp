@@ -43,19 +43,22 @@ namespace fs = std::filesystem;
 
 #if __APPLE__
 #define LIBEXT ".dylib"
-constexpr const std::string_view os = "apple";
+constexpr const std::string_view platform = "apple";
+constexpr const std::string_view osname = "macos";
 constexpr const std::string_view libcpp = "libc++.1.0" LIBEXT;
 constexpr const std::string_view libcppabi = "libc++abi.1.0" LIBEXT;
 constexpr const std::string_view libunwind = "libunwind.1.0" LIBEXT;
 #elif __linux__
 #define LIBEXT ".so"
-constexpr const std::string_view os = "linux";
+constexpr const std::string_view platform = "linux";
+constexpr const std::string_view osname = "linux";
 constexpr const std::string_view libcpp = "libc++" LIBEXT ".1.0";
 constexpr const std::string_view libcppabi = "libc++abi" LIBEXT ".1.0";
 constexpr const std::string_view libunwind = "libunwind" LIBEXT ".1.0";
 #else
 #define LIBEXT ".dll"
-constexpr const std::string_view os = "win";
+constexpr const std::string_view platform = "win";
+constexpr const std::string_view osname = "windows";
 constexpr const std::string_view libcpp = "c++" LIBEXT;
 #endif
 
@@ -175,8 +178,9 @@ int main(int argc, char **argv) {
   auto dstroot = fs::path(argv[2]);
   create_dir(dstroot);
   // create icpp package layout
-  auto pkgdir = std::format("icpp-v{}.{}.{}-{}-{}", icpp::version_major,
-                            icpp::version_minor, icpp::version_patch, os, arch);
+  auto pkgdir =
+      std::format("icpp-v{}.{}.{}-{}-{}", icpp::version_major,
+                  icpp::version_minor, icpp::version_patch, osname, arch);
   auto icpproot = dstroot / pkgdir;
   auto bin = icpproot / "bin";
   auto include = icpproot / "include";
@@ -214,9 +218,9 @@ int main(int argc, char **argv) {
   outf << "icpp internal flag file for windows platform.";
 #endif
 
-  // copy c/c++/os headers
+  // copy platform/c/c++ headers
   std::vector<std::string_view> incnames = {
-      os,
+      platform,
       "include/c",
       "include/c++",
   };

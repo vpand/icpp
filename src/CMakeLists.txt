@@ -83,6 +83,7 @@ add_custom_command(
 
 # llvm disabled rtti, so sources depend on them should also apply it
 file(GLOB ICPP_LLVM_SOURCES
+  compile.cpp
   object.cpp
   object-llvm.cpp
   ${LLVM_OBJDUMP_ROOT}/SourcePrinter.cpp
@@ -111,7 +112,6 @@ file(GLOB ICPP_CORE_SOURCES
 # because of this, you can deploy icpp to any kind of runtime environment.
 add_clang_tool(icpp
   ${ICPP_CORE_SOURCES}
-  compile.cpp
   icpp-driver.cpp
   icpp-main.cpp
   icpp-repl.cpp

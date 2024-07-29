@@ -15,6 +15,7 @@
 #include "llvm/Support/InitLLVM.h"
 #include <format>
 #include <span>
+#include <vector>
 
 static void print_version() {
   std::cout << "ICPP " << icpp::version_string()
@@ -39,6 +40,7 @@ static void print_help() {
       << "  --version: print icpp and clang version." << std::endl
       << "  -h, -help: print icpp help list." << std::endl
       << "  --help: print icpp and clang help list." << std::endl
+      << "  -f: format the input source file as LLVM code style." << std::endl
       << "  -O0, -O1, -O2, -O3, -Os, -Oz: optimization level passed to "
          "clang, default to -O2."
       << std::endl
@@ -185,6 +187,16 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
       icpp::RunConfig::inst(argv[0], "");
       // let icpp clang wrapper do the compilation task directly
       return icpp::compile_source_icpp(argc, const_cast<const char **>(argv));
+    }
+    if (arg == "-f") {
+      // source file format
+      std::vector<const char *> fargs;
+      fargs.push_back(argv[0]);
+      fargs.push_back("-i");
+      fargs.push_back("-style=LLVM");
+      for (int f = i + 1; f < argc; f++)
+        fargs.push_back(argv[f]);
+      return icpp::cformat_main(static_cast<int>(fargs.size()), &fargs[0]);
     }
 
     /*

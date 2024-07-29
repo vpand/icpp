@@ -75,6 +75,7 @@ OPTIONS:
   --version: print icpp and clang version.
   -h, -help: print icpp help list.
   --help: print icpp and clang help list.
+  -f: format the input source file as LLVM code style.
   -O0, -O1, -O2, -O3, -Os, -Oz: optimization level passed to clang, default to -O2.
   -I/path/to/include: header include directory passed to clang.
   -L/path/to/library: library search directory passed to icpp interpreter.

@@ -10,6 +10,8 @@
 
 namespace icpp {
 
+int cformat_main(int argc, const char **argv);
+
 int compile_source_clang(int argc, const char **argv, bool cl = false);
 
 int compile_source_icpp(int argc, const char **argv);

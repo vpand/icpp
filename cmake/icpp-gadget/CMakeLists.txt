@@ -17,16 +17,17 @@ set(ICPP_SRCROOT ${ICPP_ROOT}/src)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
 # build the device architecture target only
-if (${ANDROID_ABI} STREQUAL "x86_64")
-    set(LLVM_TARGETS_TO_BUILD "X86" CACHE STRING "" FORCE)
-    set(UNICORN_ARCH "x86" CACHE STRING "" FORCE)
+if (DEFINED ANDROID_ABI AND ANDROID_ABI STREQUAL "x86_64")
+  set(LLVM_TARGETS_TO_BUILD "X86" CACHE STRING "" FORCE)
+  set(UNICORN_ARCH "x86" CACHE STRING "" FORCE)
 else()
-    set(LLVM_TARGETS_TO_BUILD "AArch64" CACHE STRING "" FORCE)
-    set(UNICORN_ARCH "aarch64" CACHE STRING "" FORCE)
+  set(LLVM_TARGETS_TO_BUILD "AArch64" CACHE STRING "" FORCE)
+  set(UNICORN_ARCH "aarch64" CACHE STRING "" FORCE)
 endif()
 
 # enable libcxx for C/C++ runtime library
 message(STATUS "Configuring llvm...")
+set(LLVM_INCLUDE_TOOLS OFF CACHE BOOL "" FORCE)
 set(LLVM_INCLUDE_UTILS OFF CACHE BOOL "" FORCE)
 set(LLVM_INCLUDE_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(LLVM_INCLUDE_TESTS OFF CACHE BOOL "" FORCE)
@@ -50,6 +51,7 @@ add_subdirectory(${ICPP_ROOT}/third/boost
 
 # protobuf
 message(STATUS "Configuring protobuf...")
+set(protobuf_WITH_ZLIB OFF CACHE BOOL "" FORCE)
 add_subdirectory(${ICPP_ROOT}/third/protobuf
                  ${CMAKE_BINARY_DIR}/protobuf)
 

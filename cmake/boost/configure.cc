@@ -9,8 +9,7 @@
 
 int main(int argc, const char *argv[]) {
   if (argc == 1) {
-    icpp::prints("Usage: {} /path/to/toolchain.cmake [x86_64|arm64].\n",
-                 argv[0]);
+    icpp::prints("Usage: {} /path/to/toolchain.cmake [x86_64].\n", argv[0]);
     return 0;
   }
 
@@ -38,8 +37,9 @@ int main(int argc, const char *argv[]) {
                                thisdir.string(), arch));
   } else {
     args.push_back("-DPLATFORM=OS64");
+    args.push_back("-DDEPLOYMENT_TARGET=10.0");
     args.push_back(std::format("-DCMAKE_SHARED_LINKER_FLAGS=-L{}/../cxxconf/"
-                               "build-{}/lib -lc++ -lc++abi -lunwind",
+                               "build-{}/lib -lc++.1 -lc++abi.1 -lunwind.1",
                                thisdir.string(), arch));
   }
 

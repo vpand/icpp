@@ -9,7 +9,7 @@ project(icpp CXX C ASM)
 set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
 
 # build the host architecture target only
-if (${ANDROID_ABI} STREQUAL "x86_64")
+if (DEFINED ANDROID_ABI AND ANDROID_ABI STREQUAL "x86_64")
     set(LLVM_TARGETS_TO_BUILD "X86" CACHE STRING "" FORCE)
 else()
     set(LLVM_TARGETS_TO_BUILD "AArch64" CACHE STRING "" FORCE)

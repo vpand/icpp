@@ -107,6 +107,9 @@ __BEGIN_DECLS
  * Threads
  */
 
+// added by icpp: turn on all the apis
+#undef __API_UNAVAILABLE
+#define __API_UNAVAILABLE(...)
 
 /*
  * Cancel cleanup handler management.  Note, since these are implemented as macros,
