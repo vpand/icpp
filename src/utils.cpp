@@ -64,8 +64,12 @@ std::string rand_filename(int length, std::string_view ext) {
 }
 
 std::string_view home_directory() {
+#if ANDROID
+  return "/sdcard/Android";
+#else
   static auto home = std::getenv(env_home.data());
   return home;
+#endif
 }
 
 std::string main_program() {

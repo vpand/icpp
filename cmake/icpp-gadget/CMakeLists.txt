@@ -55,6 +55,11 @@ set(protobuf_WITH_ZLIB OFF CACHE BOOL "" FORCE)
 add_subdirectory(${ICPP_ROOT}/third/protobuf
                  ${CMAKE_BINARY_DIR}/protobuf)
 
+# brotli
+message(STATUS "Configuring brotli...")
+add_subdirectory(${ICPP_ROOT}/third/brotli
+                 ${CMAKE_BINARY_DIR}/brotli)
+
 # unicorn
 message(STATUS "Configuring unicorn...")
 # patch qemu mmu to enable the emulated code to access memory directly
@@ -89,6 +94,7 @@ set(LLVM_OBJDUMP_ROOT ${THIRD_ROOT}/llvm-project/llvm/tools/llvm-objdump)
 add_custom_command(
   OUTPUT 
     icppdbg.pb.cc icppiobj.pb.cc isymhash.pb.cc
+    icppmod.pb.cc
     icpppad.pb.cc
   COMMAND ${CMAKE_BINARY_DIR}/third/protobuf/protoc 
     -I=${ICPP_ROOT}/proto --cpp_out=${CMAKE_BINARY_DIR} 
@@ -99,6 +105,9 @@ add_custom_command(
   COMMAND ${CMAKE_BINARY_DIR}/third/protobuf/protoc 
     -I=${ICPP_ROOT}/proto --cpp_out=${CMAKE_BINARY_DIR} 
        ${ICPP_ROOT}/proto/isymhash.proto
+  COMMAND ${CMAKE_BINARY_DIR}/third/protobuf/protoc 
+    -I=${ICPP_ROOT}/proto --cpp_out=${CMAKE_CURRENT_BINARY_DIR} 
+       ${ICPP_ROOT}/proto/icppmod.proto
   COMMAND ${CMAKE_BINARY_DIR}/third/protobuf/protoc 
     -I=${ICPP_ROOT}/proto --cpp_out=${CMAKE_CURRENT_BINARY_DIR} 
        ${ICPP_ROOT}/proto/icpppad.proto
@@ -181,6 +190,59 @@ if(APPLE)
 else()
   target_link_options(icpp-gadget PRIVATE -Wl,--version-script=${ICPP_SRCROOT}/ld-gadget.version)
 endif()
+
+# icpp module manager command line
+message(STATUS "Configuring icpp module manager imod...")
+
+set(LLVM_LINK_COMPONENTS
+  Object
+  Option
+  Support
+)
+file(GLOB IMOD_LLVM_SOURCES
+  ${ICPP_SRCROOT}/icpp-mod.cpp
+  ${ICPP_SRCROOT}/object.cpp
+)
+add_llvm_tool(imod 
+  ${IMOD_LLVM_SOURCES}
+  ${ICPP_SRCROOT}/arch.cpp
+  ${ICPP_SRCROOT}/icpp.cpp
+  ${ICPP_SRCROOT}/loader.cpp
+  ${ICPP_SRCROOT}/platform.cpp
+  ${ICPP_SRCROOT}/runcfg.cpp
+  ${ICPP_SRCROOT}/runtime.cpp
+  ${ICPP_SRCROOT}/utils.cpp
+  ${ICPP_SRCROOT}/imod/createcfg.cpp
+
+  isymhash.pb.cc
+  icppmod.pb.cc
+  icppiobj.pb.cc
+
+  PARTIAL_SOURCES_INTENDED
+)
+set_source_files_properties(${IMOD_LLVM_SOURCES} PROPERTIES 
+  COMPILE_FLAGS ${GADGET_LLVM_FLAGS})
+target_include_directories(imod PRIVATE
+  ${THIRD_ROOT}/llvm-project/llvm/include
+  ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include
+  ${THIRD_ROOT}/brotli/c/include
+  ${CMAKE_BINARY_DIR}
+  boost_asio
+  boost_beast
+  boost_json
+  boost_process
+  libprotobuf
+)
+target_link_libraries(imod PRIVATE
+  boost_asio
+  boost_beast
+  boost_json
+  boost_process
+  brotlicommon
+  brotlienc
+  brotlidec
+  libprotobuf
+)
 
 # icpp-server command line
 message(STATUS "Configuring icpp-server remote daemon...")

@@ -9,14 +9,32 @@
 
 int main(int argc, const char *argv[]) {
   if (argc == 1) {
-    icpp::prints("Usage: {} /path/to/toolchain.cmake [x86_64].\n", argv[0]);
+    icpp::prints("Usage: {} [/path/to/toolchain.cmake|android|ios] [x86_64].\n",
+                 argv[0]);
     return 0;
   }
 
   auto thisfile = fs::absolute(argv[0]);
   auto thisdir = thisfile.parent_path().string();
-  std::string cxxlibs;
   for (auto &type : {"Debug"s, "Release"s}) {
+    std::string toolchain;
+    if (argv[1] == "android"sv) {
+      auto ndkbuild = bp::search_path("ndk-build");
+      if (fs::exists(ndkbuild.string())) {
+        toolchain =
+            (ndkbuild.parent_path() / "build/cmake/android.toolchain.cmake")
+                .string();
+        argv[1] = toolchain.data();
+      }
+    }
+    if (argv[1] == "ios"sv) {
+      toolchain =
+          (fs::path(thisdir) / "../../third/ios-cmake/ios.toolchain.cmake")
+              .string();
+      argv[1] = toolchain.data();
+    }
+
+    std::string cxxlibs;
     icpp::strings args;
     args.push_back(std::format("-DCMAKE_TOOLCHAIN_FILE={}", argv[1]));
     args.push_back(std::format("-DCMAKE_CROSSCOMPILING=TRUE"));

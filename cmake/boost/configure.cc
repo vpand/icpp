@@ -32,9 +32,10 @@ int main(int argc, const char *argv[]) {
     if (argc >= 3)
       arch = argv[2];
     args.push_back(std::format("-DANDROID_ABI={}", arch));
-    args.push_back(std::format("-DCMAKE_SHARED_LINKER_FLAGS=-L{}/../cxxconf/"
-                               "build-{}/lib -lc++ -lc++abi -lunwind",
-                               thisdir.string(), arch));
+    args.push_back(
+        std::format("-DCMAKE_SHARED_LINKER_FLAGS=-L{}/../cxxconf/"
+                    "build-{}/lib -lc++ -lc++abi -lunwind @{}/../../src/ld.txt",
+                    thisdir.string(), arch, thisdir.string()));
   } else {
     args.push_back("-DPLATFORM=OS64");
     args.push_back("-DDEPLOYMENT_TARGET=10.0");

@@ -21,6 +21,7 @@ https://github.com/vpand/icpp/releases
 */
 
 #include <icpp.hpp>
+#include <icppex.hpp>
 
 // for icpp package version
 #include "../src/icpp.h"
@@ -33,8 +34,6 @@ static auto log(const std::string &text) { std::puts(text.data()); }
     stmt;                                                                      \
   }
 
-static std::string strip_path{"strip"};
-
 static auto create_dir(const fs::path &path) {
   if (fs::exists(path))
     return;
@@ -45,7 +44,7 @@ static auto create_dir(const fs::path &path) {
 }
 
 static auto pack_file(const fs::path &srcfile, const fs::path &dstdir,
-                      bool strip, std::string_view dstname = "") {
+                      std::string_view strip, std::string_view dstname = "") {
   if (!fs::exists(srcfile)) {
     log(std::format("There's no {}, ignored packing it.", srcfile.string()));
     return;
@@ -53,21 +52,10 @@ static auto pack_file(const fs::path &srcfile, const fs::path &dstdir,
   auto dstfile =
       dstdir / (dstname.size() ? fs::path(dstname) : srcfile.filename());
 
-  if (strip) {
-    std::system(std::format("{} -x {} -o {}", strip_path, srcfile.string(),
-                            dstfile.string())
-                    .data());
-    log(std::format("Packed and stripped file {}.", dstfile.string()));
-    return;
-  }
-
-  std::error_code err;
-  fs::copy_file(srcfile, dstfile, fs::copy_options::overwrite_existing, err);
-  if (err)
-    log_return(std::format("Failed to copy file: {} ==> {}, {}.",
-                           srcfile.string(), dstfile.string(), err.message()),
-               return);
-  log(std::format("Packed file {}.", dstfile.string()));
+  std::system(
+      std::format("{} -x {} -o {}", strip, srcfile.string(), dstfile.string())
+          .data());
+  log(std::format("Packed and stripped file {}.", dstfile.string()));
 }
 
 static auto pack_dir(const fs::path &srcdir, const fs::path &dstroot,
@@ -98,12 +86,25 @@ int main(int argc, char **argv) {
     log_return(
         std::format("Usage: {} /path/to/prefix [/path/to/strip].", argv[0]),
         return 0);
+  std::string llvm_strip;
+  std::string_view android_strip;
   if (argc == 3) {
-    strip_path = argv[2]; // ndk strip path
-    log(std::format("Using user specified strip tool {}.", strip_path));
+    android_strip = argv[2];
+    log(std::format("Using user specified strip tool {}.", android_strip));
+  } else {
+#if __APPLE__
+    auto ndkbuild = bp::search_path("ndk-build");
+    if (fs::exists(ndkbuild.string())) {
+      llvm_strip = (ndkbuild.parent_path() /
+                    "toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-strip")
+                       .string();
+      android_strip = llvm_strip;
+      log(std::format("Using auto detected strip tool {}.", android_strip));
+    }
+#endif
   }
 
-  auto projroot = fs::absolute(argv[0]).parent_path().parent_path();
+  auto projroot = fs::absolute(argv[0]).parent_path() / "..";
   // create the destination directory if necessary
   auto dstroot = fs::path(argv[1]);
   create_dir(dstroot);
@@ -111,10 +112,14 @@ int main(int argc, char **argv) {
   std::string_view osnames[] = {"ios", "android", "android"};
   std::string_view archnames[] = {"arm64", "arm64-v8a", "x86_64"};
   std::string_view exts[] = {".dylib", ".so", ".so"};
+  std::string_view strips[] = {"strip", android_strip, android_strip};
   for (size_t i = 0; i < std::size(osnames); i++) {
     auto os = osnames[i];
     auto arch = archnames[i];
     auto ext = exts[i];
+    auto strip = strips[i];
+    if (!strip.size())
+      continue;
 
     // ignore this platform if there's no prebuilt boost and cxx library
     auto boostlib =
@@ -150,8 +155,9 @@ int main(int argc, char **argv) {
     auto libgadget = std::string("icpp-gadget") + ext.data();
     auto gadget =
         projroot / std::format("cmake/icpp-gadget/build-{}.Release", arch);
-    for (auto &name : {libgadget, std::string("icpp-server")})
-      pack_file(gadget / name, bin, true);
+    for (auto &name :
+         {libgadget, std::string("imod"), std::string("icpp-server")})
+      pack_file(gadget / name, bin, strip);
 
     auto targz = pkgdir + ".tar.gz";
     log(std::format("Packing icpp release package {}...", targz));

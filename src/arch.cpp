@@ -28,17 +28,17 @@ ArchType host_arch() {
 
 SystemType host_system() {
 #if __APPLE__
-#if TARGET_OS_MAC
-  return macOS;
-#else
+#ifdef mmap
   return iOS;
+#else
+  return macOS;
 #endif
-#elif __linux__
-  return Linux;
 #elif ON_WINDOWS
   return Windows;
 #elif ANDROID
   return Android;
+#elif __linux__
+  return Linux;
 #else
 #error Unsupported host system.
 #endif
