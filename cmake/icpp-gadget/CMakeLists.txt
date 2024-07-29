@@ -121,7 +121,7 @@ file(GLOB ICPP_CORE_SOURCES
   ${ICPP_SRCROOT}/utils.cpp
 )
 
-set(DISABLE_RTTI -fno-rtti)
+set(GADGET_LLVM_FLAGS "-fno-rtti -DICPP_CROSS_GADGET=1")
 
 # icpp gadget, running as a daemon in somewhere to receive the
 # interpretable object to execute
@@ -153,7 +153,9 @@ add_llvm_library(icpp-gadget SHARED
   PARTIAL_SOURCES_INTENDED
 )
 set_target_properties(icpp-gadget PROPERTIES PREFIX "")
-set_source_files_properties(${IGADGET_LLVM_SOURCES} PROPERTIES COMPILE_FLAGS ${DISABLE_RTTI})
+set_source_files_properties(${IGADGET_LLVM_SOURCES} PROPERTIES 
+  COMPILE_FLAGS ${GADGET_LLVM_FLAGS}
+)
 target_include_directories(icpp-gadget PRIVATE 
   ${THIRD_ROOT}/llvm-project/llvm/include
   ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include

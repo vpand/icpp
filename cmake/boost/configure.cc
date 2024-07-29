@@ -22,6 +22,9 @@ int main(int argc, const char *argv[]) {
   args.push_back("-DBUILD_SHARED_LIBS=ON");
   args.push_back("-G");
   args.push_back("Ninja");
+  args.push_back(std::format("-DCMAKE_CXX_FLAGS=-nostdinc++ -nostdlib++ -fPIC "
+                             "-I{}/../../runtime/include/c++/v1",
+                             thisdir.string()));
 
   std::string arch{"arm64"};
   if (args[0].find("android") != std::string::npos) {
@@ -30,9 +33,14 @@ int main(int argc, const char *argv[]) {
     if (argc >= 3)
       arch = argv[2];
     args.push_back(std::format("-DANDROID_ABI={}", arch));
-    args.push_back(std::format("-DANDROID_STL=c++_shared"));
+    args.push_back(std::format("-DCMAKE_SHARED_LINKER_FLAGS=-L{}/../cxxconf/"
+                               "build-{}/lib -lc++ -lc++abi -lunwind",
+                               thisdir.string(), arch));
   } else {
     args.push_back("-DPLATFORM=OS64");
+    args.push_back(std::format("-DCMAKE_SHARED_LINKER_FLAGS=-L{}/../cxxconf/"
+                               "build-{}/lib -lc++ -lc++abi -lunwind",
+                               thisdir.string(), arch));
   }
 
   args.push_back("-B");

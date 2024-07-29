@@ -59,7 +59,10 @@ private:
   bool running_ = true;
 } icppsvr;
 
-// Don't need these implementations at all in icpp-gadget
+/*
+Don't need these implementations at all in icpp-gadget
+*/
+
 int exec_string(const char *argv0, std::string_view snippet, bool whole,
                 int argc, const char **argv) {
   return -1;
@@ -68,6 +71,24 @@ int exec_source(const char *argv0, std::string_view path, int argc,
                 const char **argv) {
   return -1;
 }
+
+#if ICPP_CROSS_GADGET
+#if ARCH_ARM64
+extern "C" void LLVMInitializeX86Target() {}      
+extern "C" void LLVMInitializeX86TargetMC() {}    
+extern "C" void LLVMInitializeX86TargetInfo() {}  
+extern "C" void LLVMInitializeX86AsmPrinter() {}  
+extern "C" void LLVMInitializeX86AsmParser() {}   
+extern "C" void LLVMInitializeX86Disassembler() {}
+#else
+extern "C" void LLVMInitializeAArch64Target() {}      
+extern "C" void LLVMInitializeAArch64TargetMC() {}    
+extern "C" void LLVMInitializeAArch64TargetInfo() {}  
+extern "C" void LLVMInitializeAArch64AsmPrinter() {}  
+extern "C" void LLVMInitializeAArch64AsmParser() {}   
+extern "C" void LLVMInitializeAArch64Disassembler() {}
+#endif
+#endif
 
 static void send_buffer(ip::tcp::socket *s, iopad::CommandID id,
                         const std::string_view &respbuf) {
