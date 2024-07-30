@@ -400,6 +400,7 @@ const void *ModuleLoader::loadLibrary(std::string_view path) {
           // initialize this iobject module, call its construction functions,
           // it'll call the Loader::cacheObject after executing the ctors
           init_library(object);
+          imods_.push_back(object);
           addr = object.get();
         }
       }

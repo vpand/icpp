@@ -123,6 +123,7 @@ struct LaunchPad {
       break;
     default:
       switch (remote_system_) {
+      case icpp::iOS:
       case icpp::macOS:
         arch = "arm64";
         break;

@@ -19,6 +19,7 @@ int main(int argc, const char *argv[]) {
   args.push_back(std::format("-DCMAKE_TOOLCHAIN_FILE={}", argv[1]));
   args.push_back(std::format("-DCMAKE_BUILD_TYPE=Release"));
   args.push_back("-DBUILD_SHARED_LIBS=ON");
+  args.push_back("-DBOOST_IOSTREAMS_ENABLE_LZMA=OFF");
   args.push_back("-G");
   args.push_back("Ninja");
   args.push_back(std::format("-DCMAKE_CXX_FLAGS=-nostdinc++ -nostdlib++ -fPIC "

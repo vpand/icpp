@@ -34,6 +34,8 @@ cl::OptionCategory ISERVER("ICPP Remote Gadget Server Options");
 static cl::opt<int> Port("port", cl::desc("Set the listening port."),
                          cl::init(0), cl::cat(ISERVER));
 
+static bool running;
+
 class gadget {
 public:
   gadget();
@@ -52,11 +54,8 @@ private:
 
   asio::io_service ios_;
   std::unique_ptr<ip::tcp::acceptor> acceptor_;
-  std::unique_ptr<std::thread> listen_;
   std::vector<std::unique_ptr<ip::tcp::socket>> clients_;
-  std::vector<std::thread> clirecvs_;
   std::mutex mutex_;
-  bool running_ = true;
 } icppsvr;
 
 /*
@@ -126,9 +125,11 @@ static bool is_icpp_server() {
 }
 
 gadget::gadget() {
-  if (!is_icpp_server()) {
-    listen_ = std::make_unique<std::thread>(&gadget::listen, this);
-  }
+  running = true;
+
+  if (!is_icpp_server())
+    std::thread(&gadget::listen, this).detach();
+
   iterate_modules([](uint64_t handle, std::string_view path) {
     if (path.find("icpp-gadget") != std::string_view::npos ||
         path.find("icpp-server") != std::string_view::npos) {
@@ -151,7 +152,7 @@ gadget::gadget() {
 }
 
 gadget::~gadget() {
-  running_ = false;
+  running = false;
 
   try {
     // close client sockets
@@ -160,19 +161,12 @@ gadget::~gadget() {
         s->close();
       }
     }
-    // wait client recv thread to exit
-    for (auto &t : clirecvs_) {
-      t.join();
-    }
     // close acceptor
     if (acceptor_)
       acceptor_->close();
     ios_.stop();
   } catch (...) {
   }
-
-  if (listen_)
-    listen_->join();
 }
 
 int gadget::startup() {
@@ -189,7 +183,7 @@ int gadget::listen() {
     log_print(Develop, "Listening icpp-gadget server at {}...", port);
   } catch (std::exception &error) {
     log_print(Develop, "Create acceptor error: {}.", error.what());
-    running_ = false;
+    running = false;
     return -1;
   }
 
@@ -198,11 +192,10 @@ int gadget::listen() {
       auto socketptr = std::make_unique<ip::tcp::socket>(ios_);
       // waiting for connection
       acceptor_->accept(*socketptr);
-      if (!running_)
+      if (!running)
         break;
       clients_.push_back(std::move(socketptr));
-      clirecvs_.push_back(std::move(
-          std::thread(&gadget::recv, this, clients_.rbegin()->get())));
+      std::thread(&gadget::recv, this, clients_.rbegin()->get()).detach();
     } catch (boost::system::system_error &error) {
       log_print(Develop, "Accept error: {}.", error.what());
 #if NDEBUG

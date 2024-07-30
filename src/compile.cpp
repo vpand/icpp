@@ -195,21 +195,20 @@ int compile_source_icpp(int argc, const char **argv) {
         "x86_64"
 #endif
         "-unknown-linux-gnu");
-  }
-#endif
-  if (!cppminc.size()) {
-    // set for linux/android
     cppminc = std::format("-fprebuilt-module-path={}/linux/module", rtinc);
   }
+#endif
+
   // add c++ standard module precompiled module path
-  args.push_back(cppminc.data());
+  if (cppminc.size())
+    args.push_back(cppminc.data());
 
   // add libc include for cross compiling
   auto cinc = std::format("-I{}/c", rtinc);
   if (cross_compile) {
     bool sysroot = false;
-    for (int i = 0; i < argc; i++) {
-      if (std::string_view(argv[i]).find("sysroot") != std::string_view::npos) {
+    for (auto &arg : args) {
+      if (std::string_view(arg).find("sysroot") != std::string_view::npos) {
         sysroot = true;
         break;
       }
