@@ -28,7 +28,7 @@ ArchType host_arch() {
 
 SystemType host_system() {
 #if __APPLE__
-#ifdef mmap
+#if ICPP_IOS
   return iOS;
 #else
   return macOS;

@@ -63,14 +63,19 @@ int main(int argc, const char *argv[]) {
       args.push_back("-DCMAKE_MACOSX_BUNDLE=NO");
       args.push_back("-DPLATFORM=OS64");
       args.push_back("-DDEPLOYMENT_TARGET=10.0");
+      args.push_back(std::format("-DCMAKE_C_FLAGS=-Dmmap=icpp_gadget_mmap "
+                                 "-Dmunmap=icpp_gadget_munmap "
+                                 "-DUNICORN_TRACER=1 "
+                                 "-Dtrace_start=icpp_trace_start "
+                                 "-Dtrace_end=icpp_trace_end",
+                                 thisdir, thisdir));
       args.push_back(
           std::format("-DCMAKE_CXX_FLAGS=-nostdinc++ -nostdlib++ -fPIC "
                       "-I{}/../../runtime/include/c++/v1 "
                       "-isysroot {}/../../runtime/apple "
                       "-F/Applications/Xcode.app/Contents/Developer/Platforms/"
                       "iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/"
-                      "Library/Frameworks -Dmmap=icpp_gadget_mmap "
-                      "-Dmunmap=icpp_gadget_munmap",
+                      "Library/Frameworks -DICPP_IOS=1",
                       thisdir, thisdir));
       cxxlibs = std::format(
           "-L{}/../cxxconf/build-{}/lib -lc++.1 -lc++abi.1 -lunwind.1 "

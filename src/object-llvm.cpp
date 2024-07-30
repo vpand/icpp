@@ -100,6 +100,14 @@
 #include <unordered_map>
 #include <utility>
 
+#if ICPP_CROSS_GADGET
+#define ICPP_HAS_AARCH64 ARCH_ARM64
+#define ICPP_HAS_X64 ARCH_X64
+#else
+#define ICPP_HAS_AARCH64 1
+#define ICPP_HAS_X64 1
+#endif
+
 using namespace llvm;
 using namespace llvm::object;
 using namespace llvm::objdump;
@@ -191,8 +199,12 @@ static const Target *getTarget(const ObjectFile *Obj, std::string &TripleName) {
   LLVMInitialize##name##AsmPrinter();                                          \
   LLVMInitialize##name##AsmParser();                                           \
   LLVMInitialize##name##Disassembler();
+#if ICPP_HAS_AARCH64
     init_target(AArch64);
+#endif
+#if ICPP_HAS_X64
     init_target(X86);
+#endif
   }
 
   // Figure out the target triple.
@@ -363,6 +375,8 @@ std::string Object::sourceInfo(uint64_t vm) {
   return Output;
 }
 
+#if ICPP_HAS_AARCH64
+
 #define GET_REGINFO_ENUM
 #define GET_INSTRINFO_ENUM
 #include "llvm/../../lib/Target/AArch64/AArch64GenInstrInfo.inc"
@@ -475,6 +489,10 @@ static void parseInstAArch64(const MCInst &inst, uint64_t opcptr,
     break;
   }
 }
+
+#endif // end of ICPP_HAS_AARCH64
+
+#if ICPP_HAS_X64
 
 #define GET_REGINFO_ENUM
 #define GET_INSTRINFO_ENUM
@@ -930,6 +948,8 @@ static void parseInstX64(const MCInst &inst, uint64_t opcptr,
   }
 }
 
+#endif // end of ICPP_HAS_X64
+
 #define MACHO_MAGIC_BIT 0x10000
 #define ELF_MAGIC_BIT 0x20000
 #define COFF_MAGIC_BIT 0x40000
@@ -1285,11 +1305,15 @@ void Object::decodeInsns(TextSection &text) {
       // convert llvm opcode to icpp InsnType
       std::function<uint16_t(unsigned)> llvm2uc_register;
       if (arch() == AArch64) {
+#if ICPP_HAS_AARCH64
         llvm2uc_register = llvm2ucRegisterAArch64;
         parseInstAArch64(inst, opc, idecinfs_, iinfo);
+#endif
       } else {
+#if ICPP_HAS_X64
         llvm2uc_register = llvm2ucRegisterX64;
         parseInstX64(inst, opc, idecinfs_, iinfo);
+#endif
       }
       // check and resolve the relocation symbol
 #if ARCH_ARM64

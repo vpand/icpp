@@ -55,11 +55,6 @@ static void icpp_Init_thread_abort(int *const pOnce) { *pOnce = uninitialized; }
 extern uint64_t __security_cookie;
 #endif
 
-#if ANDROID
-#undef LLVM_PLUGIN_EXT
-#define LLVM_PLUGIN_EXT ".so"
-#endif
-
 namespace icpp {
 
 // some simulated system global variables

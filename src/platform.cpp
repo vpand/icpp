@@ -14,19 +14,12 @@
 // there's an extra underscore character in macho symbol, skip it
 #define symbol_name(raw) (raw.data() + 1)
 
-#ifdef mmap
+#if ICPP_IOS
 // special implementations for unicorn engine on iphone os
-#undef mmap
-#undef munmap
 extern "C" {
 
-void *mmap(void *start, size_t length, int prot, int flags, int fd,
-           off_t offset);
 void *icpp_gadget_mmap(void *start, size_t length, int prot, int flags, int fd,
                        off_t offset) {
-  if (length < mem_page_size)
-    return mmap(start, length, prot, flags, fd, offset);
-
   void *result;
   vm_allocate(mach_task_self(), (vm_address_t *)&result, length,
               VM_FLAGS_ANYWHERE);
@@ -34,11 +27,7 @@ void *icpp_gadget_mmap(void *start, size_t length, int prot, int flags, int fd,
   return result;
 }
 
-int munmap(void *addr, size_t sz);
 int icpp_gadget_munmap(void *addr, size_t sz) {
-  if (sz < mem_page_size)
-    return munmap(addr, sz);
-
   vm_deallocate(mach_thread_self(), (vm_address_t)addr, sz);
   return 0;
 }
@@ -56,6 +45,22 @@ void pthread_jit_write_protect_np(int enable) {
                                            "_pthread_jit_write_protect_np");
   if (fnptr)
     fnptr(enable);
+}
+
+static void icpp_uc_trace(void *buff, size_t size, bool start) {
+  // iOS doesn't support executable and writable page at the same time,
+  // so we have to set it executable before executing this tb buffer,
+  // and reset it writable after executing this tb which let qemu can
+  // generate new tb code for the future emulated instructions.
+  mprotect(buff, size, PROT_READ | (start ? PROT_EXEC : PROT_WRITE));
+}
+
+void icpp_trace_start(void *buff, size_t size) {
+  icpp_uc_trace(buff, size, true);
+}
+
+void icpp_trace_end(void *buff, size_t size, const char *fmt, ...) {
+  icpp_uc_trace(buff, size, false);
 }
 }
 #else

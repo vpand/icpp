@@ -19,10 +19,13 @@ int main(int argc, char **argv) { return icpp_main(argc, argv); }
 #include <llvm/Config/config.h>
 #include <llvm/Config/llvm-config.h>
 
+#include <dlfcn.h>
+
 using namespace boost;
 namespace fs = std::filesystem;
 
-int main(int argc, const char **argv) {
+int __attribute__((visibility("default"))) icpp_main(int argc,
+                                                     const char **argv) {
   try {
     // i.e.: icpp.19.dylib, icpp.19.so, icpp.19.dll
 #if __linux__
@@ -31,7 +34,11 @@ int main(int argc, const char **argv) {
     auto icpp = std::format("icpp.{}{}", LLVM_VERSION_MAJOR, LLVM_PLUGIN_EXT);
 #endif
     // cli and lib must be in the same directory
-    auto libicpp = fs::path(argv[0]).parent_path() / icpp;
+    // using dladdr to lookup the executable full path instead of argv[0] can
+    // make relative path also work
+    Dl_info dli;
+    dladdr(reinterpret_cast<const void *>(&icpp_main), &dli);
+    auto libicpp = fs::path(dli.dli_fname).parent_path() / icpp;
 
     auto icpp_main = dll::import_symbol<int(int, const char **)>(
         libicpp.string(), "icpp_main");
@@ -44,5 +51,7 @@ int main(int argc, const char **argv) {
   }
   return -1;
 }
+
+int main(int argc, const char **argv) { return icpp_main(argc, argv); }
 
 #endif

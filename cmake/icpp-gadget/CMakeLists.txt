@@ -13,6 +13,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED)
 set(ICPP_ROOT ${CMAKE_SOURCE_DIR}/../..)
 set(ICPP_SRCROOT ${ICPP_ROOT}/src)
 
+set(PYTHON python3)
+
 # build all dependent libraries as static
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
@@ -23,6 +25,10 @@ if (DEFINED ANDROID_ABI AND ANDROID_ABI STREQUAL "x86_64")
 else()
   set(LLVM_TARGETS_TO_BUILD "AArch64" CACHE STRING "" FORCE)
   set(UNICORN_ARCH "aarch64" CACHE STRING "" FORCE)
+  # patch to use the right tb_ret_addr
+  execute_process(COMMAND ${PYTHON}
+    ${ICPP_ROOT}/tool/qemu_tbret_patcher.py
+    ${ICPP_ROOT}/third/unicorn/qemu/tcg/aarch64/tcg-target.inc.c)
 endif()
 
 # enable libcxx for C/C++ runtime library
@@ -169,7 +175,7 @@ set_source_files_properties(${IGADGET_LLVM_SOURCES} PROPERTIES
 )
 target_include_directories(icpp-gadget PRIVATE 
   ${THIRD_ROOT}/llvm-project/llvm/include
-  ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include
+  ${CMAKE_BINARY_DIR}/llvm/include
   ${THIRD_ROOT}/unicorn/include
   ${CMAKE_BINARY_DIR}
   ${LLVM_OBJDUMP_ROOT}
@@ -224,7 +230,7 @@ set_source_files_properties(${IMOD_LLVM_SOURCES} PROPERTIES
   COMPILE_FLAGS ${GADGET_LLVM_FLAGS})
 target_include_directories(imod PRIVATE
   ${THIRD_ROOT}/llvm-project/llvm/include
-  ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include
+  ${CMAKE_BINARY_DIR}/llvm/include
   ${THIRD_ROOT}/brotli/c/include
   ${CMAKE_BINARY_DIR}
   boost_asio
