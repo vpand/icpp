@@ -1,0 +1,4 @@
+#!/bin/bash
+
+chown root:wheel /usr/local/bin/icpp-server
+chown root:wheel /usr/local/bin/imod

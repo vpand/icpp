@@ -125,21 +125,22 @@ static auto pack_file(const fs::path &srcfile, const fs::path &dstdir,
 
   auto dstfile =
       dstdir / (dstname.size() ? fs::path(dstname) : srcfile.filename());
+#if __APPLE__ || __linux__
+  if (strip) {
+    std::system(
+        std::format(R"(strip -x {} -o {})", srcfile.string(), dstfile.string())
+            .data());
+    log(std::format("Packed and stripped file {}.", dstfile.string()));
+    return;
+  }
+#endif
+
   std::error_code err;
   fs::copy_file(srcfile, dstfile, fs::copy_options::overwrite_existing, err);
   if (err)
     log_return(std::format("Failed to copy file: {} ==> {}, {}.",
                            srcfile.string(), dstfile.string(), err.message()),
                return);
-
-#if __APPLE__ || __linux__
-  if (strip) {
-    std::system(std::format(R"(strip -x "{}")", dstfile.string()).data());
-    log(std::format("Packed and stripped file {}.", dstfile.string()));
-    return;
-  }
-#endif
-
   log(std::format("Packed file {}.", dstfile.string()));
 }
 
@@ -262,6 +263,10 @@ int main(int argc, char **argv) {
 
   auto targz = pkgdir + ".tar.gz";
   log(std::format("Packing icpp release package {}...", targz));
+#if __APPLE__
+  std::system(
+      std::format("find {} -name .DS_Store -delete", dstroot.string()).data());
+#endif
   std::system(
       std::format("cd {} && tar czf {} {}", dstroot.string(), targz, pkgdir)
           .data());

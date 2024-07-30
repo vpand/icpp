@@ -1,0 +1,11 @@
+Package: com.vpand.icpp-server
+Version: x.x.x
+Description: ICPP - Running C++ in anywhere like a script
+Section: utils
+Depends: firmware (>= 10.0)
+Conflicts: 
+Replaces: 
+Priority: optional
+Architecture: iphoneos-arm
+Maintainer: vpand.com
+Homepage: https://github.com/vpand/icpp/

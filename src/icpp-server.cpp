@@ -20,10 +20,13 @@ int main(int argc, char **argv) { return icpp_gadget(argc, argv); }
 #include <llvm/Config/config.h>
 #include <llvm/Config/llvm-config.h>
 
+#include <dlfcn.h>
+
 using namespace boost;
 namespace fs = std::filesystem;
 
-int main(int argc, const char **argv) {
+int __attribute__((visibility("default"))) icpp_server_main(int argc,
+                                                            const char **argv) {
   try {
     // set icpp-server mode flag
     setenv("icpp-server", "1", true);
@@ -31,7 +34,11 @@ int main(int argc, const char **argv) {
     // i.e.: icpp-gadget.dylib, icpp-gadget.so, icpp-gadget.dll
     auto icpp = std::format("icpp-gadget{}", LLVM_PLUGIN_EXT);
     // cli and lib must be in the same directory
-    auto libicpp = fs::path(argv[0]).parent_path() / icpp;
+    // using dladdr to lookup the executable full path instead of argv[0] can
+    // make relative path also work
+    Dl_info dli;
+    dladdr(reinterpret_cast<const void *>(&icpp_server_main), &dli);
+    auto libicpp = fs::path(dli.dli_fname).parent_path() / icpp;
 
     auto icpp_gadget = dll::import_symbol<int(int, const char **)>(
         libicpp.string(), "icpp_gadget");
@@ -44,5 +51,7 @@ int main(int argc, const char **argv) {
   }
   return -1;
 }
+
+int main(int argc, const char **argv) { return icpp_server_main(argc, argv); }
 
 #endif

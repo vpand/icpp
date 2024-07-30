@@ -10,9 +10,9 @@ icpp release package in the following layout, icpp-gadget-vx.x.x-os-arch:
 ---bin
 ---icpp-gadget.so/dylib
 ---icpp-server
----[libc++_shared.so]
 ---lib
 ------boost
+------libc++.so/dll/dylib
 
 Usage: icpp release_gadget.cc /path/to/prefix [/path/to/strip]
 
@@ -37,7 +37,7 @@ static auto log(const std::string &text) { std::puts(text.data()); }
 static auto create_dir(const fs::path &path) {
   if (fs::exists(path))
     return;
-  if (!fs::create_directory(path))
+  if (!fs::create_directories(path))
     log_return(std::format("Failed to create directory: {}.", path.string()),
                return);
   log(std::format("Created directory {}.", path.string()));
@@ -64,7 +64,7 @@ static auto pack_dir(const fs::path &srcdir, const fs::path &dstroot,
   if (!dstname.size() && fs::exists(dstdir))
     log_return(std::format("Ignored packing {}, {} exists.", srcdir.string(),
                            dstdir.string()),
-               return);
+               return false);
   std::error_code err;
   auto option =
       fs::copy_options::overwrite_existing | fs::copy_options::recursive;
@@ -79,6 +79,7 @@ static auto pack_dir(const fs::path &srcdir, const fs::path &dstroot,
   else
     log(std::format("Packed directory {} from {}.", dstdir.string(),
                     srcdir.string()));
+  return true;
 }
 
 int main(int argc, char **argv) {
@@ -135,10 +136,12 @@ int main(int argc, char **argv) {
     }
 
     // create icpp package layout
-    auto pkgdir =
-        std::format("icpp-gadget-v{}.{}.{}-{}-{}", icpp::version_major,
-                    icpp::version_minor, icpp::version_patch, os, arch);
+    auto version = std::format("{}.{}.{}", icpp::version_major,
+                               icpp::version_minor, icpp::version_patch);
+    auto pkgdir = std::format("icpp-gadget-v{}-{}-{}", version, os, arch);
     auto icpproot = dstroot / pkgdir;
+    if (os == "ios")
+      icpproot = icpproot / "usr/local";
     auto bin = icpproot / "bin";
     auto lib = icpproot / "lib";
     create_dir(icpproot);
@@ -156,11 +159,48 @@ int main(int argc, char **argv) {
     auto gadget =
         projroot / std::format("cmake/icpp-gadget/build-{}.Release", arch);
     for (auto &name :
-         {libgadget, std::string("imod"), std::string("icpp-server")})
+         {libgadget, std::string("imod"), std::string("icpp-server")}) {
       pack_file(gadget / name, bin, strip);
+      if (os == "ios")
+        std::system(std::format("ldid -S{}/config/entitlement.xml {}/{}",
+                                projroot.string(), bin.string(), name)
+                        .data());
+    }
+
+    if (os == "ios") {
+      auto debroot = (dstroot / pkgdir).string();
+      auto debfile = debroot + ".deb";
+      auto ctrlfile = debroot + "/DEBIAN/control";
+      if (pack_dir(std::format("{}/config/DEBIAN", projroot.string()),
+                   debroot)) {
+        // set version
+        std::ifstream inf(ctrlfile, std::ios::ate);
+        std::vector<char> fbuf(static_cast<size_t>(inf.tellg()) + 1, 0);
+        inf.seekg(0, std::ios::beg);
+        inf.read(&fbuf[0], fbuf.size());
+        inf.close();
+
+        std::ofstream outf(ctrlfile);
+        auto verflag = std::strstr(&fbuf[0], "x.x.x");
+        outf.write(&fbuf[0], verflag - &fbuf[0]);
+        outf.write(version.data(), version.size());
+        outf.write(&verflag[5], std::strlen(&verflag[5]));
+        outf.close();
+      }
+
+      std::system(
+          std::format("find {} -name .DS_Store -delete; dpkg-deb -b {} {}",
+                      debroot, debroot, debfile)
+              .data());
+      continue;
+    }
 
     auto targz = pkgdir + ".tar.gz";
     log(std::format("Packing icpp release package {}...", targz));
+#if __APPLE__
+    std::system(std::format("find {} -name .DS_Store -delete", dstroot.string())
+                    .data());
+#endif
     std::system(
         std::format("cd {} && tar czf {} {}", dstroot.string(), targz, pkgdir)
             .data());
