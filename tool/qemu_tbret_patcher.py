@@ -16,15 +16,15 @@ def patch_qemu_tbret(argv):
     srcf = argv[1]
     with open(srcf, 'r') as fp:
         srcbuf = fp.read()
-        if srcbuf.startswith(icpp_patch_magic):
+        if srcbuf.endswith(icpp_patch_magic):
             print("The file %s has already been patched." % (srcf))
             sys.exit(0)
    
     with open(srcf, 'w') as fp:
-        fp.write(icpp_patch_magic)
         fp.write(srcbuf.replace('static tcg_insn_unit *tb_ret_addr;', 
                                 '//static tcg_insn_unit *tb_bad_ret_addr;')
                        .replace('tb_ret_addr', 's->tb_ret_addr'))
+        fp.write(icpp_patch_magic)
         print("The file %s has been patched." % (srcf))
         sys.exit(0)
 

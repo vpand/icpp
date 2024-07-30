@@ -622,34 +622,6 @@ static void outputReplacementsXML(const Replacements &Replaces) {
   }
 }
 
-static bool
-emitReplacementWarnings(const Replacements &Replaces, StringRef AssumedFileName,
-                        const std::unique_ptr<llvm::MemoryBuffer> &Code) {
-  if (Replaces.empty())
-    return false;
-
-  unsigned Errors = 0;
-  if (WarnFormat && !NoWarnFormat) {
-    SourceMgr Mgr;
-    const char *StartBuf = Code->getBufferStart();
-
-    Mgr.AddNewSourceBuffer(
-        MemoryBuffer::getMemBuffer(StartBuf, AssumedFileName), SMLoc());
-    for (const auto &R : Replaces) {
-      SMDiagnostic Diag = Mgr.GetMessage(
-          SMLoc::getFromPointer(StartBuf + R.getOffset()),
-          WarningsAsErrors ? SourceMgr::DiagKind::DK_Error
-                           : SourceMgr::DiagKind::DK_Warning,
-          "code should be clang-formatted [-Wclang-format-violations]");
-
-      Diag.print(nullptr, llvm::errs(), (ShowColors && !NoShowColors));
-      if (ErrorLimit && ++Errors >= ErrorLimit)
-        break;
-    }
-  }
-  return WarningsAsErrors;
-}
-
 static void outputXML(const Replacements &Replaces,
                       const Replacements &FormatChanges,
                       const FormattingAttemptStatus &Status,
@@ -785,8 +757,6 @@ static bool format(StringRef FileName, bool ErrorOnIncompleteFormat = false) {
       reformat(*FormatStyle, *ChangedCode, Ranges, AssumedFileName, &Status);
   Replaces = Replaces.merge(FormatChanges);
   if (OutputXML || DryRun) {
-    if (DryRun)
-      return emitReplacementWarnings(Replaces, AssumedFileName, Code);
     outputXML(Replaces, FormatChanges, Status, Cursor, CursorPosition);
   } else {
     IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> InMemoryFileSystem(
