@@ -175,10 +175,14 @@ ICPP Remote Gadget Server Options:
 | **Windows**  | &#10004;     | &#10008;       | &#10008;          | &#10008;          |
 | **macOS**    | &#10004;     | &#10008;       | &#10008;          | &#10008;          |
 | **Linux**    | &#10004;     | &#10008;       | &#10008;          | &#10008;          |
+| **Android**    | &#10004;     | &#10008;       | &#10008;          | &#10008;          |
+| **iOS**    | &#10004;     | &#10008;       | &#10008;          | &#10008;          |
 ### Platform
  * Microsoft: Windows x86_64 >= **10**, Windows arm64 >= **11**;
  * Apple: macOS x86_64 >= **10.15**, macOS arm64 >= **11.3**;
+ * iOS: iOS arm64 >= **10.0**;
  * Linux: **Ubuntu** x86_64/aarch64 >= **22.04**;
+ * Android: Android x86_64/arm64-v8a >= **platform 25**; 
 
 ## Build
 To build your own version of icpp, make sure all of the **prerequisites** are in your system PATH environment:
