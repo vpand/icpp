@@ -1197,9 +1197,9 @@ static void reloc_symbols(ObjectFile *ofile, ArchType arch, TextSection &text,
             I don't know why there's always a -4 addend on x86_64 linux,
             and it doesn't make any sense in icpp, so restore it to 0.
             */
-            // FIXME:: calucalte the real addend with relocation ?
+            // FIXME:: calculate the real addend with relocation ?
             if (arch == X86_64) {
-              if (rsym.addend < 0)
+              if (rsym.addend < -4)
                 rsym.addend = 0;
               else
                 rsym.addend += 4;
