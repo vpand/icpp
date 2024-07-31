@@ -1067,8 +1067,13 @@ static SymbolRef::Type reloc_symtype(const InsnInfo &inst, ArchType arch,
       case INSN_X64_TEST32MR:
       case INSN_X64_TEST64MI32:
       case INSN_X64_TEST64MR:
-        return (rsym.sflags & SymbolRef::SF_Undefined) ? SymbolRef::ST_Data
-                                                       : SymbolRef::ST_Function;
+      case INSN_X64_CMOV16RM:
+      case INSN_X64_CMOV32RM:
+      case INSN_X64_CMOV64RM:
+        return ((rsym.sflags & SymbolRef::SF_Undefined) &&
+                (rsym.name.starts_with("__imp_")))
+                   ? SymbolRef::ST_Data
+                   : SymbolRef::ST_Function;
       default:
         return SymbolRef::ST_Function;
       }
