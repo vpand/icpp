@@ -12,7 +12,9 @@ Copyright (c) vpand.com 2024.
 |*|Source|Executable|Package|Memory Resident|Remote|
 |-|-|-|-|-|-|
 | **ICPP** | **C++** | **ARM64/X86_64** Object | **imod** for *.icpp | **iopad**/**icpp-gadget** | **icpp-server** |
+| **Cling** | C++ | **LLVM-IR** Bitcode |  N/A | N/A | N/A | 
 | **LLI** | C++ | **LLVM-IR** Bitcode |  N/A | N/A | N/A | 
+| **WASM** | C++ | **WebAssembly** Bitcode |  N/A | N/A | N/A | 
 | **Python** | Python | Bytecode | pip for *.wheel | N/A | N/A | 
 | **Frida** | JavaScript | Bytecode | N/A | frida/frida-gadget | frida-server |
 
@@ -32,6 +34,7 @@ No matter if you're a beginner or an expert with C++, ICPP is suitable for you. 
 
 ## How it works
 ### Interpreter
+Local interpreter mode lets you run C++ directly in your local system.
 ```mermaid
 graph LR
     A(C++ Source) -- Clang --> B(Object)
@@ -44,6 +47,7 @@ graph LR
     C -- Profiler --> G(Profiles)
 ```
 ### Hot-loading
+Remote interpreter mode lets you run C++ remotely in a different process or system which loads the icpp-gadget library. This mode allows you to run C++ code dynamically in a running local process or a remote system like Android/iOS.
 ```mermaid
 graph LR
     A(C++ Source) -- ICPP --> B(IObject)
@@ -259,6 +263,9 @@ cmake --build . -- protoc -j8
 # build all the icpp components
 cmake --build . -- icpp icppcli imod iopad icpp-gadget icpp-server -j8
 ```
+
+## Issue
+If you encounter any problems when using icpp, before opening an issue, please check the [Bug Report](https://github.com/vpand/icpp/blob/main/.github/ISSUE_TEMPLATE/bug_report.md) template, and provide as many details as you can. Only if we can reproduce the problem, we can then solve it.
 
 ## Contact
 You can visit [vpand.com](https://vpand.com/) for more information on **VM, VMProtect, Clang/LLVM and Reverse Engineering** products.
