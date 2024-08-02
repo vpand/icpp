@@ -46,6 +46,7 @@ graph LR
     C -- Tracer --> F(Traces)
     C -- Profiler --> G(Profiles)
 ```
+
 ### Hot-loading
 Remote interpreter mode lets you run C++ remotely in a different process or system which loads the icpp-gadget library. This mode allows you to run C++ code dynamically in a running local process or a remote system like Android/iOS.
 ```mermaid
@@ -67,7 +68,6 @@ graph LR
  * **icpp-server**: a remote icpp-gadget server daemon, waiting for iopad to send the interpretable object to execute.
 
 ### ICPP CLI
-
 ```sh
 vpand@MacBook-Pro icpp % icpp -h              
 OVERVIEW: ICPP v0.1.0.255 based on Unicorn and Clang/LLVM.
@@ -110,8 +110,9 @@ Run an installed module, e.g.:
 Run an C++ expression, e.g:
   icpp "puts(std::format(\"{:x}\", 88888888).data())"
 ```
+
 ### ICPP REPL
-```sh
+```cpp
 vpand@MacBook-Pro icpp % icpp     
 ICPP v0.1.0.255. Copyright (c) vpand.com.
 Running C++ in anywhere like a script.
@@ -124,6 +125,7 @@ Hello, world.
 >>> std::cout << std::hex << 88888888 << std::endl
 54c5638
 ```
+
 ### IMOD
 ```sh
 vpand@MacBook-Pro icpp % imod -h                
@@ -140,6 +142,7 @@ ICPP Module Manager Options:
   --list               - List all the installed modules.
   --uninstall=<string> - Uninstall an installed module.
 ```
+
 ### IOPAD
 ```sh
 vpand@MacBook-Pro icpp % iopad -h
@@ -181,6 +184,7 @@ ICPP Remote Gadget Server Options:
 | **Linux**    | &#10004;     | &#10008;       | &#10008;          | &#10008;          |
 | **Android**    | &#10004;     | &#10008;       | &#10008;          | &#10008;          |
 | **iOS**    | &#10004;     | &#10008;       | &#10008;          | &#10008;          |
+
 ### Platform
  * Microsoft: Windows x86_64 >= **10**, Windows arm64 >= **11**;
  * Apple: macOS x86_64 >= **10.15**, macOS arm64 >= **11.3**;

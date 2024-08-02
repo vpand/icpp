@@ -4,10 +4,34 @@
    See LICENSE in root directory for more details
 */
 
-#if _WIN64
+struct program_set_t {
+  program_set_t(const char **args, const char *program)
+      : argv_(args), program_(args[0]) {
+    argv_[0] = program;
+  }
 
-extern "C" __declspec(dllimport) int icpp_main(int argc, char **argv);
-int main(int argc, char **argv) { return icpp_main(argc, argv); }
+  ~program_set_t() { argv_[0] = program_; }
+
+  const char **argv_;
+  const char *program_;
+};
+
+#if _WIN32 || _WIN64
+
+#define WIN32_LEAN_AND_MEAN 1
+#include <Windows.h>
+
+extern "C" __declspec(dllimport) int icpp_main(int argc, const char **argv);
+
+int main(int argc, const char **argv) {
+  char program[MAX_PATH];
+  GetModuleFileNameA(nullptr, program, sizeof(program));
+
+  // make sure argv[0] passing to icpp runtime is an absolute path,
+  // the compilation task depends on it
+  program_set_t progset(argv, program);
+  return icpp_main(argc, argv);
+}
 
 #else
 
@@ -39,6 +63,10 @@ int __attribute__((visibility("default"))) icpp_main(int argc,
     Dl_info dli;
     dladdr(reinterpret_cast<const void *>(&icpp_main), &dli);
     auto libicpp = fs::path(dli.dli_fname).parent_path() / icpp;
+
+    // make sure argv[0] passing to icpp runtime is an absolute path,
+    // the compilation task depends on it
+    program_set_t progset(argv, dli.dli_fname);
 
     auto icpp_main = dll::import_symbol<int(int, const char **)>(
         libicpp.string(), "icpp_main");
