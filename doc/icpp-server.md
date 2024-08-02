@@ -1,9 +1,10 @@
 # User Manual of icpp-server
 
 ## Summarization
-ICPP-SERVER is a remote server daemon which loads icpp-gadget as its C++ interpreter, waiting for iopad to send the interpretable object to execute.
+ICPP-SERVER is a remote server daemon which loads icpp-gadget as its C++ interpreter, waiting for iopad to send the interpretable object to execute. 
 
 ## How it works
+When running this server side tool, it'll load the icpp-gadget interpreter library and listen at port 24703, waiting for iopad's connection and commands. It's useful for remote Linux/Android/iOS systems.
 
 ## Usage
 ```sh
@@ -20,3 +21,11 @@ ICPP Remote Gadget Server Options:
 ```
 
 ## Examples
+```sh
+vpand@MacBook-Pro icpp % icpp-server 
+Running icpp-server at port 24703...
+```
+```sh
+vpand@MacBook-Pro icpp % icpp-server --port=24802
+Running icpp-server at port 24802...
+```
