@@ -62,4 +62,10 @@ But a wasm-like C++ interpreter has a middle layer which may be called webassemb
 So, icpp and wasm based interpreter are very different things.
 
 ## User manual
-You can visit [DOC](https://github.com/vpand/icpp/tree/main/doc) for more user manuals.
+ * [icpp](https://github.com/vpand/icpp/blob/main/doc/icpp.md): A local C++ source compiler, a LLVM code style formatter, an interpreter and a REPL used to interpret C++ directly;
+ * [icpp api](https://github.com/vpand/icpp/blob/main/doc/icppapi.md): Some util wrapper functions or some core functions exported from the icpp runtime interpreter, aiming at simplifying writing C++ script code.
+ * [iopad](https://github.com/vpand/icpp/blob/main/doc/iopad.md): A local C++ source compiler driver, an object launch pad and a REPL for the remote icpp-gadget;
+ * [imod](https://github.com/vpand/icpp/blob/main/doc/imod.md): An icpp module package manager tool used to install, uninstall and show the third-party modules;
+***
+ * [icpp-gadget](https://github.com/vpand/icpp/blob/main/doc/icpp-gadget.md): A remote memory resident daemon which may run inside an Android/iOS process, waiting for iopad to send the interpretable object to execute;
+ * [icpp-server](https://github.com/vpand/icpp/blob/main/doc/icpp-server.md): A remote server daemon which loads icpp-gadget as its C++ interpreter, waiting for iopad to send the interpretable object to execute;
