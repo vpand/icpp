@@ -67,6 +67,9 @@ graph LR
  * **icpp-gadget**: a remote memory resident daemon which may run inside an Android/iOS process, waiting for iopad to send the interpretable object to execute.
  * **icpp-server**: a remote icpp-gadget server daemon, waiting for iopad to send the interpretable object to execute.
 
+### VSCode
+Within an IDE frontend should be easier and more convenient to use the icpp package, you can download it at the [icpp-vscode](https://github.com/vpand/icpp-vscode/releases) release page or search "icpp" in vscode extension market.
+
 ### ICPP CLI
 ```sh
 vpand@MacBook-Pro icpp % icpp -h              

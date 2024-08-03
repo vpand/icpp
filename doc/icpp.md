@@ -94,7 +94,7 @@ The execution flow of this input file is in the following sequence:
 ### Usage
  * -v, -h: print icpp's version and help information;
  * -Oopt_level, -Iinclude_dir: pass it to the clang compiler when compiling the temporary object file;
- * -Llibrary_dir, -Fframwork_dir, -llib, -fframework: pass it to the icpp interpreter to load the script's dependent library or framework;
+ * -Llibrary_dir, -Fframwork_dir, -llib, -fframework: pass it to the icpp interpreter to load the script's dependent library or framework. The lib in -llib should be a full library name, e.g.: liba.dylib, liba.so, a.dll;
  * -pjson_file: pass it to the icpp interpreter runtime configuration, it's only useful for the icpp developer currently;
 
 ### Examples
