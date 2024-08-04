@@ -94,7 +94,17 @@ int exec_source(const char *argv0, std::string_view path, int argc,
 template <typename FILTER, typename PACKER>
 void pack_recursively(std::string_view dstroot, std::string_view srcroot,
                       std::string_view title, FILTER filter, PACKER packer) {
-  for (auto &entry : fs::recursive_directory_iterator(srcroot)) {
+#if __APPLE__
+  // special process for apple framework header directory
+  std::string tmpdstroot;
+  if (srcroot.ends_with(".framework/Headers")) {
+    tmpdstroot =
+        (fs::path(dstroot) / fs::path(srcroot).parent_path().stem()).string();
+    dstroot = tmpdstroot;
+  }
+#endif
+
+  for (auto &entry : fs::directory_iterator(srcroot)) {
     if (entry.is_regular_file() && filter(entry.path())) {
       packer(dstroot, entry.path().string(), title);
     } else if (entry.is_directory()) {
@@ -117,6 +127,7 @@ static void create_package(const char *program, std::string_view cfgpath) {
     imod::CreateConfig cfg(cfgpath);
     auto files = pkg.mutable_files();
     auto incroot = Rtlib::inst().includeRelative(cfg.name()).string();
+    auto binroot = Rtlib::inst().binRelative(cfg.name()).string();
     auto libroot = Rtlib::inst().libRelative(cfg.name()).string();
     auto missing = [](std::string_view title, std::string_view item) {
       icpp::log_print(
@@ -163,7 +174,8 @@ static void create_package(const char *program, std::string_view cfgpath) {
       pack_recursively(
           incroot, dir.data(), "Header directory",
           [](const fs::path &file) {
-            return file.extension() == ".h" || file.extension() == ".hpp";
+            return !file.has_extension() || file.extension() == ".h" ||
+                   file.extension() == ".hpp";
           },
           packer);
     }
@@ -171,6 +183,12 @@ static void create_package(const char *program, std::string_view cfgpath) {
     // pack objects
     for (auto obj : cfg.binaryObjects()) {
       if (!packer(libroot, obj.data(), "Object"))
+        return;
+    }
+
+    // pack executables
+    for (auto exe : cfg.binaryExecutables()) {
+      if (!packer(binroot, exe.data(), "Excutable"))
         return;
     }
 
@@ -202,6 +220,7 @@ static void create_package(const char *program, std::string_view cfgpath) {
         ccargs.push_back(std::format("-I{}", inc.data()));
       ccargs.push_back("-O2");
 
+      icpp::log_print(prefix_prog, "Compiling {}.", srcpath.string());
       proc::child compiler(icppexe, ccargs);
       compiler.wait();
       if (compiler.exit_code())
@@ -251,12 +270,11 @@ static void create_package(const char *program, std::string_view cfgpath) {
                     "Successfully created {} with compressed size: "
                     "{}.",
                     pkgpath.string(), compsz);
-  } catch (std::invalid_argument &e) {
-    icpp::log_print(prefix_error, "{}", e.what());
-  } catch (std::system_error &e) {
+  } catch (const std::exception &e) {
     icpp::log_print(prefix_error, "{}", e.what());
   } catch (...) {
-    icpp::log_print(prefix_error, "Failed to parse {}.", cfgpath);
+    icpp::log_print(prefix_error, "Exception occurred, failed to parse {}.",
+                    cfgpath);
   }
 }
 
@@ -321,8 +339,16 @@ static void install_package(std::string_view pkgpath) {
     icpp::log_print(prefix_prog, "Installing {}...", file.path());
     outf.write(file.content().data(), file.content().size());
     outf.close(); // flush the file buffer
-    if (!file.path().starts_with("lib"))
+    if (!file.path().starts_with("lib")) {
+      if (file.path().starts_with("bin")) {
+        fs::permissions(fullpath,
+                        fs::perms::owner_read | fs::perms::owner_exec |
+                            fs::perms::group_read | fs::perms::group_exec |
+                            fs::perms::others_read | fs::perms::others_exec,
+                        std::filesystem::perm_options::add);
+      }
       continue;
+    }
 
     icpp::log_print(prefix_prog, "Parsing the symbols of {}...", file.path());
     std::string message;
@@ -363,6 +389,7 @@ static void install_package(std::string_view pkgpath) {
 
 static void uninstall_module(std::string_view name) {
   auto include = Rtlib::inst().includeFull(name);
+  auto bin = Rtlib::inst().binFull(name);
   auto lib = Rtlib::inst().libFull(name);
   if (!fs::exists(include) && !fs::exists(lib)) {
     icpp::log_print(prefix_error, "There's no module: {}.", name.data());
@@ -370,6 +397,8 @@ static void uninstall_module(std::string_view name) {
   }
   if (fs::exists(include))
     fs::remove_all(include);
+  if (fs::exists(bin))
+    fs::remove_all(bin);
   if (fs::exists(lib))
     fs::remove_all(lib);
   icpp::log_print(prefix_prog, "Uninstalled module {}.", name.data());

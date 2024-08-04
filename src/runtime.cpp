@@ -35,9 +35,9 @@ fs::path RuntimeLib::includeFull() {
 }
 
 fs::path RuntimeLib::includeFull(std::string_view module) {
-  // .icpp/include/icpp must exist anyway
+  // .icpp/include must exist anyway
   return module.size() ? repo() / includeRelative(module)
-                       : must_exist(repo() / includeRelative() / includePrefix);
+                       : must_exist(repo() / includeRelative());
 }
 
 fs::path RuntimeLib::libFull() { return must_exist(repo() / libRelative()); }
@@ -83,6 +83,17 @@ fs::path RuntimeLib::find(std::string_view symbol) {
     }
   }
   return "";
+}
+
+std::vector<std::string_view> RuntimeLib::modules() {
+  // initialize the symbol hashes for the third-party modules lazy loading
+  if (fs::exists(repo(false)))
+    initHashes();
+
+  std::vector<std::string_view> ms;
+  for (auto &mh : hashes_)
+    ms.push_back(mh.first);
+  return ms;
 }
 
 namespace api {

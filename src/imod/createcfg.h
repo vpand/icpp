@@ -22,6 +22,7 @@ The json configuration format to create an icpp module package:
   "header-dirs": [],
   "sources": [],
   "binary-objs": [],
+  "binary-bins": [],
   "binary-libs": [],
   "include-dirs": []
 }
@@ -33,18 +34,19 @@ used or loaded at runtime by icpp. After being installed to icpp module
 manager's repository, their layout is as follows:
 
 .icpp
+---bin
+------name
+---------binary-bins
 ---include
-------icpp
----------name
-------------headers.h
-------------header-dirs
+------name
+---------headers.h
+---------header-dirs
 ---lib
-------icpp
----------name
-------------binary-objs.o
-------------binary-libs
-------------sources.o
-------------symbol.hash
+------name
+---------binary-objs.o
+---------binary-libs
+---------sources.o
+---------symbol.hash
 
 e.g.:
 json {
@@ -53,20 +55,19 @@ json {
   "header-dirs": [],
   "sources": ["module.cc"],
   "binary-objs": [],
+  "binary-bins": [],
   "binary-libs": [],
   "include-dirs": []
 }
 
 .icpp
 ---include
-------icpp
----------module-demo
-------------module.h
+------module-demo
+---------module.h
 ---lib
-------icpp
----------module-demo
-------------module.o
-------------symbol.hash
+------module-demo
+---------module.o
+---------symbol.hash
 
 The symbol.hash file is kind of symbol-hash cache file which is automatically
 generated at installing time, it's used for the icpp interpreter runtime to
@@ -77,6 +78,7 @@ constexpr std::string_view module_hdrs = "headers";
 constexpr std::string_view module_hdrdirs = "header-dirs";
 constexpr std::string_view module_srcs = "sources";
 constexpr std::string_view module_objs = "binary-objs";
+constexpr std::string_view module_bins = "binary-bins";
 constexpr std::string_view module_libs = "binary-libs";
 
 /*
@@ -95,6 +97,7 @@ public:
   std::vector<boost::json::string> headerDirs();
   std::vector<boost::json::string> sources();
   std::vector<boost::json::string> binaryObjects();
+  std::vector<boost::json::string> binaryExecutables();
   std::vector<boost::json::string> binaryLibraries();
   std::vector<boost::json::string> includeDirs();
 

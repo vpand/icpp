@@ -230,8 +230,13 @@ int compile_source_icpp(int argc, const char **argv) {
   args.push_back(inc.data());
 
   // add icpp module include
-  auto icppinc = std::format("-I{}", RuntimeLib::inst().includeFull().string());
-  args.push_back(icppinc.data());
+  std::vector<std::string> modincs;
+  auto rootinc = RuntimeLib::inst().includeFull().string();
+  for (auto &m : RuntimeLib::inst().modules()) {
+    auto icppinc = std::format("-I{}/{}", rootinc, m);
+    modincs.push_back(std::move(icppinc));
+    args.push_back(modincs.rbegin()->data());
+  }
 
   return compile_source_clang(static_cast<int>(args.size()), &args[0], cl);
 }

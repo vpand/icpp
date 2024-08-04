@@ -59,6 +59,10 @@ std::vector<boost::json::string> CreateConfig::binaryObjects() {
   return get_arrays(*json_, module_objs);
 }
 
+std::vector<boost::json::string> CreateConfig::binaryExecutables() {
+  return get_arrays(*json_, module_bins);
+}
+
 std::vector<boost::json::string> CreateConfig::binaryLibraries() {
   return get_arrays(*json_, module_libs);
 }

@@ -8,6 +8,7 @@
 
 #include "utils.h"
 #include <map>
+#include <vector>
 
 namespace com {
 namespace vpand {
@@ -32,15 +33,22 @@ public:
   fs::path libFull();
 
   fs::path includeRelative() { return "include"; }
+  fs::path binRelative() { return "bin"; }
   fs::path libRelative() { return "lib"; }
 
   fs::path includeRelative(std::string_view module) {
-    return includeRelative() / includePrefix / module;
+    return includeRelative() / module;
+  }
+  fs::path binRelative(std::string_view module) {
+    return binRelative() / module;
   }
   fs::path libRelative(std::string_view module) {
     return libRelative() / module;
   }
   fs::path includeFull(std::string_view module);
+  fs::path binFull(std::string_view module) {
+    return repo() / binRelative(module);
+  }
   fs::path libFull(std::string_view module) {
     return repo() / libRelative(module);
   }
@@ -55,7 +63,8 @@ public:
   */
   fs::path find(std::string_view symbol);
 
-  const std::string_view includePrefix{"icpp"};
+  std::vector<std::string_view> modules();
+
   const std::string_view repoName{".icpp"};
   const std::string_view hashFile{"symbol.hash"};
   const std::string_view packageExtension{".icpp"};
