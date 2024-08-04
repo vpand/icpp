@@ -72,10 +72,12 @@ int compile_source_clang(int argc, const char **argv, bool cl) {
 int compile_source_icpp(int argc, const char **argv) {
   auto root = fs::absolute(fs::path(argv[0])).parent_path() / "..";
   auto rtinc = (root / "include").string();
-  bool cross_compile = false, cl = false;
+  bool cross_compile = false, cl = false, cppsrc = true;
   std::string cppminc;
   std::vector<const char *> args;
   for (int i = 0; i < argc; i++) {
+    if (std::string_view(argv[i]) == "-c" && is_c_source(argv[i + 1]))
+      cppsrc = false;
     args.push_back(argv[i]);
   }
 
@@ -89,7 +91,8 @@ int compile_source_icpp(int argc, const char **argv) {
   args.push_back("-Wno-unknown-argument");
 
   // use C++23 standard
-  args.push_back("-std=c++23");
+  if (cppsrc)
+    args.push_back("-std=c++23");
 
   /*
   The header search paths should contain the C++ Standard Library headers before
@@ -97,10 +100,12 @@ int compile_source_icpp(int argc, const char **argv) {
   */
   // add libc++ include
   auto cxxinc = std::format("-I{}/c++/v1", rtinc);
-  args.push_back(cxxinc.data());
-  // force to use the icpp integrated C/C++ runtime header
-  args.push_back("-nostdinc++");
-  args.push_back("-nostdlib++");
+  if (cppsrc) {
+    args.push_back(cxxinc.data());
+    // force to use the icpp integrated C/C++ runtime header
+    args.push_back("-nostdinc++");
+    args.push_back("-nostdlib++");
+  }
 
 #if __APPLE__
   std::string_view argsysroot = "-isysroot";
@@ -151,10 +156,12 @@ int compile_source_icpp(int argc, const char **argv) {
   }
   if (ucrtinc.size()) {
     // use C++23 standard
-    args.push_back("/clang:-std=c++23");
-    // force to use the icpp integrated C/C++ runtime header
-    args.push_back("/clang:-nostdinc++");
-    args.push_back("/clang:-nostdlib++");
+    if (cppsrc) {
+      args.push_back("/clang:-std=c++23");
+      // force to use the icpp integrated C/C++ runtime header
+      args.push_back("/clang:-nostdinc++");
+      args.push_back("/clang:-nostdlib++");
+    }
     args.push_back(vcinc.data());
     args.push_back(ucrtinc.data());
     args.push_back("-target");
@@ -200,7 +207,7 @@ int compile_source_icpp(int argc, const char **argv) {
 #endif
 
   // add c++ standard module precompiled module path
-  if (cppminc.size())
+  if (cppsrc && cppminc.size())
     args.push_back(cppminc.data());
 
   // add libc include for cross compiling

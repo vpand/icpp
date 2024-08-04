@@ -41,6 +41,7 @@ enum IterateState {
   IterBreak,
 };
 
+bool is_c_source(std::string_view path);
 bool is_cpp_source(std::string_view path);
 bool is_interpretable(std::string_view path);
 int rand_value();

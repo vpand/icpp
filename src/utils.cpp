@@ -23,6 +23,14 @@ void CondMutex::wait() {
 
 void CondMutex::signal() { cond.notify_all(); }
 
+bool is_c_source(std::string_view path) {
+  for (auto ext : std::array{".c", ".C"}) {
+    if (path.ends_with(ext))
+      return true;
+  }
+  return false;
+}
+
 bool is_cpp_source(std::string_view path) {
   for (auto ext :
        std::array{".c", ".cc", ".cpp", ".cxx", ".C", ".CC", ".CPP", ".CXX"}) {
