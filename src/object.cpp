@@ -808,7 +808,7 @@ std::vector<uint32_t> SymbolHash::hashes(std::string &message) {
     for (auto &sym : funcs_) {
       sorted.insert(std::hash<std::string>{}(sym.first));
     }
-    for (auto &sym : funcs_) {
+    for (auto &sym : datas_) {
       sorted.insert(std::hash<std::string>{}(sym.first));
     }
     result.resize(sorted.size());
