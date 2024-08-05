@@ -16,7 +16,8 @@ When creating a new icpp module, you should give it a json configuration file to
   "sources": [],
   "binary-objs": [],
   "binary-libs": [],
-  "include-dirs": []
+  "include-dirs": [],
+  "install-prefix": ""
 }
 ```
 
@@ -27,6 +28,7 @@ When creating a new icpp module, you should give it a json configuration file to
  * **binary-objs**: the precompiled object files which will be packed into this module;
  * **binary-libs**: the dynamic shared libraries which will be packed into this module;
  * **include-dirs**: the temporary include directories used when compile the previous sources;
+ * **install-prefix**: the install prefix of the binary-libs used when you want to keep the layout of packed libraries;
 
 ## Usage
 ```sh
@@ -59,6 +61,7 @@ The working directory should be ICPP_ROOT/snippet when you are testing this conf
   "include-dirs": []
 }
 ```
+Another complicated demonstration configuration can be found at [icpp-qt](https://github.com/vpand/icpp-qt/blob/main/qt-osx.json).
 
 ### Create
 ```sh

@@ -124,13 +124,18 @@ static auto pack_file(const fs::path &srcfile, const fs::path &dstdir,
   }
 
   auto dstfile =
-      dstdir / (dstname.size() ? fs::path(dstname) : srcfile.filename());
+      (dstdir / (dstname.size() ? fs::path(dstname) : srcfile.filename()))
+          .string();
 #if __APPLE__ || __linux__
   if (strip) {
     std::system(
-        std::format(R"(strip -x {} -o {})", srcfile.string(), dstfile.string())
-            .data());
-    log(std::format("Packed and stripped file {}.", dstfile.string()));
+        std::format("strip -x {} -o {}", srcfile.string(), dstfile).data());
+#if __APPLE__
+    std::system(std::format("codesign --force --sign - {}", dstfile).data());
+    log(std::format("Packed, stripped and codesigned file {}.", dstfile));
+#else
+    log(std::format("Packed and stripped file {}.", dstfile));
+#endif
     return;
   }
 #endif
@@ -139,9 +144,9 @@ static auto pack_file(const fs::path &srcfile, const fs::path &dstdir,
   fs::copy_file(srcfile, dstfile, fs::copy_options::overwrite_existing, err);
   if (err)
     log_return(std::format("Failed to copy file: {} ==> {}, {}.",
-                           srcfile.string(), dstfile.string(), err.message()),
+                           srcfile.string(), dstfile, err.message()),
                return);
-  log(std::format("Packed file {}.", dstfile.string()));
+  log(std::format("Packed file {}.", dstfile));
 }
 
 static auto pack_dir(const fs::path &srcdir, const fs::path &dstroot,
