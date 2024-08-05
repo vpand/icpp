@@ -5,6 +5,8 @@ Initial release.
 Bug fixes:
  * icpp: make sure argv[0] is a absolute path in icppcli driver;
  * icpp: fix c source file error compiling arguments;
+ * icpp: fix module main.o cache generating error;
+ * icpp: fix native module handle wrong loaded order;
  * imod: fix missing calculating module data symbol hashes;
 
 Improvements:

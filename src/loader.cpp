@@ -371,7 +371,10 @@ private:
   // native modules
   std::map<uint64_t, std::string> mods_;
   std::vector<std::map<uint64_t, std::string>::iterator> modits_;
+
+  // native module handles
   std::map<std::string, const void *> mhandles_;
+  std::vector<std::map<std::string, const void *>::iterator> mhandleits_;
 
   // iobject modules
   std::vector<std::shared_ptr<Object>> imods_;
@@ -412,6 +415,7 @@ const void *ModuleLoader::loadLibrary(std::string_view path) {
     if (addr)
       log_print(Develop, "Loaded module {}.", path.data());
     found = mhandles_.insert({path.data(), addr}).first;
+    mhandleits_.push_back(found);
   }
   return found->second;
 }
@@ -506,8 +510,8 @@ const void *ModuleLoader::lookup(std::string_view name, bool data) {
 
   // check it in loaded modules
   if (!target) {
-    for (auto &m : mhandles_) {
-      if ((target = find_symbol(m.second, name)))
+    for (auto &m : mhandleits_) {
+      if ((target = find_symbol(m->second, name)))
         break;
     }
   }
@@ -586,7 +590,10 @@ void ModuleLoader::cacheObject(std::shared_ptr<Object> imod) {
   if (mhandles_.find(imod->path().data()) != mhandles_.end())
     return;
   imods_.push_back(imod);
-  mhandles_.insert({imod->path().data(), reinterpret_cast<void *>(imod.get())});
+  mhandleits_.push_back(
+      mhandles_
+          .insert({imod->path().data(), reinterpret_cast<void *>(imod.get())})
+          .first);
 }
 
 void Loader::initialize() {

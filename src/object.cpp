@@ -828,11 +828,12 @@ std::shared_ptr<Object> create_object(std::string_view srcpath,
     auto tmp = std::make_shared<InterpObject>(srcpath, path);
     return (validcache = tmp->valid()) ? tmp : nullptr;
   }
-  if (!srcpath.length() && path.ends_with(obj_ext)) {
+  if ((!srcpath.length() || srcpath.ends_with(obj_ext)) &&
+      path.ends_with(obj_ext)) {
     // it's the cache of the module object file
     auto cache = convert_file(path, iobj_ext);
     if (cache.has_filename()) {
-      auto tmp = std::make_shared<InterpObject>(srcpath, path);
+      auto tmp = std::make_shared<InterpObject>(srcpath, cache.string());
       if ((validcache = tmp->valid())) {
         log_print(Develop, "Using iobject cache file when loading: {}.",
                   cache.string());

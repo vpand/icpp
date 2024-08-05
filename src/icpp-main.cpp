@@ -270,7 +270,7 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
       // execute as an installed module
       auto omain = icpp::RuntimeLib::inst().libFull(sp) / "main.o";
       if (fs::exists(omain)) {
-        exitcode = icpp::exec_main(omain.string(), deps, sp, argc - idoubledash,
+        exitcode = icpp::exec_main(omain.string(), deps, "", argc - idoubledash,
                                    &argv[idoubledash + 1], validcache);
       } else {
         // execute as a dynamic code snippet
