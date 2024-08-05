@@ -87,6 +87,11 @@ These "compile_" prefixed keys-values are used by icpp to compile the module
 */
 constexpr std::string_view compile_incdirs = "include-dirs";
 
+/*
+These "pack_" prefixed keys-values are used by imod when creating the package.
+*/
+constexpr std::string_view pack_install_prefix = "install-prefix";
+
 class CreateConfig {
 public:
   CreateConfig(std::string_view path);
@@ -100,6 +105,7 @@ public:
   std::vector<boost::json::string> binaryExecutables();
   std::vector<boost::json::string> binaryLibraries();
   std::vector<boost::json::string> includeDirs();
+  boost::json::string installPrefix();
 
 private:
   std::unique_ptr<boost::json::value> json_;

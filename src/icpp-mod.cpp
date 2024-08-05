@@ -154,6 +154,38 @@ static void create_package(const char *program, std::string_view cfgpath) {
       icpp::log_print(prefix_pack, "Packing {}.", dstfile);
       return true;
     };
+    // one library packer
+    auto libpacker =
+        [&files, &missing](std::string_view dstroot, std::string_view prefix,
+                           std::string_view path, std::string_view title) {
+          auto expBuff = llvm::MemoryBuffer::getFile(path.data());
+          if (!expBuff) {
+            missing(title, path);
+            return false;
+          }
+
+          std::string parent;
+          if (prefix.size() && path.starts_with(prefix)) {
+            auto dir = fs::path(path).parent_path();
+            auto dirit = dir.begin();
+            for (auto i : fs::path(prefix))
+              dirit++;
+            fs::path tmp;
+            while (dirit != dir.end())
+              tmp /= *dirit++;
+            parent = tmp.string();
+          }
+
+          File file;
+          auto buffer = expBuff.get()->getBuffer();
+          auto dstfile =
+              (fs::path(dstroot) / parent / fs::path(path).filename()).string();
+          file.set_path(dstfile);
+          file.set_content(buffer);
+          files->Add(std::move(file));
+          icpp::log_print(prefix_pack, "Packing library {}.", dstfile);
+          return true;
+        };
 
     // set some basic information
     pkg.set_version(icpp::version_value().value);
@@ -193,8 +225,9 @@ static void create_package(const char *program, std::string_view cfgpath) {
     }
 
     // pack libraries
+    auto prefix = cfg.installPrefix();
     for (auto lib : cfg.binaryLibraries()) {
-      if (!packer(libroot, lib.data(), "Library"))
+      if (!libpacker(libroot, prefix.data(), lib.data(), "Library"))
         return;
     }
 
@@ -322,6 +355,7 @@ static void install_package(std::string_view pkgpath) {
 
   // icpp local module repository is at $HOME/.icpp
   auto repo = Rtlib::inst().repo();
+  auto modlib = Rtlib::inst().libRelative(pkg.name()).string();
   // <libname, symbol hash array>
   SymbolHash symhash;
   auto allhashes = symhash.mutable_hashes();
@@ -359,7 +393,8 @@ static void install_package(std::string_view pkgpath) {
       icpp::log_print(prefix_error, "{}", message);
       return;
     }
-    auto name = fullpath.filename().string();
+    auto name = file.path();
+    name.replace(0, modlib.size() + 1, "");
     icpp::log_print(prefix_prog, "Parsed {} symbols in {}.", hashes.size(),
                     name);
     allhashes->insert({name, std::string(reinterpret_cast<char *>(&hashes[0]),

@@ -71,4 +71,11 @@ std::vector<boost::json::string> CreateConfig::includeDirs() {
   return get_arrays(*json_, compile_incdirs);
 }
 
+boost::json::string CreateConfig::installPrefix() {
+  auto object = json_->as_object();
+  if (object.contains(pack_install_prefix))
+    return object.at(pack_install_prefix).as_string();
+  return "";
+}
+
 } // namespace imod
