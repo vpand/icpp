@@ -32,6 +32,8 @@ void __unordtf2(void);
 #if ARCH_ARM64
 void __aarch64_ldadd8_acq_rel(void);
 void __aarch64_ldadd8_relax(void);
+void __aarch64_ldadd4_acq_rel(void);
+void __aarch64_ldadd4_relax(void);
 #endif
 #elif ON_WINDOWS
 void _CxxThrowException(void);
@@ -98,6 +100,10 @@ struct ModuleLoader {
                   reinterpret_cast<const void *>(&__aarch64_ldadd8_acq_rel)});
     syms_.insert({"__aarch64_ldadd8_relax",
                   reinterpret_cast<const void *>(&__aarch64_ldadd8_relax)});
+    syms_.insert({"__aarch64_ldadd4_acq_rel",
+                  reinterpret_cast<const void *>(&__aarch64_ldadd4_acq_rel)});
+    syms_.insert({"__aarch64_ldadd4_relax",
+                  reinterpret_cast<const void *>(&__aarch64_ldadd4_relax)});
 #endif
 #elif ON_WINDOWS
     // clang libc++: operator delete(void *,unsigned __int64)

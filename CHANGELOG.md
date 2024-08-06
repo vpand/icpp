@@ -11,6 +11,7 @@ Bug fixes:
 
 Improvements:
  * icpp: add icpp module header directory to clang header search path;
+ * icpp: add aarch64 linux ldadd4 runtime functions;
  * imod: add executable binary packing support;
  * imod: add apple framework packing support;
  * imod: add install-prefix configuration to keep packed libraries' original layout;
