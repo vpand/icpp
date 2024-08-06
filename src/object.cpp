@@ -803,7 +803,11 @@ std::vector<uint32_t> SymbolHash::hashes(std::string &message) {
       return result;
     }
     parseSymbols();
-
+    // .exe/.dll
+    if (!ofile_->isRelocatableObject() && ofile_->isCOFF()) {
+      auto coff = reinterpret_cast<COFFObject *>(this);
+      coff->parseCOFFSymbols();
+    }
     std::set<uint32_t> sorted;
     for (auto &sym : funcs_) {
       sorted.insert(std::hash<std::string>{}(sym.first));

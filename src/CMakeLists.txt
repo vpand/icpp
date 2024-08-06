@@ -85,6 +85,7 @@ add_custom_command(
 file(GLOB ICPP_LLVM_SOURCES
   compile.cpp
   object.cpp
+  object-coff.cpp
   object-llvm.cpp
   ${LLVM_OBJDUMP_ROOT}/SourcePrinter.cpp
   ${CLANG_DRIVER_ROOT}/driver.cpp
@@ -223,6 +224,7 @@ set(LLVM_LINK_COMPONENTS
 file(GLOB IMOD_LLVM_SOURCES
   icpp-mod.cpp
   object.cpp
+  object-coff.cpp
 )
 add_llvm_tool(imod 
   ${IMOD_LLVM_SOURCES}
@@ -313,6 +315,7 @@ set(LLVM_LINK_COMPONENTS
 file(GLOB IGADGET_LLVM_SOURCES
   icpp-gadget.cpp
   object.cpp
+  object-coff.cpp
   object-llvm.cpp
   ${LLVM_OBJDUMP_ROOT}/SourcePrinter.cpp
 )

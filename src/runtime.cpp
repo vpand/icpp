@@ -68,8 +68,17 @@ void RuntimeLib::initHashes() {
   }
 }
 
+#if ON_WINDOWS
+static constexpr const char *symbol_name(std::string_view raw) {
+  return raw.data() + (raw.starts_with("__imp_") ? 6 : 0);
+}
+#else
+#define symbol_name(raw) (raw.data() + 0)
+#endif
+
 fs::path RuntimeLib::find(std::string_view symbol) {
-  auto hash = static_cast<uint32_t>(std::hash<std::string_view>{}(symbol));
+  auto hash =
+      static_cast<uint32_t>(std::hash<std::string_view>{}(symbol_name(symbol)));
   // foreach module
   for (auto &mh : hashes_) {
     // foreach object/library

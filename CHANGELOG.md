@@ -8,6 +8,7 @@ Bug fixes:
  * icpp: fix module main.o cache generating error;
  * icpp: fix native module handle wrong loaded order;
  * imod: fix missing calculating module data symbol hashes;
+ * imod: fix dll coff file symbol parsing;
 
 Improvements:
  * icpp: add icpp module header directory to clang header search path;

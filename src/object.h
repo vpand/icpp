@@ -240,6 +240,8 @@ class COFFObject : public Object {
 public:
   COFFObject(std::string_view srcpath, std::string_view path);
   virtual ~COFFObject();
+
+  void parseCOFFSymbols();
 };
 
 class COFFRelocObject : public COFFObject {

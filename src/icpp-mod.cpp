@@ -395,9 +395,13 @@ static void install_package(std::string_view pkgpath) {
     icpp::SymbolHash hasher(fullpath.string());
     // parse and calculate the symbol hash array
     auto hashes = hasher.hashes(message);
-    if (!hashes.size()) {
+    if (message.size()) {
       icpp::log_print(prefix_error, "{}", message);
       return;
+    }
+    if (!hashes.size()) {
+      icpp::log_print(prefix_prog, "There's no symbol in {}.", file.path());
+      continue;
     }
     auto name = file.path();
     name.replace(0, modlib.size() + 1, "");
