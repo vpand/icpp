@@ -152,6 +152,7 @@ set(LLVM_LINK_COMPONENTS
 file(GLOB IGADGET_LLVM_SOURCES
   ${ICPP_SRCROOT}/icpp-gadget.cpp
   ${ICPP_SRCROOT}/object.cpp
+  ${ICPP_SRCROOT}/object-coff.cpp
   ${ICPP_SRCROOT}/object-llvm.cpp
   ${LLVM_OBJDUMP_ROOT}/SourcePrinter.cpp
 )
@@ -208,6 +209,7 @@ set(LLVM_LINK_COMPONENTS
 file(GLOB IMOD_LLVM_SOURCES
   ${ICPP_SRCROOT}/icpp-mod.cpp
   ${ICPP_SRCROOT}/object.cpp
+  ${ICPP_SRCROOT}/object-coff.cpp
 )
 add_llvm_tool(imod 
   ${IMOD_LLVM_SOURCES}
