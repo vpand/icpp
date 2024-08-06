@@ -18,6 +18,8 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SystemUtils.h"
 #include "llvm/Support/ToolOutputFile.h"
+#include <llvm/Config/config.h>
+#include <llvm/Config/llvm-config.h>
 #ifdef ON_WINDOWS
 #include <boost/process.hpp>
 #else
@@ -383,6 +385,10 @@ static void install_package(std::string_view pkgpath) {
       }
       continue;
     }
+    auto filename = fs::path(file.path()).filename();
+    if (filename.has_extension() &&
+        filename.string().find(LLVM_PLUGIN_EXT) == std::string::npos)
+      continue;
 
     icpp::log_print(prefix_prog, "Parsing the symbols of {}...", file.path());
     std::string message;
