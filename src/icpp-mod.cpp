@@ -440,12 +440,18 @@ static void uninstall_module(std::string_view name) {
     icpp::log_print(prefix_error, "There's no module: {}.", name.data());
     return;
   }
-  if (fs::exists(include))
-    fs::remove_all(include);
-  if (fs::exists(bin))
-    fs::remove_all(bin);
-  if (fs::exists(lib))
-    fs::remove_all(lib);
+  try {
+    if (fs::exists(include))
+      fs::remove_all(include);
+    if (fs::exists(bin))
+      fs::remove_all(bin);
+    if (fs::exists(lib))
+      fs::remove_all(lib);
+  } catch (std::exception &e) {
+    icpp::log_print(prefix_error, "Failed to uninstall module {}: {}.",
+                    name.data(), e.what());
+    return;
+  }
   icpp::log_print(prefix_prog, "Uninstalled module {}.", name.data());
 }
 
