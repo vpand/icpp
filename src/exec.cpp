@@ -1748,7 +1748,6 @@ bool ExecEngine::execLoop(uint64_t pc) {
 #if WIN_ARM64
   auto epochptr = Loader::simulateTlsEpoch();
   auto tlsepoch = reinterpret_cast<uint64_t *>(wintls_ + 0x58);
-  auto oldepochptr = tlsepoch[0];
 #endif
 
   // debugger internal thread
@@ -1799,6 +1798,7 @@ bool ExecEngine::execLoop(uint64_t pc) {
 #if WIN_ARM64
     // as we haven't relocated the real relocation for tls epoch,
     // herein give it the simulated address
+    auto oldepochptr = tlsepoch[0];
     *tlsepoch = reinterpret_cast<uint64_t>(&epochptr);
 #endif
 

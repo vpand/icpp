@@ -259,7 +259,10 @@ cmake -DCMAKE_C_COMPILER=$PWD/llvm/bin/clang -DCMAKE_CXX_COMPILER=$PWD/llvm/bin/
 #### macOS ARM64/X86_64
 ```sh
 # if your system default clang doesn't support C++20 before the version of macOS 11,
-# you should compile your own clang and apply it like on Linux
+# you should compile your own clang and apply it like on Linux.
+# This is a very complicated process. So I strongly recommend that 
+# you update your macOS and Xcode to the latest version to have the
+# C++20 support to simplify the building.
 cmake -DCMAKE_BUILD_TYPE=Release ..
 ```
 
@@ -269,6 +272,18 @@ cmake -DCMAKE_BUILD_TYPE=Release ..
 cmake --build . -- protoc -j8
 # build all the icpp components
 cmake --build . -- icpp icppcli imod iopad icpp-gadget icpp-server -j8
+```
+
+### Pre-Run
+The newly built naked icpp needs the include/lib related stuff to work. The simplest way to run your own version is to replace the binary in the official release package. If you want to run it in the build directory, you need to construct the directory layout just like in the release package. e.g:
+```sh
+build:
+---include
+------header-related
+---src
+------icpp
+---lib
+------lib-related
 ```
 
 ## Issue
