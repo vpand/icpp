@@ -258,11 +258,11 @@ cmake -DCMAKE_C_COMPILER=$PWD/llvm/bin/clang -DCMAKE_CXX_COMPILER=$PWD/llvm/bin/
 
 #### macOS ARM64/X86_64
 ```sh
-# if your system default clang doesn't support C++20 before the version of macOS 11,
+# if your system default clang doesn't support C++20 before the version of macOS 14,
 # you should compile your own clang and apply it like on Linux.
-# This is a very complicated process. So I strongly recommend that 
-# you update your macOS and Xcode to the latest version to have the
-# C++20 support to simplify the building.
+#
+# This is a very complicated process. So I strongly recommend that you update your 
+# macOS and Xcode to the latest version to have the C++20 support to simplify the building.
 cmake -DCMAKE_BUILD_TYPE=Release ..
 ```
 
