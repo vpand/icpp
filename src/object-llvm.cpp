@@ -1644,6 +1644,13 @@ static uint64_t relocate_data(StringRef content, uint64_t offset,
         log_print(Develop, "Relocated data symbol {} at 0x{:x}.",
                   rsym.name.data(), rel32);
       }
+      if (offset + 4 > content.size()) {
+        log_print(Runtime,
+                  "Warning, relocation 4 bytes for {} is out fo range, "
+                  "max {:x}, offset {:x}.\n",
+                  rsym.name.data(), content.size(), offset);
+        return 0;
+      }
       *reinterpret_cast<uint32_t *>(
           const_cast<char *>(content.data() + offset)) = rel32;
       return 0;
@@ -1667,9 +1674,19 @@ static uint64_t relocate_data(StringRef content, uint64_t offset,
         log_print(Develop, "Relocated data symbol {} at 0x{:x}.",
                   rsym.name.data(), rel32);
       }
+      if (offset + 4 > content.size()) {
+        log_print(Runtime,
+                  "Warning, relocation 4 bytes for {} is out fo range, "
+                  "max {:x}, offset {:x}.\n",
+                  rsym.name.data(), content.size(), offset);
+        return 0;
+      }
       relocpot[0] = rel32;
       return 0;
     }
+#undef IMAGE_REL_AMD64_ADDR32NB
+    case COFF::RelocationTypeAMD64::IMAGE_REL_AMD64_ADDR32NB | COFF_MAGIC_BIT:
+      return 0; // ignore this kind of reloc currently
     default:
       break;
     }
@@ -1691,6 +1708,13 @@ static uint64_t relocate_data(StringRef content, uint64_t offset,
   if (0) {
     log_print(Develop, "Relocated data symbol {} at 0x{:x}.", rsym.name.data(),
               target);
+  }
+  if (offset + 8 > content.size()) {
+    log_print(Runtime,
+              "Warning, relocation 8 bytes for {} is out fo range, "
+              "max {:x}, offset {:x}.\n",
+              rsym.name.data(), content.size(), offset);
+    return 0;
   }
   auto relocpot = reinterpret_cast<uint64_t>(content.data() + offset);
   *reinterpret_cast<uint64_t *>(relocpot) = reinterpret_cast<uint64_t>(target);
