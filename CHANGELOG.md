@@ -8,6 +8,7 @@ Bug fixes:
  * icpp: fix module main.o cache generating error;
  * icpp: fix native module handle wrong loaded order;
  * icpp: fix arm64 windows tls epochptr out of updating error;
+ * icpp: fix x86_64 relocatable jcond instruction executing error;
  * imod: fix missing calculating module data symbol hashes;
  * imod: fix dll coff file symbol parsing;
 

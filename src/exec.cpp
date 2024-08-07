@@ -1277,6 +1277,7 @@ static bool can_emulate(const InsnInfo *inst) {
   case INSN_X64_CALLREG:
   case INSN_X64_CALLMEM:
   case INSN_X64_JUMP:
+  case INSN_X64_JUMPCOND:
   case INSN_X64_JUMPREG:
   case INSN_X64_JUMPMEM:
   case INSN_X64_CMP8MI:
@@ -1317,6 +1318,10 @@ static bool can_emulate(const InsnInfo *inst) {
     return inst->rflag == 0;
   }
 }
+
+#if ARCH_X64
+#include "exec-x64.inc"
+#endif
 
 bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
   // we should interpret the relocation, branch, jump, call and syscall
@@ -1515,6 +1520,24 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
         target = pc + metaptr[0] + inst->len;
       }
       jump = interpretJumpX64(inst, pc, target);
+      break;
+    }
+    // encoded meta data layout:[uint64_t, uint64_t]
+    case INSN_X64_JUMPCOND: {
+      if (!inst->rflag) {
+        // only let unicorn engine consumed 1 instruction in this situation
+        step = 1;
+        return false;
+      }
+
+      uint64_t target =
+          reinterpret_cast<uint64_t>(robject_->relocTarget(inst->reloc));
+      auto metaptr = robject_->metaInfo<uint16_t>(inst, pc);
+      ContextX64 context{0};
+      uc_reg_read(uc_, UC_X86_REG_RCX, &context.rcx);
+      uc_reg_read(uc_, UC_X86_REG_RFLAGS, &context.rflags);
+      if (hitCondX64(&context, metaptr[4]))
+        jump = interpretJumpX64(inst, pc, target);
       break;
     }
     // encoded meta data layout:[uint16_t]

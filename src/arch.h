@@ -74,6 +74,7 @@ enum InsnType {
   INSN_X64_CALLREG,
   INSN_X64_CALLMEM,
   INSN_X64_JUMP,
+  INSN_X64_JUMPCOND,
   INSN_X64_JUMPREG,
   INSN_X64_JUMPMEM,
   INSN_X64_MOV8RM,
@@ -191,6 +192,28 @@ struct ContextX64 {
   uint8_t stmmx[8][10];
   // stack pointer register
   uint64_t rsp;
+};
+
+enum ConditionTypeX64 {
+  CONDT_jae = 0,
+  CONDT_ja,
+  CONDT_jbe,
+  CONDT_jb,
+  CONDT_je,
+  CONDT_jge,
+  CONDT_jg,
+  CONDT_jle,
+  CONDT_jl,
+  CONDT_jne,
+  CONDT_jno,
+  CONDT_jnp,
+  CONDT_jns,
+  CONDT_jo,
+  CONDT_jp,
+  CONDT_js,
+  CONDT_jrcxz,
+  CONDT_jecxz,
+  CONDT_x64_end,
 };
 
 #if ARCH_ARM64

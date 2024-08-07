@@ -677,9 +677,19 @@ static uint16_t llvm2ucRegisterX64(unsigned reg) {
   abort();
 }
 
-static void parseInstX64(const MCInst &inst, uint64_t opcptr,
+static void parseInstX64(MCInst &inst, uint64_t opcptr,
                          std::map<std::string, std::string> &decinfo,
                          InsnInfo &iinfo) {
+#define add_jcond_opr(cond)                                                    \
+  if (iinfo.len > 5) {                                                         \
+    inst.addOperand(MCOperand::createImm(CONDT_##cond));                       \
+  }
+#define set_jcond_opr(cond)                                                    \
+  {                                                                            \
+    opr.setImm(CONDT_##cond);                                                  \
+    break;                                                                     \
+  }
+
   namespace INSN = llvm::X86;
   switch (inst.getOpcode()) {
   case INSN::INT:
@@ -690,8 +700,59 @@ static void parseInstX64(const MCInst &inst, uint64_t opcptr,
     break;
   case INSN::JCC_1:
   case INSN::JCC_2:
-  case INSN::JCC_4:
-    iinfo.type = INSN_CONDJUMP;
+  case INSN::JCC_4: {
+    iinfo.type = iinfo.len > 5 ? INSN_X64_JUMPCOND : INSN_CONDJUMP;
+    if (iinfo.len > 5) {
+      MCOperand &opr = inst.getOperand(1);
+      // convert llvm condition imm to icpp named condition code,
+      // see llvm/lib/Target/X86/MCTargetDesc/X86InstPrinterCommon.cpp
+      switch (opr.getImm()) {
+      case 0:
+        set_jcond_opr(jo);
+      case 1:
+        set_jcond_opr(jno);
+      case 2:
+        set_jcond_opr(jb);
+      case 3:
+        set_jcond_opr(jae);
+      case 4:
+        set_jcond_opr(je);
+      case 5:
+        set_jcond_opr(jne);
+      case 6:
+        set_jcond_opr(jbe);
+      case 7:
+        set_jcond_opr(ja);
+      case 8:
+        set_jcond_opr(js);
+      case 9:
+        set_jcond_opr(jns);
+      case 0xa:
+        set_jcond_opr(jp);
+      case 0xb:
+        set_jcond_opr(jnp);
+      case 0xc:
+        set_jcond_opr(jl);
+      case 0xd:
+        set_jcond_opr(jge);
+      case 0xe:
+        set_jcond_opr(jle);
+      case 0xf:
+        set_jcond_opr(jg);
+      default:
+        log_print(Develop, "Out of condition code range: {}.", opr.getImm());
+        break;
+      }
+    }
+    break;
+  }
+  case INSN::JRCXZ:
+    iinfo.type = iinfo.len > 5 ? INSN_X64_JUMPCOND : INSN_CONDJUMP;
+    add_jcond_opr(jrcxz);
+    break;
+  case INSN::JECXZ:
+    iinfo.type = iinfo.len > 5 ? INSN_X64_JUMPCOND : INSN_CONDJUMP;
+    add_jcond_opr(jecxz);
     break;
   case INSN::RET:
   case INSN::RET16:
