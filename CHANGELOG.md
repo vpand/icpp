@@ -1,3 +1,7 @@
+## v0.1.2
+Bug fixes:
+ * icpp: fix optimization argument without effect error;
+
 ## v0.1.1
 Bug fixes:
  * icpp: fix c source file error compiling arguments;

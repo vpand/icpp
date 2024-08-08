@@ -1319,9 +1319,7 @@ static bool can_emulate(const InsnInfo *inst) {
   }
 }
 
-#if ARCH_X64
 #include "exec-x64.inc"
-#endif
 
 bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
   // we should interpret the relocation, branch, jump, call and syscall

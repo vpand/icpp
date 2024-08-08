@@ -249,6 +249,8 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
       icpp_option_frameworks.push_back(sp.data() + 2);
     } else if (sp.starts_with("-p")) {
       icpp_option_procfg = sp.data() + 2;
+    } else if (sp.starts_with("-O")) {
+      icpp_option_opt = sp.data();
     }
   }
 

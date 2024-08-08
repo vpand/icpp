@@ -14,7 +14,7 @@ namespace icpp {
 // icpp version.
 constexpr const std::uint8_t version_major = 0;
 constexpr const std::uint8_t version_minor = 1;
-constexpr const std::uint8_t version_patch = 1;
+constexpr const std::uint8_t version_patch = 2;
 // release candidate version, 255 means the official release.
 constexpr const std::uint8_t version_extra = 255;
 
