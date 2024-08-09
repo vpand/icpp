@@ -32,9 +32,14 @@ public:
   fs::path includeFull();
   fs::path libFull();
 
+  fs::path assetRelative() { return "asset"; }
   fs::path includeRelative() { return "include"; }
   fs::path binRelative() { return "bin"; }
   fs::path libRelative() { return "lib"; }
+
+  fs::path assetRelative(std::string_view module) {
+    return assetRelative() / module;
+  }
 
   fs::path includeRelative(std::string_view module) {
     return includeRelative() / module;

@@ -43,6 +43,10 @@ static std::vector<boost::json::string> get_arrays(const json::value &json,
   return result;
 }
 
+std::vector<boost::json::string> CreateConfig::assets() {
+  return get_arrays(*json_, module_assets);
+}
+
 std::vector<boost::json::string> CreateConfig::headers() {
   return get_arrays(*json_, module_hdrs);
 }

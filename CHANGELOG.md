@@ -5,6 +5,7 @@ Bug fixes:
 
 Improvements:
  * icpp: automatically generate the standard module pcm file in user local system;
+ * imod: add assets configuration to support icpp module extra payloads;
 
 ## v0.1.1
 Bug fixes:

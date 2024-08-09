@@ -240,6 +240,9 @@ int main(int argc, char **argv) {
   pack_file(srcroot / "../../runtime/include/icpp.hpp", include, false);
   pack_file(srcroot / "../../runtime/include/icppex.hpp", include, false);
 
+  // copy module files
+  pack_dir(srcroot / "../../runtime/module/libc++/v1", icpproot, "module");
+
   // copy clang files
   pack_dir(srcroot / "../third/llvm-project/llvm/lib/clang", lib);
 

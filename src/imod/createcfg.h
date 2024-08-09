@@ -18,6 +18,7 @@ constexpr const uint32_t module_magic = 'ppci';
 The json configuration format to create an icpp module package:
 {
   "name": "",
+  "assets": [],
   "headers": [],
   "header-dirs": [],
   "sources": [],
@@ -34,6 +35,9 @@ used or loaded at runtime by icpp. After being installed to icpp module
 manager's repository, their layout is as follows:
 
 .icpp
+---asset
+------name
+---------assets
 ---bin
 ------name
 ---------binary-bins
@@ -51,6 +55,7 @@ manager's repository, their layout is as follows:
 e.g.:
 json {
   "name": "module-demo",
+  "assets": [],
   "headers": ["module.h"],
   "header-dirs": [],
   "sources": ["module.cc"],
@@ -74,6 +79,7 @@ generated at installing time, it's used for the icpp interpreter runtime to
 check and lazily load their relational library or iobject.
 */
 constexpr std::string_view module_name = "name";
+constexpr std::string_view module_assets = "assets";
 constexpr std::string_view module_hdrs = "headers";
 constexpr std::string_view module_hdrdirs = "header-dirs";
 constexpr std::string_view module_srcs = "sources";
@@ -98,6 +104,7 @@ public:
   ~CreateConfig();
 
   boost::json::string name();
+  std::vector<boost::json::string> assets();
   std::vector<boost::json::string> headers();
   std::vector<boost::json::string> headerDirs();
   std::vector<boost::json::string> sources();

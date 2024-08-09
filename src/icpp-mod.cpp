@@ -128,6 +128,7 @@ static void create_package(const char *program, std::string_view cfgpath) {
     Package pkg;
     imod::CreateConfig cfg(cfgpath);
     auto files = pkg.mutable_files();
+    auto assetroot = Rtlib::inst().assetRelative(cfg.name()).string();
     auto incroot = Rtlib::inst().includeRelative(cfg.name()).string();
     auto binroot = Rtlib::inst().binRelative(cfg.name()).string();
     auto libroot = Rtlib::inst().libRelative(cfg.name()).string();
@@ -192,6 +193,32 @@ static void create_package(const char *program, std::string_view cfgpath) {
     // set some basic information
     pkg.set_version(icpp::version_value().value);
     pkg.set_name(cfg.name());
+
+    // pack assets
+    for (auto a : cfg.assets()) {
+      if (!fs::exists(a.data())) {
+        missing("Asset", a.data());
+        return;
+      }
+      if (fs::is_regular_file(a.data())) {
+        if (!packer(assetroot, a.data(), "Asset"))
+          return;
+        continue;
+      }
+      if (!fs::is_directory(a.data())) {
+        icpp::log_print(prefix_error,
+                        "Asset path must be a regular file or directory: {}.",
+                        a.data());
+        return;
+      }
+      pack_recursively(
+          assetroot, a.data(), "Asset directory",
+          [](const fs::path &file) {
+            // ignore hidden file
+            return file.filename().string()[0] != '.';
+          },
+          packer);
+    }
 
     // pack headers
     for (auto hdr : cfg.headers()) {
