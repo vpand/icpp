@@ -282,6 +282,9 @@ build:
 ------header-related
 ---src
 ------icpp
+---module
+------std.compat.cppm
+------std.cppm
 ---lib
 ------lib-related
 ```
