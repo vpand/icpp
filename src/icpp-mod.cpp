@@ -265,10 +265,18 @@ static void create_package(const char *program, std::string_view cfgpath) {
     auto icppexe = (imodexe.parent_path() /
                     (std::string("icpp") + imodexe.extension().string()))
                        .string();
+    auto cfgincs = cfg.includeDirs();
     for (auto src : cfg.sources()) {
       if (!fs::exists(src.data())) {
         missing("Source", src.data());
         return;
+      }
+      if (!cfgincs.size()) {
+        // if there's no extra include configuration, then directly pack this
+        // source, this way can make an os independent icpp module cause we can
+        // compile it at the installation time.
+        packer(libroot, src.data(), "Source");
+        continue;
       }
       std::vector<std::string> ccargs;
       auto srcpath = fs::path(src.data());
@@ -278,7 +286,7 @@ static void create_package(const char *program, std::string_view cfgpath) {
       ccargs.push_back(srcpath.string());
       ccargs.push_back("-o");
       ccargs.push_back(objfile);
-      for (auto inc : cfg.includeDirs())
+      for (auto inc : cfgincs)
         ccargs.push_back(std::format("-I{}", inc.data()));
       ccargs.push_back("-O2");
 
@@ -311,11 +319,14 @@ static void create_package(const char *program, std::string_view cfgpath) {
     }
 
     // done.
+    std::string_view sysname = "any", archname = "src";
+    if (cfgincs.size()) {
+      sysname = icpp::system_name(icpp::host_system());
+      archname = icpp::arch_name(icpp::host_arch());
+    }
     auto pkgpath = fs::path(cfgpath).parent_path() /
-                   std::format("{}-{}-{}{}", cfg.name().data(),
-                               icpp::system_name(icpp::host_system()),
-                               icpp::arch_name(icpp::host_arch()),
-                               Rtlib::inst().packageExtension);
+                   std::format("{}-{}-{}{}", cfg.name().data(), sysname,
+                               archname, Rtlib::inst().packageExtension);
     std::ofstream outf(pkgpath.c_str(), std::ios::binary);
     if (!outf.is_open()) {
       icpp::log_print(prefix_error, "Failed to create the package file {}.",
@@ -340,7 +351,7 @@ static void create_package(const char *program, std::string_view cfgpath) {
   }
 }
 
-static void install_package(std::string_view pkgpath) {
+static void install_package(const char *program, std::string_view pkgpath) {
   auto expBuff = llvm::MemoryBuffer::getFile(pkgpath.data());
   if (!expBuff) {
     icpp::log_print(prefix_error, "Failed to open {}.", pkgpath.data());
@@ -382,6 +393,10 @@ static void install_package(std::string_view pkgpath) {
   }
   icpp::log_print(prefix_prog, "Installing module {}...", pkg.name());
 
+  auto imodexe = fs::path(program);
+  auto icppexe = (imodexe.parent_path() /
+                  (std::string("icpp") + imodexe.extension().string()))
+                     .string();
   // icpp local module repository is at $HOME/.icpp
   auto repo = Rtlib::inst().repo();
   auto modlib = Rtlib::inst().libRelative(pkg.name()).string();
@@ -412,10 +427,48 @@ static void install_package(std::string_view pkgpath) {
       }
       continue;
     }
-    auto filename = fs::path(file.path()).filename();
-    if (filename.has_extension() &&
-        filename.string().find(LLVM_PLUGIN_EXT) == std::string::npos)
+    auto filename = fs::path(file.path()).filename().string();
+    if (fs::path(filename).has_extension() &&
+        (filename.find(LLVM_PLUGIN_EXT) == std::string::npos &&
+         !filename.ends_with(icpp::obj_ext))) {
+      if (icpp::is_cpp_source(filename)) {
+        std::vector<std::string> ccargs;
+        auto objfile = (parent / (fullpath.stem().string() + ".o")).string();
+        ccargs.push_back("-c");
+        ccargs.push_back(fullpath.string());
+        ccargs.push_back("-o");
+        ccargs.push_back(objfile);
+        ccargs.push_back("-O2");
+
+        icpp::log_print(prefix_prog, "Compiling {}.", file.path());
+        proc::child compiler(icppexe, ccargs);
+        compiler.wait();
+        if (compiler.exit_code())
+          return; // stop if failed
+
+        icpp::log_print(prefix_prog, "Parsing the symbols of {}...",
+                        file.path());
+        std::string message;
+        icpp::SymbolHash hasher(objfile);
+        // parse and calculate the symbol hash array
+        auto hashes = hasher.hashes(message);
+        if (message.size()) {
+          icpp::log_print(prefix_error, "{}", message);
+          return;
+        }
+        if (!hashes.size()) {
+          icpp::log_print(prefix_prog, "There's no symbol in {}.", file.path());
+          continue;
+        }
+        auto name = fs::path(objfile).string();
+        icpp::log_print(prefix_prog, "Parsed {} symbols in {}.", hashes.size(),
+                        name);
+        allhashes->insert(
+            {name, std::string(reinterpret_cast<char *>(&hashes[0]),
+                               sizeof(hashes[0]) * hashes.size())});
+      }
       continue;
+    }
 
     icpp::log_print(prefix_prog, "Parsing the symbols of {}...", file.path());
     std::string message;
@@ -460,6 +513,7 @@ static void install_package(std::string_view pkgpath) {
 }
 
 static void uninstall_module(std::string_view name) {
+  auto asset = Rtlib::inst().assetFull(name);
   auto include = Rtlib::inst().includeFull(name);
   auto bin = Rtlib::inst().binFull(name);
   auto lib = Rtlib::inst().libFull(name);
@@ -468,6 +522,8 @@ static void uninstall_module(std::string_view name) {
     return;
   }
   try {
+    if (fs::exists(asset))
+      fs::remove_all(asset);
     if (fs::exists(include))
       fs::remove_all(include);
     if (fs::exists(bin))
@@ -507,7 +563,7 @@ int main(int argc, char **argv) {
   if (CreatePackage.length())
     create_package(argv[0], CreatePackage);
   if (InstallPath.length())
-    install_package(InstallPath);
+    install_package(argv[0], InstallPath);
   if (UninstallModule.length())
     uninstall_module(UninstallModule);
   if (ListModule)

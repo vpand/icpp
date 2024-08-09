@@ -51,6 +51,9 @@ public:
     return libRelative() / module;
   }
   fs::path includeFull(std::string_view module);
+  fs::path assetFull(std::string_view module) {
+    return repo() / assetRelative(module);
+  }
   fs::path binFull(std::string_view module) {
     return repo() / binRelative(module);
   }

@@ -4,13 +4,17 @@ IMOD is an icpp module package manager tool used to install, uninstall and show 
 
 ## How it works
 ### Home
-This tool mainly works for the HOME/.icpp directory which it installs to, uninstalls from and lists the third-party icpp modules. The HOME in different system has different value as follows: * macOS/Linux/iOS: HOME = $HOME; * Windows: HOME = %userprofile%; * Android: HOME = /sdcard/Android;
+This tool mainly works for the HOME/.icpp directory which it installs to, uninstalls from and lists the third-party icpp modules. The HOME in different system has different value as follows:
+ * macOS/Linux/iOS: HOME = $HOME;
+ * Windows: HOME = %userprofile%;
+ * Android: HOME = /sdcard/Android;
 
 ### Configuration
 When creating a new icpp module, you should give it a json configuration file to tell imod what to do. A general template json is as follows:
 ```json
 {
   "name": "",
+  "assets": [],
   "headers": [],
   "header-dirs": [],
   "sources": [],
@@ -21,12 +25,13 @@ When creating a new icpp module, you should give it a json configuration file to
 }
 ```
 
- * **name**: the icpp module name;
- * **headers**: the export C/C++ headers which will be packed into this module;
- * **header-dirs**: the export C/C++ header directories which will be packed into this module;
- * **sources**: the module source files which will be compiled as objects and then be packed into this module;
- * **binary-objs**: the precompiled object files which will be packed into this module;
- * **binary-libs**: the dynamic shared libraries which will be packed into this module;
+ * **name**: the module name;
+ * **assets**: the module resource files;
+ * **headers**: the export C/C++ headers;
+ * **header-dirs**: the export C/C++ header directories;
+ * **sources**: the module source files which will be compiled as objects and then be packed into this module if the include-dirs is not empty otherwise directly pack the source files;
+ * **binary-objs**: the precompiled object files;
+ * **binary-libs**: the dynamic shared libraries;
  * **include-dirs**: the temporary include directories used when compile the previous sources;
  * **install-prefix**: the install prefix of the binary-libs used when you want to keep the layout of packed libraries;
 
@@ -61,7 +66,7 @@ The working directory should be ICPP_ROOT/snippet when you are testing this conf
   "include-dirs": []
 }
 ```
-Another complicated demonstration configuration can be found at [icpp-qt](https://github.com/vpand/icpp-qt/blob/main/qt-osx.json).
+Another complicated demonstration configurations can be found at [icpp-qt](https://github.com/vpand/icpp-qt/blob/main/qt-osx.json), [icpp-reference](https://github.com/vpand/icpp-reference).
 
 ### Create
 ```sh
