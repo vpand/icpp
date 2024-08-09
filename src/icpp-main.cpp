@@ -130,6 +130,7 @@ get_dependencies(const std::vector<const char *> &libdirs,
 
 extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
   llvm::InitLLVM X(argc, argv);
+  icpp::precompile_module(argv[0]);
 
   // optimization level passed to clang
   const char *icpp_option_opt = "-O2";

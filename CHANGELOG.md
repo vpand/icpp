@@ -1,6 +1,10 @@
 ## v0.1.2
 Bug fixes:
  * icpp: fix optimization argument without effect error;
+ * icpp: fix the standard module pcm include path error;
+
+Improvements:
+ * icpp: automatically generate the standard module pcm file in user local system;
 
 ## v0.1.1
 Bug fixes:

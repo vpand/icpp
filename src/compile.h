@@ -20,4 +20,6 @@ fs::path compile_source_icpp(const char *argv0, std::string_view path,
                              const char *opt,
                              const std::vector<const char *> &incdirs);
 
+void precompile_module(const char *argv0);
+
 } // namespace icpp

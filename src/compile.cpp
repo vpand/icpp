@@ -12,6 +12,7 @@
 #include "runtime.h"
 #include "utils.h"
 #include <atomic>
+#include <fstream>
 #include <optional>
 #include <vector>
 
@@ -24,6 +25,7 @@ extern std::string GetExecutablePath(const char *argv0, bool CanonicalPrefixes);
 namespace icpp {
 
 static bool echocc = false;
+static std::string pcm_root;
 
 static std::string argv_string(int argc, const char **argv) {
   std::string cmds;
@@ -126,7 +128,6 @@ int compile_source_icpp(int argc, const char **argv) {
   if (!cross_compile) {
     args.push_back(argsysroot.data());
     args.push_back(isysroot.data());
-    cppminc = std::format("-fprebuilt-module-path={}/apple/module", rtinc);
     args.push_back("-target");
     args.push_back(
 #if ARCH_ARM64
@@ -172,7 +173,7 @@ int compile_source_icpp(int argc, const char **argv) {
         "x86_64"
 #endif
         "-pc-windows-msvc19.0.0");
-    cppminc = std::format("/clang:-fprebuilt-module-path={}/win/module", rtinc);
+    cppminc = "/clang:";
 
     // MultiThreadedDLL
     args.push_back("/MD");
@@ -202,13 +203,14 @@ int compile_source_icpp(int argc, const char **argv) {
         "x86_64"
 #endif
         "-unknown-linux-gnu");
-    cppminc = std::format("-fprebuilt-module-path={}/linux/module", rtinc);
   }
 #endif
 
   // add c++ standard module precompiled module path
-  if (cppsrc && cppminc.size())
+  if (cppsrc && !cross_compile) {
+    cppminc += std::format("-fprebuilt-module-path={}", pcm_root);
     args.push_back(cppminc.data());
+  }
 
   // add libc include for cross compiling
   auto cinc = std::format("-I{}/c", rtinc);
@@ -282,6 +284,48 @@ fs::path compile_source_icpp(const char *argv0, std::string_view path,
 
   compile_source_icpp(static_cast<int>(args.size()), &args[0]);
   return cache.has_filename() ? cache : fs::path(opath);
+}
+
+static void precompile_module(const char *argv0, const fs::path &root,
+                              const fs::path pcmroot, const fs::path &cppm) {
+  must_exist(pcmroot);
+
+  auto cppmpath = (root / "module" / cppm).string();
+  auto pcmpath = (pcmroot / cppm.stem()).string() + ".pcm";
+
+  std::vector<const char *> args;
+  args.push_back(argv0);
+#if _WIN32
+  args.push_back("/clang:--precompile");
+#else
+  args.push_back("--precompile");
+#endif
+  args.push_back("-w");
+  args.push_back("-o");
+  args.push_back(pcmpath.data());
+  args.push_back(cppmpath.data());
+
+  log_print(Develop, "Precompiling {} to {} ...", cppmpath, pcmpath);
+  compile_source_icpp(static_cast<int>(args.size()), &args[0]);
+}
+
+void precompile_module(const char *argv0) {
+  auto pcmroot =
+      fs::path(home_directory()) /
+      std::format(".icpp/module/{:08x}",
+                  static_cast<uint32_t>(std::hash<std::string>{}(argv0)));
+  pcm_root = pcmroot.string();
+  if (fs::exists(pcmroot))
+    return; // already generated the standard pcm files
+
+  log_print(Raw, "Initializing the standard C++ modules...");
+
+  auto icpproot = fs::path(argv0).parent_path().parent_path();
+  for (auto &cppm : {"std.cppm", "std.compat.cppm"})
+    precompile_module(argv0, icpproot, pcmroot, cppm);
+
+  std::ofstream outf(pcmroot / "icpp.txt");
+  outf << argv0 << std::endl;
 }
 
 } // namespace icpp

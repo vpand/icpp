@@ -72,7 +72,7 @@ int __attribute__((visibility("default"))) icpp_main(int argc,
         libicpp.string(), "icpp_main");
     // call the real icpp main entry
     return icpp_main(argc, argv);
-  } catch (system::system_error &e) {
+  } catch (std::exception &e) {
     std::cout << "Fatal error when loading icpp: " << e.what() << std::endl;
   } catch (...) {
     std::cout << "Fatal error when loading icpp." << std::endl;
