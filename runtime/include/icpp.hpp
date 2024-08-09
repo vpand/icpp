@@ -36,6 +36,7 @@
 #if __ICPP_CROSS__
 // c style
 #include <filesystem>
+#include <format>
 #include <string>
 #include <string_view>
 #else
