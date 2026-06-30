@@ -1,4 +1,4 @@
-# ICPP - Running C++ in anywhere like a script
+# ICPP - Run C++ anywhere just like a script
 **Interpreting C++, executing the source and executable like a script.**
  * Writing powerful script using C++ just as easy as Python;
  * Writing hot-loading C++ script code in running process;
@@ -287,6 +287,18 @@ build:
 ------std.cppm
 ---lib
 ------lib-related
+```
+
+## Integration
+If you want to integrate icpp in a running process and run a C++ source file dynamically in it, just load the core icpp shared library and then call icpp_exec which has the following protype:
+```c++
+/*
+Execute a given source file at @path, @icpp should be the main icpp executable,
+@opt is a clang optimization level in range {-O0, -O1, -O2, -O3}, @incptr is an
+array of C++ header search argument like -I/path/to/include.
+*/
+int icpp_exec(const char *icpp, const char *path, const char *opt, 
+              const char **incptr, int incnum);
 ```
 
 ## Issue

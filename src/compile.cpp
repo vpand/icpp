@@ -15,6 +15,16 @@
 #include <fstream>
 #include <optional>
 #include <vector>
+#ifdef ON_WINDOWS
+#include <boost/process.hpp>
+#else
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#include <boost/process.hpp>
+#pragma clang diagnostic pop
+#endif
+
+namespace proc = boost::process;
 
 // clang compiler main entry
 int iclang_main(int argc, const char **argv);
@@ -278,12 +288,21 @@ fs::path compile_source_icpp(const char *argv0, std::string_view path,
   if (cache.has_filename()) {
     log_print(Develop, "Using iobject cache file when compiling: {}.",
               cache.string());
-    // print the current compiling args
+    // echo the current compiling args in subroutines to prevent the actual
+    // compilation
     echocc = true;
-  }
+    compile_source_icpp(static_cast<int>(args.size()), &args[0]);
+    return cache;
+  } else {
+    // compile the input source in a standalone icpp process
+    std::vector<std::string> ccargs;
+    for (auto i = 1; i < args.size(); i++)
+      ccargs.push_back(args[i]);
 
-  compile_source_icpp(static_cast<int>(args.size()), &args[0]);
-  return cache.has_filename() ? cache : fs::path(opath);
+    proc::child compiler(std::string(argv0), ccargs);
+    compiler.wait();
+    return fs::path(opath);
+  }
 }
 
 static void precompile_module(const char *argv0, const fs::path &root,

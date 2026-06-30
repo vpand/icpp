@@ -1,4 +1,4 @@
 VERS_1.1 {
-    global: icpp_main;
+    global: icpp_main, icpp_exec;
     local: *;
 };

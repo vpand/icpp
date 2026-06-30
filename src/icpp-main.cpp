@@ -20,7 +20,7 @@
 static void print_version() {
   std::cout << "ICPP " << icpp::version_string()
             << " based on Unicorn and Clang/LLVM." << std::endl
-            << "Interpreting C++, running C++ in anywhere like a script."
+            << "Interpreting C++, running C++ anywhere like a script."
             << std::endl
             << "Project website: https://github.com/vpand/icpp/" << std::endl
             << "Sponsor website: https://vpand.com/" << std::endl
@@ -31,8 +31,7 @@ static void print_help() {
   std::cout
       << "OVERVIEW: ICPP " << icpp::version_string()
       << " based on Unicorn and Clang/LLVM." << std::endl
-      << "  Interpreting C++, running C++ in anywhere like a script."
-      << std::endl
+      << "  Interpreting C++, running C++ anywhere like a script." << std::endl
       << std::endl
       << "USAGE: icpp [options] exec0 [exec1 ...] [[--] args]" << std::endl
       << "OPTIONS:" << std::endl
@@ -329,5 +328,52 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
   // remove the temporary intermediate object file
   for (auto &opath : tmpofs)
     fs::remove(opath);
+  return exitcode;
+}
+
+/*
+Execute a given source file at @path, @icpp should be the main icpp executable,
+@opt is a clang optimization level in range {-O0, -O1, -O2, -O3}, @incptr is an
+array of C++ header search argument like -I/path/to/include.
+*/
+extern "C" __ICPP_EXPORT__ int icpp_exec(const char *icpp, const char *path,
+                                         const char *opt, const char **incptr,
+                                         int incnum) {
+  std::vector<std::string> deps;
+  std::vector<const char *> incs;
+  bool validcache;
+  int exitcode = -1;
+  for (auto i = 0; i < incnum; i++)
+    incs.push_back(incptr[i]);
+  while (true) {
+    // compile the input source to be as the running host object file(.o,
+    // .obj)
+    auto opath = icpp::compile_source_icpp(icpp, path, opt, incs);
+    if (fs::exists(opath)) {
+      int iargc = 1;
+      const char **iarg = &icpp;
+      exitcode = icpp::exec_main(opath.string(), deps, path, iargc,
+                                 const_cast<char **>(iarg), validcache);
+      if (opath.extension() != icpp::iobj_ext) {
+        // remove the temporary intermediate object file
+        fs::remove(opath);
+        // done
+        break;
+      } else if (validcache) {
+        // done
+        break;
+      } else {
+        // remove the version miss-matched iobject cache file
+        fs::remove(opath);
+        icpp::log_print(icpp::Develop,
+                        "Removed the old iobject cache file: {}.",
+                        opath.string());
+      }
+    } else {
+      // if failed to compile the input source, clang has already printed
+      // the errors
+      break;
+    }
+  }
   return exitcode;
 }

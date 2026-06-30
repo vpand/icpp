@@ -554,7 +554,7 @@ int main(int argc, char **argv) {
   cl::ParseCommandLineOptions(
       argc, argv,
       std::format(
-          "ICPP, Interpreting C++, running C++ in anywhere like a script.\n"
+          "ICPP, Interpreting C++, running C++ anywhere like a script.\n"
           "  IObject Module Manager Tool built with ICPP {}",
           icpp::version_string()));
 
