@@ -76,7 +76,7 @@ int compile_source_clang(int argc, const char **argv, bool cl) {
   auto result = iclang_main(argc, argv);
   if (result) {
     argv[0] = argv0;
-    log_print(Runtime, "Failed to compile: {}", argv_string(argc, argv));
+    log_print(Develop, "Failed to compile: {}", argv_string(argc, argv));
   }
   return result;
 }
