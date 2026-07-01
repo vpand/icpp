@@ -339,6 +339,13 @@ array of C++ header search argument like -I/path/to/include.
 extern "C" __ICPP_EXPORT__ int icpp_exec(const char *icpp, const char *path,
                                          const char *opt, const char **incptr,
                                          int incnum) {
+  // initialize execution engine
+  if (!path) {
+    icpp::RunConfig::inst(icpp, "");
+    icpp::Loader::initialize();
+    return true;
+  }
+
   std::vector<std::string> deps;
   std::vector<const char *> incs;
   bool validcache;

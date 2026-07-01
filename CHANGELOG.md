@@ -1,10 +1,11 @@
 ## v0.1.3
 Bug fixes:
  * icpp: fix relocation cache type comparison error;
- * 
+
 Improvements:
  * icpp: use a standalone process to compile source file;
  * icpp: add a new export api icpp_exec to make third-party integration easier;
+ * icpp: add a new export api icpp_reglib to register native runtime libraries;
 
 ## v0.1.2
 Bug fixes:

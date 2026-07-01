@@ -692,3 +692,11 @@ const int *Loader::simulateTlsEpoch() {
 }
 
 } // namespace icpp
+
+/*
+Register a runtime library @path to icpp core engine so that scripts can call
+its symbols.
+*/
+extern "C" __ICPP_EXPORT__ bool icpp_reglib(const char *path) {
+  return icpp::moloader ? icpp::moloader->loadLibrary(path) != nullptr : false;
+}

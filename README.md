@@ -300,6 +300,14 @@ array of C++ header search argument like -I/path/to/include.
 int icpp_exec(const char *icpp, const char *path, const char *opt, 
               const char **incptr, int incnum);
 ```
+If you have some extra libraries which may be called by scripts, you can register them dynamically with the following api:
+```c++
+/*
+Register a runtime library @path to icpp core engine so that scripts can call
+its symbols.
+*/
+bool icpp_reglib(const char *path);
+```
 
 ## Issue
 If you encounter any problems when using icpp, before opening an issue, please check the [Bug Report](https://github.com/vpand/icpp/blob/main/.github/ISSUE_TEMPLATE/bug_report.md) template, and provide as many details as you can. Only if we can reproduce the problem, we can then solve it.
