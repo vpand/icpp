@@ -252,6 +252,8 @@ cmake -G Ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE
 cmake -B clangconf -DCMAKE_BUILD_TYPE=Release ../cmake/clangconf
 # build our clang compiler with itself's libc++ support
 cmake --build clangconf -- clang runtimes -j8
+# use the c++ runtime we built before for llvm's middle codegen tools
+export LD_LIBRARY_PATH="$PWD/llvm/lib/$(uname -m)-unknown-linux-gnu"
 # use the clang that we built before as our compiler
 cmake -DCMAKE_C_COMPILER=$PWD/llvm/bin/clang -DCMAKE_CXX_COMPILER=$PWD/llvm/bin/clang -DCMAKE_BUILD_TYPE=Release ..
 ```
