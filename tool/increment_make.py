@@ -96,7 +96,7 @@ def increment_make():
     if len(modifiedhs):
         print("Warning - Headers %s modified, be careful of sources un-synchronized." % (modifiedhs))
     if not os.path.exists('Makefile.sh'):
-        # there's no commands cache file, using full_make instead
+        print("There's no build commands cache file, using full_make instead.")
         full_make()
         return
     magics = []

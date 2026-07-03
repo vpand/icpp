@@ -300,21 +300,21 @@ fs::path compile_source_icpp(const char *argv0, std::string_view path,
     for (auto i = 1; i < args.size(); i++)
       ccargs.push_back(args[i]);
 
+#ifdef ON_WINDOWS
     proc::ipstream pipe_stream;
     proc::child compiler(std::string(argv0), ccargs,
                          proc::std_out > pipe_stream,
-                         proc::std_err > pipe_stream
-#ifdef ON_WINDOWS
-                         ,
-                         proc::windows::hide
-#endif
-    );
+                         proc::std_err > pipe_stream, proc::windows::hide);
     compiler.wait();
     if (compiler.exit_code() != 0) {
       std::string output((std::istreambuf_iterator<char>(pipe_stream)),
                          std::istreambuf_iterator<char>());
       log_print(Runtime, "{}", output);
     }
+#else
+    proc::child compiler(std::string(argv0), ccargs);
+    compiler.wait();
+#endif
     return fs::path(opath);
   }
 }

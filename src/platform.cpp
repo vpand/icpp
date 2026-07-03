@@ -146,6 +146,14 @@ const void *find_symbol(const void *handle, std::string_view raw) {
 static int iter_so_callback(dl_phdr_info *info, size_t size, void *data) {
   auto callback = *reinterpret_cast<
       std::function<bool(uint64_t base, std::string_view path)> *>(data);
+  if (!info->dlpi_name || *info->dlpi_name == 0) {
+    char exepath[PATH_MAX];
+    ssize_t len = readlink("/proc/self/exe", exepath, sizeof(exepath) - 1);
+    if (len != -1) {
+      exepath[len] = '\0';
+      return callback(static_cast<uint64_t>(info->dlpi_addr), exepath);
+    }
+  }
   return callback(static_cast<uint64_t>(info->dlpi_addr), info->dlpi_name);
 }
 #endif

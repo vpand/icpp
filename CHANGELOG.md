@@ -1,6 +1,7 @@
 ## v0.1.3
 Bug fixes:
  * icpp: fix relocation cache type comparison error;
+ * icpp: fix linux host module iterator missing the main executable file;
 
 Improvements:
  * icpp: use a standalone process to compile source file;
