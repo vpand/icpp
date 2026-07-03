@@ -310,6 +310,14 @@ its symbols.
 */
 bool icpp_reglib(const char *path);
 ```
+If you need to redirect icpp's output to a GUI window, you can register a log writter with the following api:
+```c++
+/*
+Install a user defined log writer function, e.g. for GUI application
+*/
+typedef void (*log_writer_func_t)(const char *msg);
+log_writer_func_t icpp_logger(log_writer_func_t writer);
+```
 
 ## Issue
 If you encounter any problems when using icpp, before opening an issue, please check the [Bug Report](https://github.com/vpand/icpp/blob/main/.github/ISSUE_TEMPLATE/bug_report.md) template, and provide as many details as you can. Only if we can reproduce the problem, we can then solve it.

@@ -6,6 +6,7 @@ Improvements:
  * icpp: use a standalone process to compile source file;
  * icpp: add a new export api icpp_exec to make third-party integration easier;
  * icpp: add a new export api icpp_reglib to register native runtime libraries;
+ * icpp: add a new export api icpp_logger to register log writter;
 
 ## v0.1.2
 Bug fixes:
