@@ -22,6 +22,9 @@ enum LogType {
   Ignore,
 };
 
+typedef void (*log_writer_func_t)(const char *msg);
+extern log_writer_func_t log_writer;
+
 template <typename... Args>
 inline void log_print(LogType type, std::format_string<Args...> format,
                       Args &&...args) {
@@ -53,8 +56,11 @@ inline void log_print(LogType type, std::format_string<Args...> format,
     std::cout << std::put_time(std::localtime(&now), "%T") << " " << tchar
               << " - ";
   }
-  std::cout << std::vformat(format.get(), std::make_format_args(args...))
-            << std::endl;
+  auto msg = std::vformat(format.get(), std::make_format_args(args...));
+  if (log_writer) // user defined log writer function, e.g. for GUI application
+    log_writer(msg.c_str());
+  else // default log writer function, print to stdout
+    std::cout << msg << std::endl;
 }
 
 template <typename... Args>

@@ -17,6 +17,7 @@
 #include <vector>
 #ifdef ON_WINDOWS
 #include <boost/process.hpp>
+#include <boost/process/windows.hpp>
 #else
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -299,8 +300,21 @@ fs::path compile_source_icpp(const char *argv0, std::string_view path,
     for (auto i = 1; i < args.size(); i++)
       ccargs.push_back(args[i]);
 
-    proc::child compiler(std::string(argv0), ccargs);
+    proc::ipstream pipe_stream;
+    proc::child compiler(std::string(argv0), ccargs,
+                         proc::std_out > pipe_stream,
+                         proc::std_err > pipe_stream
+#ifdef ON_WINDOWS
+                         ,
+                         proc::windows::hide
+#endif
+    );
     compiler.wait();
+    if (compiler.exit_code() != 0) {
+      std::string output((std::istreambuf_iterator<char>(pipe_stream)),
+                         std::istreambuf_iterator<char>());
+      log_print(Runtime, "{}", output);
+    }
     return fs::path(opath);
   }
 }

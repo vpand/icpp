@@ -183,8 +183,11 @@ target_include_directories(icpp PRIVATE
 )
 
 if(APPLE)
-  target_link_options(icpp PRIVATE -Wl,-exported_symbol,_icpp_main -Wl,-exported_symbol,_icpp_exec
-    -Wl,-exported_symbol,_icpp_reglib)
+  target_link_options(icpp PRIVATE 
+    -Wl,-exported_symbol,_icpp_main 
+    -Wl,-exported_symbol,_icpp_exec
+    -Wl,-exported_symbol,_icpp_reglib
+    -Wl,-exported_symbol,_icpp_logger)
 elseif(LINUX)
   target_link_options(icpp PRIVATE -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/ld-icpp.version)
 elseif(WIN32)

@@ -5,5 +5,21 @@
 */
 
 #include "log.h"
+#include "platform.h"
 
-namespace icpp {}
+namespace icpp {
+
+log_writer_func_t log_writer = nullptr;
+
+}
+
+/*
+Install a user defined log writer function, e.g. for GUI application
+*/
+extern "C" __ICPP_EXPORT__ icpp::log_writer_func_t
+icpp_logger(icpp::log_writer_func_t writer) {
+  auto old = icpp::log_writer;
+  if (writer)
+    icpp::log_writer = writer;
+  return old;
+}
