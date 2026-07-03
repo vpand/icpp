@@ -236,6 +236,7 @@ add_llvm_tool(imod
   arch.cpp
   icpp.cpp
   loader.cpp
+  log.cpp
   platform.cpp
   runcfg.cpp
   runtime.cpp
@@ -285,6 +286,7 @@ add_llvm_tool(iopad
   arch.cpp
   icpp.cpp
   platform.cpp
+  log.cpp
   runcfg.cpp
   utils.cpp
   icpppad.pb.cc
