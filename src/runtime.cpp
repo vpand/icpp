@@ -14,6 +14,8 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include <isymhash.pb.h>
 
+extern "C" bool icpp_reglib(const char *path);
+
 namespace icpp {
 
 RuntimeLib &RuntimeLib::inst() {
@@ -165,9 +167,11 @@ long result_get() { return result_i; }
 
 std::string_view result_gets() { return result_s; }
 
-// load a native library
+// load a native library, and register it to icpp's runtime, so the script can
+// refer its APIs dynamically
 void *load_library(std::string_view path) {
-  return const_cast<void *>(icpp::load_library(path));
+  return icpp_reglib(path.data()) ? const_cast<void *>(icpp::load_library(path))
+                                  : nullptr;
 }
 
 // unload a native library

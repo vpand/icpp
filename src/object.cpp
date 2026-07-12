@@ -542,6 +542,15 @@ const void *Object::relocTarget(size_t i) {
     return belong(reinterpret_cast<uint64_t>(cur->target)) ? &cur->target
                                                            : cur->target;
   }
+  if (reinterpret_cast<const void *>(abort) == cur->target) {
+    if (!cur->name.ends_with("abort")) {
+      // try to locate the symbol again, it'll succeed if user has registered
+      // the dependent library
+      auto target = Loader::locateSymbol(cur->name, false);
+      if (target != cur->target)
+        cur->target = target;
+    }
+  }
   return cur->target;
 }
 

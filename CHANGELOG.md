@@ -1,3 +1,10 @@
+## v0.1.4
+Bug fixes:
+
+Improvements:
+ * icpp: register the input library to icpp's runtime automatically when the script calls load_library;
+ * icpp: resolve import symbol lazily to support the script load its dependent libraries dynamically;
+
 ## v0.1.3
 Bug fixes:
  * icpp: fix relocation cache type comparison error;

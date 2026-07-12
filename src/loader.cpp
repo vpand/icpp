@@ -556,10 +556,13 @@ const void *ModuleLoader::lookup(std::string_view name, bool data) {
     }
     // Oops...
     if (!target) {
-      log_print(Runtime,
-                "Fatal error, failed to resolve symbol {}, redirect to abort.",
+      log_print(Develop,
+                "Warning, failed to resolve symbol {}, redirect to abort.",
                 name.data());
+      // lazy abort, if the script registers the library before accessing this
+      // symbol, it'll be fine
       target = reinterpret_cast<const void *>(&abort);
+      return target; // no need to cache abort
     }
   }
 
