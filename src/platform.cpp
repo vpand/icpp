@@ -94,13 +94,13 @@ const void *load_library(std::string_view path) {
   char buff[512];
   ::FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
                    nullptr, ::GetLastError(), 0, buff, sizeof(buff), nullptr);
-  log_print(Runtime, "Failed to load {}: {}", path.data(), buff);
+  log_print(Develop, "Failed to load {}: {}", path.data(), buff);
 #else
   auto handle = dlopen(path.data(), RTLD_NOW);
   if (handle)
     return handle;
 
-  log_print(Runtime, "{}", dlerror());
+  log_print(Develop, "{}", dlerror());
 #endif
   return nullptr;
 }

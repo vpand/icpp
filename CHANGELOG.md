@@ -4,6 +4,7 @@ Bug fixes:
 Improvements:
  * icpp: register the input library to icpp's runtime automatically when the script calls load_library;
  * icpp: resolve import symbol lazily to support the script load its dependent libraries dynamically;
+ * icpp: allow io cache object resolve imports lazily.
 
 ## v0.1.3
 Bug fixes:

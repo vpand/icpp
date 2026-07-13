@@ -8,6 +8,11 @@
 
 Copyright (c) vpand.com 2024.
 
+## AetherLLVM
+Ongoing support for binary file execution within `ICPP` has moved to the [AetherLLVM](https://github.com/AetherLLVM) project.
+
+ICPP will now focus exclusively on `C++ scripting`.
+
 ## Comparison
 |*|Source|Executable|Package|Memory Resident|Remote|
 |-|-|-|-|-|-|

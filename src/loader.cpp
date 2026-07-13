@@ -435,7 +435,7 @@ const void *ModuleLoader::loadLibrary(std::string_view path) {
         }
       }
       if (!addr) {
-        log_print(Runtime, "Failed to load library: {}", path.data());
+        log_print(Develop, "Failed to load library: {}", path.data());
         return nullptr;
       }
     }
