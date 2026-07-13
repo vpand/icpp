@@ -1814,6 +1814,7 @@ bool ExecEngine::execLoop(uint64_t pc) {
   }
   // instruction information related to pc
   auto inst = robject_->insnInfo(pc);
+  auto defstep = RunConfig::inst()->stepSize();
   // cache the last jump destination, it can make loop running faster
   // because of avoiding dynamic searching for the target instruction
   auto lastjpc = pc;
@@ -1830,7 +1831,7 @@ bool ExecEngine::execLoop(uint64_t pc) {
     }
 
     // interpret relocation, branch, call, jump and syscall etc.
-    auto step = RunConfig::inst()->stepSize();
+    auto step = defstep;
     if (interpret(inst, pc, step)) {
       continue;
     }
