@@ -5,6 +5,8 @@ Improvements:
  * icpp: register the input library to icpp's runtime automatically when the script calls load_library;
  * icpp: resolve import symbol lazily to support the script load its dependent libraries dynamically;
  * icpp: allow io cache object resolve imports lazily.
+ * icpp: move all the boost wrapper APIs to icppex header to improve portability;
+ * icpp: generate io cache file anyway even in temporary directory;
 
 ## v0.1.3
 Bug fixes:

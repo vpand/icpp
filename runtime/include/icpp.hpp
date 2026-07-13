@@ -29,9 +29,6 @@
 // __APPLE__ on macOS/iOS
 #endif
 
-// for boost definitions
-#include <boost/algorithm/string.hpp>
-
 // for standard c++ definitions
 #if __ICPP_CROSS__
 // c style
@@ -66,14 +63,6 @@ template <typename... Args>
 static inline int prints(std::format_string<Args...> format, Args &&...args) {
   auto str = std::vformat(format.get(), std::make_format_args(args...));
   return std::printf("%s", str.data());
-}
-
-// split a string with a string delimiter
-static inline strings split(const std::string &str,
-                            const std::string &delimiter) {
-  strings parts;
-  boost::iter_split(parts, str, boost::first_finder(delimiter));
-  return parts;
 }
 
 /*

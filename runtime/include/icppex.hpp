@@ -9,6 +9,7 @@
 #pragma once
 
 // for boost definitions
+#include <boost/algorithm/string.hpp>
 #include <boost/process.hpp>
 
 // for standard c++ definitions
@@ -28,6 +29,14 @@ namespace icppex {
 // string list type
 using strings = std::vector<std::string>;
 using string_views = std::vector<std::string_view>;
+
+// split a string with a string delimiter
+static inline strings split(const std::string &str,
+                            const std::string &delimiter) {
+  strings parts;
+  boost::iter_split(parts, str, boost::first_finder(delimiter));
+  return parts;
+}
 
 // execute program with args and process the output lines with procline callback
 static inline void

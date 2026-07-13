@@ -1992,9 +1992,7 @@ int ExecEngine::run(bool lib) {
   if (execCtor()) {
     if (!lib && execMain()) {
       if (!robject_->isCache() && !RunConfig::repl && !RunConfig::gadget &&
-          !exitcode_ &&
-          !robject_->cachePath().starts_with(
-              fs::temp_directory_path().string())) {
+          !exitcode_) {
         // generate the interpretable object file if everthing went well
         robject_->generateCache();
       }
