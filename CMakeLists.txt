@@ -28,6 +28,17 @@ if(WIN32)
   set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD")
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
   set(protobuf_MSVC_STATIC_RUNTIME OFF)
+  #
+  # To make the clang-cl of Visual Studio 2026 happy...
+  #
+  # suppress clang's incompatible-pointer-types diagnostic when it is treated as an error
+  add_compile_options(
+    $<$<COMPILE_LANGUAGE:CXX>:-Wno-incompatible-pointer-types>
+    $<$<COMPILE_LANGUAGE:CXX>:-Wno-error=incompatible-pointer-types>
+    $<$<COMPILE_LANGUAGE:C>:-Wno-incompatible-pointer-types>
+    $<$<COMPILE_LANGUAGE:C>:-Wno-error=incompatible-pointer-types>)
+  # /EHsc enables standard synchronous C++ exception handling
+  add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/EHsc>)
 else()
   set(PYTHON python3)
   set(BUILDCMD make)
