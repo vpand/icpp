@@ -74,7 +74,7 @@ struct TextSection {
   uint32_t index;
   uint32_t size;
   uint32_t frva; // file buffer rva from .text[0]
-  uint64_t vrva; // vm address rva like in VMPStudio and IDA
+  uint64_t vrva; // vm address rva like in VMPStudio and IDA, now's like Cutter
   uint64_t vm;   // runtime address in iobject instance
   // instruction informations
   std::vector<InsnInfo> iinfs;

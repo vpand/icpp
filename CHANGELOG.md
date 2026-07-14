@@ -1,5 +1,6 @@
 ## v0.1.4
 Bug fixes:
+ * icpp: fix the emulation of the x64 sse2 instructions with relocation;
 
 Improvements:
  * icpp: register the input library to icpp's runtime automatically when the script calls load_library;

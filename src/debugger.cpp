@@ -102,6 +102,14 @@ std::string Debugger::Thread::registers() {
         col++;
       }
     }
+    if (*strs.rbegin() != '\n')
+      strs += "\n";
+    for (auto i = 0; i < 8; i++) {
+      uint64_t xmm[2];
+      uc_reg_read(uc, UC_X86_REG_XMM0 + i, reinterpret_cast<void *>(&xmm[0]));
+      strs += std::format("xmm{} = [{:016x}, {:016x}]\n", i, xmm[0], xmm[1]);
+    }
+    strs.pop_back();
   } else {
     return "?";
   }

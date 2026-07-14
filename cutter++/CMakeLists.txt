@@ -1,4 +1,4 @@
-message(STATUS "Configuring visual icpp for Cutter++...")
+message(STATUS "Configuring visual icpp for cutter++...")
 project(visualicpp-cutter++)
 
 # c++

@@ -263,6 +263,7 @@ private:
   template <typename TSRC, typename TDES>
   void interpretZeroExtendRegMem(const InsnInfo *&inst, uint64_t &pc);
   void interpretCondMovRegMem(const InsnInfo *&inst, uint64_t &pc);
+  void interpretSSERegMem(const InsnInfo *&inst, uint64_t &pc);
 
   /*
   register startup initializer
@@ -1281,6 +1282,33 @@ void ExecEngine::interpretCondMovRegMem(const InsnInfo *&inst, uint64_t &pc) {
   }
 }
 
+void ExecEngine::interpretSSERegMem(const InsnInfo *&inst, uint64_t &pc) {
+  // SSE_INSN xmmN, [TARGET]
+  auto target = reinterpret_cast<uint64_t>(robject_->relocTarget(inst->reloc));
+  alignas(0x10) char dyncode[64]; // xmm buffer needs to be 0x10 alignment
+  char *ptr = &dyncode[0];
+  // copy the buffer of target with the size of xmm register
+  std::memcpy(ptr, (void *)target, 0x10);
+  ptr += 0x10;
+  // copy opcode
+  char *opcode = ptr;
+  *(uint32_t *)ptr = *(uint32_t *)pc;
+  ptr += 4;
+  // target = pc + oplen + offset
+  // offset = target - (pc + oplen)
+  // set the new offset
+  *(int32_t *)ptr = -0x10 - inst->len;
+  // execute the new instruction
+  auto err = uc_emu_start(uc_, reinterpret_cast<uint64_t>(opcode), -1, 0, 1);
+  if (err != UC_ERR_OK) {
+    log_print(Runtime,
+              "Fatal error occurred when simuating cmov instruction: {}.",
+              uc_strerror(err));
+    dump();
+    std::exit(-1);
+  }
+}
+
 static bool can_emulate(const InsnInfo *inst) {
   switch (inst->type) {
   case INSN_CONDJUMP:
@@ -1325,7 +1353,13 @@ static bool can_emulate(const InsnInfo *inst) {
   case INSN_X64_TEST64MR:
     return false;
   case INSN_HARDWARE:
+#if ARCH_X64
+    // if this inst contains relocation, it must be in the SSE or above
+    // instruction set, we should relocate it later.
+    return inst->rflag == 0;
+#else
     return true;
+#endif
   default:
     // if the current instruction contains relocation or non-code
     // segment register, then it must be interpreted otherwise can
@@ -1770,6 +1804,13 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       interpretCondMovRegMem(inst, pc);
       break;
     default:
+#if ARCH_X64
+      if (inst->rflag && inst->len == 8 && *(uint32_t *)(pc + 4) == 0) {
+        // relocate and emulate the SSE instruction
+        interpretSSERegMem(inst, pc);
+        break;
+      }
+#endif
       log_print(Runtime, "Unknown instruction type {} at rva {:x}.", inst->type,
                 robject_->vm2vrva(pc));
       abort();
