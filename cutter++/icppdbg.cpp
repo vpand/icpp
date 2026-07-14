@@ -4,14 +4,17 @@
    See LICENSE in root directory for more details
 */
 
-#include "../src/debugger.h"
-#include "../src/icpp.h"
-#include "vspdef.hpp"
 #include <boost/asio.hpp>
 #include <filesystem>
 #include <format>
 #include <icppdbg.pb.h>
 #include <thread>
+
+#include "../src/debugger.h"
+#include "../src/icpp.h"
+#include "../src/platform.h"
+
+#define __VI_API__ __ICPP_EXPORT__
 
 namespace asio = boost::asio;
 namespace ip = asio::ip;
@@ -20,24 +23,39 @@ namespace fs = std::filesystem;
 
 static const char *vi_version = "0.1.0";
 
-// vmpstudio api instance
-static const vsp_api_t *api = nullptr;
+#ifdef ON_WINDOWS
+static const char *api_cpp_print = "?print@cpp@@YAXPEBDZZ";
+static const char *api_cpp_goto = "?cpu_goto@cpp@@YAX_K@Z";
+#else
+#error Set Cutter+'s API symbol list...
+#endif
+
+namespace icpp {
+log_writer_func_t log_writer = nullptr;
+}
 
 template <typename... Args>
 static inline void log_print(std::format_string<Args...> format,
                              Args &&...args) {
+  static icpp::log_writer_func_t println = nullptr;
+  if (!println) {
+    // find Cutter++'s cpp::print API
+    println =
+        (icpp::log_writer_func_t)icpp::find_symbol(nullptr, api_cpp_print);
+    if (!println)
+      println = (icpp::log_writer_func_t)&std::puts;
+  }
+
   auto msg = std::vformat(format.get(), std::make_format_args(args...));
-  api->log(msg.data());
+  println(msg.data());
 }
 
-struct vsp_icpp_t {
-  vsp_icpp_t();
-  ~vsp_icpp_t();
+struct remote_icpp_t {
+  remote_icpp_t();
+  ~remote_icpp_t();
 
-  // can be invoked from VMPStudio/Plugin menu
   void run();
 
-  // can be invoked from python
   bool start();
   void stop();
 
@@ -56,18 +74,35 @@ private:
   ip::tcp::socket socket_;
 
   uint64_t curtid_ = 0; // current debuggee thread tid
-} vivsp;                // visual icpp vmpstudio plugin instance
+} RI;
 
-vsp_icpp_t::vsp_icpp_t() : socket_(ios_) {
+remote_icpp_t::remote_icpp_t() : socket_(ios_) {
   version = std::format("v{} with icpp.{}.{}.{}.{}", vi_version,
                         icpp::version_major, icpp::version_minor,
                         icpp::version_patch, icpp::version_extra);
+  log_print(R"(
+Visual ICPP Debugger {}                          
+vi::connect(): connect to icpp debug server.
+vi::disconnect(): disconnect to icpp debug server.
+vi::pause(): pause current thread.
+vi::run(): run current thread from pausing.
+vi::stop(): stop running current script file.
+vi::setbp(addr): set breakpoint at the specified address.
+vi::delbp(addr): delete breakpoint at the specified address.
+vi::readmem(addr, bytes, format): read memory at the specified address,
+    the format can be: '1ix', '4ix', '8ix', 'str'.
+vi::stepi(): step into 1 instruction.
+vi::stepo(): step over 1 instruction.
+vi::lsthread(): list all the running threads.
+vi::lsobject(): list all the running objects.
+vi::switchthread(tid): switch the debuggee thread.)",
+            version);
 }
 
-vsp_icpp_t::~vsp_icpp_t() {}
+remote_icpp_t::~remote_icpp_t() {}
 
-void vsp_icpp_t::process(const icpp::ProtocolHdr *hdr, const void *body,
-                         size_t size) {
+void remote_icpp_t::process(const icpp::ProtocolHdr *hdr, const void *body,
+                            size_t size) {
   switch (hdr->cmd) {
   case icppdbg::LISTTHREAD: {
     icppdbg::RespondListThread resp;
@@ -91,16 +126,8 @@ void vsp_icpp_t::process(const icpp::ProtocolHdr *hdr, const void *body,
       log_print("Failed to parse buffer cmd.{} size.{}\n", hdr->cmd, size);
       break;
     }
-    vsp_module_t module;
-    api->getModule(&module);
-    fs::path curmod(module.path);
     for (auto o : resp.objects()) {
-      char prefix = ' ';
-      fs::path omod(o.path());
-      if (curmod.filename() == omod.filename()) {
-        prefix = '*';
-      }
-      log_print("{}Object base={:x} path={}\n", prefix, o.base(), o.path());
+      log_print("Object base={:x} path={}\n", o.base(), o.path());
     }
     break;
   }
@@ -111,14 +138,25 @@ void vsp_icpp_t::process(const icpp::ProtocolHdr *hdr, const void *body,
     }
     if (hdr->cmd == icppdbg::PAUSE) {
       std::string_view pcflag{"pc  = "};
-      if (api->curArchType() == vsp_arch_x64)
-        pcflag = "rip = ";
       auto pos = resp.result().find(pcflag);
+      if (pos == std::string::npos) {
+        pcflag = "rip = ";
+        pos = resp.result().find(pcflag);
+      }
       if (pos != std::string::npos) {
         auto pc = std::stoull(
             std::string(resp.result().data() + pos + pcflag.length(), 16),
             nullptr, 16);
-        api->gotoCPUAddress(pc);
+
+        typedef void (*cpu_goto_t)(uint64_t);
+        static cpu_goto_t cpu_goto = nullptr;
+        if (!cpu_goto) {
+          cpu_goto = (cpu_goto_t)icpp::find_symbol(nullptr, api_cpp_goto);
+          if (!cpu_goto)
+            log_print("Failed to locate {}", api_cpp_goto);
+        }
+
+        cpu_goto(pc);
       }
     }
     log_print("{}\n", resp.result());
@@ -127,7 +165,7 @@ void vsp_icpp_t::process(const icpp::ProtocolHdr *hdr, const void *body,
   }
 }
 
-void vsp_icpp_t::recv() {
+void remote_icpp_t::recv() {
   while (startup_) {
     boost::system::error_code error;
     // protocol header
@@ -159,12 +197,7 @@ void vsp_icpp_t::recv() {
   }
 }
 
-bool vsp_icpp_t::start() {
-  if (!api->hasModule()) {
-    log_print("There's no loaded module in VMPStudio, because of this, "
-              "starting visual icpp doesn't make any sense.\n");
-    return false;
-  }
+bool remote_icpp_t::start() {
   try {
     socket_.connect(ip::tcp::endpoint(ip::address::from_string("127.0.0.1"),
                                       icpp::dbgport));
@@ -175,26 +208,23 @@ bool vsp_icpp_t::start() {
   }
 }
 
-__VSP_API__ void vi_stop();
+namespace vi {
+__VI_API__ void stop();
+}
 
-void vsp_icpp_t::stop() {
+void remote_icpp_t::stop() {
   curtid_ = 0;
 
   try {
     if (socket_.is_open()) {
-      vi_stop(); // notify icpp stop
+      vi::stop(); // notify icpp stop
       socket_.close();
     }
   } catch (boost::system::system_error &e) {
   }
 }
 
-void vsp_icpp_t::send(icppdbg::CommandID id, const std::string &cmd) {
-  if (!startup_) {
-    log_print("You haven't start this plugin from VMPStudio/Plugin menu.\n");
-    return;
-  }
-
+void remote_icpp_t::send(icppdbg::CommandID id, const std::string &cmd) {
   std::string buff;
   buff.resize(sizeof(icpp::ProtocolHdr) + cmd.length());
   auto hdr = reinterpret_cast<icpp::ProtocolHdr *>(buff.data());
@@ -209,7 +239,7 @@ void vsp_icpp_t::send(icppdbg::CommandID id, const std::string &cmd) {
   }
 }
 
-void vsp_icpp_t::run() {
+void remote_icpp_t::run() {
   if (startup_) {
     stop();
     startup_ = false;
@@ -217,124 +247,98 @@ void vsp_icpp_t::run() {
   } else {
     startup_ = start();
     if (startup_) {
-      std::thread(&vsp_icpp_t::recv, this).detach();
+      std::thread(&remote_icpp_t::recv, this).detach();
       log_print("Started running visual icpp.\n");
     }
   }
 }
 
-__VSP_API__ void vi_connect() {
-  if (vivsp.running()) {
+namespace vi {
+
+__VI_API__ void connect() {
+  if (RI.running()) {
     return;
   }
-  vivsp.run();
+  RI.run();
 }
 
-__VSP_API__ void vi_disconnect() {
-  if (!vivsp.running()) {
+__VI_API__ void disconnect() {
+  if (!RI.running()) {
     return;
   }
-  vivsp.run();
+  RI.run();
 }
 
-__VSP_API__ void vi_pause() {
+__VI_API__ void pause() {
   icppdbg::Command cmd;
   cmd.set_cmd(icppdbg::PAUSE);
-  vivsp.send(cmd.cmd(), cmd.SerializeAsString());
+  RI.send(cmd.cmd(), cmd.SerializeAsString());
 }
 
-__VSP_API__ void vi_run() {
+__VI_API__ void run() {
   icppdbg::Command cmd;
   cmd.set_cmd(icppdbg::RUN);
-  vivsp.send(cmd.cmd(), cmd.SerializeAsString());
+  RI.send(cmd.cmd(), cmd.SerializeAsString());
 }
 
-__VSP_API__ void vi_stop() {
+__VI_API__ void stop() {
   icppdbg::Command cmd;
   cmd.set_cmd(icppdbg::STOP);
-  vivsp.send(cmd.cmd(), cmd.SerializeAsString());
+  RI.send(cmd.cmd(), cmd.SerializeAsString());
 }
 
-__VSP_API__ void vi_setbp(uint64_t addr) {
+__VI_API__ void setbp(uint64_t addr) {
   icppdbg::CommandBreakpoint cmd;
   cmd.mutable_cmd()->set_cmd(icppdbg::SETBKPT);
   cmd.set_addr(addr);
-  vivsp.send(cmd.mutable_cmd()->cmd(), cmd.SerializeAsString());
+  RI.send(cmd.mutable_cmd()->cmd(), cmd.SerializeAsString());
 }
 
-__VSP_API__ void vi_delbp(uint64_t addr) {
+__VI_API__ void delbp(uint64_t addr) {
   icppdbg::CommandBreakpoint cmd;
   cmd.mutable_cmd()->set_cmd(icppdbg::DELBKPT);
   cmd.set_addr(addr);
-  vivsp.send(cmd.mutable_cmd()->cmd(), cmd.SerializeAsString());
+  RI.send(cmd.mutable_cmd()->cmd(), cmd.SerializeAsString());
 }
 
-__VSP_API__ void vi_readmem(uint64_t addr, uint32_t bytes, const char *format) {
+__VI_API__ void readmem(uint64_t addr, uint32_t bytes, const char *format) {
   icppdbg::CommandReadMemory cmd;
   cmd.mutable_cmd()->set_cmd(icppdbg::READMEM);
   cmd.set_addr(addr);
   cmd.set_size(bytes);
   cmd.set_format(format);
-  vivsp.send(cmd.mutable_cmd()->cmd(), cmd.SerializeAsString());
+  RI.send(cmd.mutable_cmd()->cmd(), cmd.SerializeAsString());
 }
 
-__VSP_API__ void vi_stepi() {
+__VI_API__ void stepi() {
   icppdbg::Command cmd;
   cmd.set_cmd(icppdbg::STEPI);
-  vivsp.send(cmd.cmd(), cmd.SerializeAsString());
+  RI.send(cmd.cmd(), cmd.SerializeAsString());
 }
 
-__VSP_API__ void vi_stepo() {
+__VI_API__ void stepo() {
   icppdbg::Command cmd;
   cmd.set_cmd(icppdbg::STEPO);
-  vivsp.send(cmd.cmd(), cmd.SerializeAsString());
+  RI.send(cmd.cmd(), cmd.SerializeAsString());
 }
 
-__VSP_API__ void vi_lsthread() {
+__VI_API__ void lsthread() {
   icppdbg::Command cmd;
   cmd.set_cmd(icppdbg::LISTTHREAD);
-  vivsp.send(cmd.cmd(), cmd.SerializeAsString());
+  RI.send(cmd.cmd(), cmd.SerializeAsString());
 }
 
-__VSP_API__ void vi_lsobject() {
+__VI_API__ void lsobject() {
   icppdbg::Command cmd;
   cmd.set_cmd(icppdbg::LISTOBJECT);
-  vivsp.send(cmd.cmd(), cmd.SerializeAsString());
+  RI.send(cmd.cmd(), cmd.SerializeAsString());
 }
 
-__VSP_API__ void vi_switchthread(uint64_t tid) {
+__VI_API__ void switchthread(uint64_t tid) {
   icppdbg::CommandSwitchThread cmd;
   cmd.mutable_cmd()->set_cmd(icppdbg::SWITCHTHREAD);
   cmd.set_tid(tid);
-  vivsp.send(cmd.mutable_cmd()->cmd(), cmd.SerializeAsString());
+  RI.send(cmd.mutable_cmd()->cmd(), cmd.SerializeAsString());
 }
 
-vsp_error_t vsp_main(vsp_payload_t *vsp) {
-  switch (vsp->event) {
-  case vsp_event_loaded: {
-    api = vsp->api; // save api to a global instance
-    return vsp_err_ok;
-  }
-  case vsp_event_version: {
-    vsp->result.str_const = __VSP_VERSION__;
-    return vsp_err_ok;
-  }
-  case vsp_event_menuname: {
-    vsp->result.str_const = "Visual ICPP";
-    return vsp_err_ok;
-  }
-  case vsp_event_main_menu: {
-    vivsp.run();
-    return vsp_err_ok;
-  }
-  case vsp_event_vspinfo: {
-    vsp->result.ptr.p0 = (void *)vivsp.version.data();
-    vsp->result.ptr.p1 =
-        (void *)"Visual ICPP for icpp execute engine developer.";
-    return vsp_err_ok;
-  }
-  default:
-    break;
-  }
-  return vsp_err_unimpl;
-}
+} // namespace vi

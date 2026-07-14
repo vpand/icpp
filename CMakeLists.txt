@@ -181,5 +181,6 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY ${CMAKE_MSVC_RUNTIME_LIBRARY_backup})
 # icpp projects
 #
 
+add_subdirectory(cutter++)
 add_subdirectory(vmpstudio)
 add_subdirectory(src)

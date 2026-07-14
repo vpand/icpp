@@ -1,6 +1,6 @@
 /* Interpreting C++, executing the source and executable like a script */
 /* By Jesse Liu < neoliu2011@gmail.com >, 2024 */
-/* Copyright (c) vpand.com 2024. This file is released under LGPL2.
+/* Copyright (c) vpand.com 2024. This file is released under GPLv2.
    See LICENSE in root directory for more details
 */
 
@@ -1987,6 +1987,10 @@ int ExecEngine::run(bool lib) {
   if (!llvm_signal_installed) {
     llvm_signal_installed = true;
     llvm::sys::AddSignalHandler(llvm_signal_handler, nullptr);
+  }
+
+  if (RunConfig::inst()->hasDebugger()) {
+    log_print(Runtime, "Debugging object {}", robject_->path());
   }
 
   if (execCtor()) {
