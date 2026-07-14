@@ -1739,9 +1739,14 @@ void Object::parseSections() {
     ~vmrva_updator() {
       if (!commit)
         return;
+      // VMPStudio and IDA treat empty section size as 0x8
+      // whereas Cutter is 0x10
+      // Since we've moved to Cutter as our LightIDA IDE, so...
+      //
       // update the next section's vm rva
-      vmrva += size ? size : 8;
-      vmrva = alignToPowerOf2(vmrva, 8);
+      constexpr uint64_t empty_section_size = 0x10;
+      vmrva += size ? size : empty_section_size;
+      vmrva = alignToPowerOf2(vmrva, empty_section_size);
     }
 
     uint64_t size;
@@ -1749,7 +1754,7 @@ void Object::parseSections() {
     bool commit = true;
   };
   // it doesn't make any sense for runtime but useful to locate the section in
-  // VMPStudio or IDA when debugging the following code
+  // VMPStudio, IDA, or Cutter when debugging the following code
   uint32_t vmrva = 0;
   for (auto &s : ofile_->sections()) {
     vmrva_updator update{s.getSize(), vmrva};

@@ -541,7 +541,7 @@ void Debugger::procListObject() {
   std::lock_guard lock(mutex_);
   foreach_client({
     send_respose(s, icppdbg::LISTOBJECT,
-                 std::format("Un-implement list thread currently."));
+                 std::format("Un-implement list object currently."));
   });
 }
 

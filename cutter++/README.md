@@ -11,7 +11,8 @@ We use it to load and drive `icppdbg` library to inspect the execution of ICPP s
 Before loading the icppdbg library, we should run ICPP in debugger mode:
 ```json
 {
-  "vm_debugger": true
+  "vm_debugger": true,
+  "uc_step_size": 1
 }
 ```
 Then we can load the running object of the C++ script into Cutter and type (change the ICPP_ROOT to your real path):
