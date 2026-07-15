@@ -533,12 +533,22 @@ void Object::dump() {
 const void *Object::relocTarget(size_t i) {
   auto cur = &irelocs_[i];
   if (cur->type == CSymbolRef::ST_Data) {
+    if (reinterpret_cast<const void *>(abort) == *(const void **)cur->target) {
+      if (!cur->name.ends_with("abort")) {
+        // try to locate the symbol again, it'll succeed if user has registered
+        // the dependent library
+        auto target = Loader::locateSymbol(cur->name, false);
+        if (target) {
+          *(const void **)cur->target = target;
+        }
+      }
+    }
     // herein we must return a pointer-to-pointer if this relocation type
     // references a data type target, usually, it's a kind of GOT pointer
     // reference instruction, e.g.: arm64-adrp reg, gotptr(address the
     // pointer-to-pointer got pointer), arm64-ldr reg, [reg](load the real
     // global variable pointer), for more implementation details, see
-    // object-llvm.cpp::convert_reloc_type for more information
+    // object-llvm.cpp::reloc_symtype for more information
     return belong(reinterpret_cast<uint64_t>(cur->target)) ? &cur->target
                                                            : cur->target;
   }
@@ -547,8 +557,9 @@ const void *Object::relocTarget(size_t i) {
       // try to locate the symbol again, it'll succeed if user has registered
       // the dependent library
       auto target = Loader::locateSymbol(cur->name, false);
-      if (target != cur->target)
+      if (target) {
         cur->target = target;
+      }
     }
   }
   return cur->target;

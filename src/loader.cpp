@@ -394,6 +394,7 @@ private:
 
   // cached symbols
   std::unordered_map<std::string, const void *> syms_;
+  std::unordered_map<std::string, const void *> aborts_;
 
   // native modules
   std::map<uint64_t, std::string> mods_;
@@ -562,7 +563,12 @@ const void *ModuleLoader::lookup(std::string_view name, bool data) {
       // lazy abort, if the script registers the library before accessing this
       // symbol, it'll be fine
       target = reinterpret_cast<const void *>(&abort);
-      return target; // no need to cache abort
+      if (!data)
+        return target; // no need to cache abort
+      // simulate a pointer-to-pointer value so that data relocation can work
+      // properly
+      auto newit = aborts_.insert({name.data(), target}).first;
+      return &newit->second;
     }
   }
 
