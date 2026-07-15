@@ -1,6 +1,7 @@
 ## v0.2.0
 Bug fixes:
  * icpp: fix the emulation of the x64 sse2 instructions with relocation;
+ * icpp: fix the crash when getting the absolute source path;
  * icpp: do not interpret memory-operation x64 instructions if there's no relocation binding to;
 
 Improvements:

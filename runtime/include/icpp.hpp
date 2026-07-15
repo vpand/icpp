@@ -115,7 +115,8 @@ void *resolve_symbol(std::string_view name, void *handle = nullptr);
 // iterate all the native modules in this running process,
 // return true to break iterating
 void iterate_modules(
-    const std::function<bool(uint64_t base, std::string_view path)> &callback);
+    const std::function<bool(std::uint64_t base, std::string_view path)>
+        &callback);
 
 // check whether the given path ends with a c++ source file extension or not
 bool is_cpp_source(std::string_view path);

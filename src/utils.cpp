@@ -96,9 +96,9 @@ fs::path must_exist(const fs::path &path) {
 }
 
 fs::path convert_file(std::string_view path, std::string_view newext) {
-  auto srcpath = fs::path(path);
-  auto cachepath = fs::absolute(srcpath.parent_path()) /
-                   (srcpath.stem().string() + newext.data());
+  auto srcpath = fs::absolute(path);
+  auto cachepath =
+      srcpath.parent_path() / (srcpath.stem().string() + newext.data());
   if (!fs::exists(cachepath)) {
     // there's no cache file
     return "";
