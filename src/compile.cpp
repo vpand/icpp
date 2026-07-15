@@ -301,15 +301,23 @@ fs::path compile_source_icpp(const char *argv0, std::string_view path,
       ccargs.push_back(args[i]);
 
 #ifdef ON_WINDOWS
-    proc::ipstream pipe_stream;
-    proc::child compiler(std::string(argv0), ccargs,
-                         proc::std_out > pipe_stream,
-                         proc::std_err > pipe_stream, proc::windows::hide);
-    compiler.wait();
-    if (compiler.exit_code() != 0) {
-      std::string output((std::istreambuf_iterator<char>(pipe_stream)),
-                         std::istreambuf_iterator<char>());
-      log_print(Runtime, "{}", output);
+    if (::GetConsoleWindow() == nullptr) {
+      // Within a GUI process, like Cutter++ in Cutter, redirect clang's
+      // potential outputs to GUI
+      proc::ipstream pipe_stream;
+      proc::child compiler(std::string(argv0), ccargs,
+                           proc::std_out > pipe_stream,
+                           proc::std_err > pipe_stream, proc::windows::hide);
+      compiler.wait();
+      if (compiler.exit_code() != 0) {
+        std::string output((std::istreambuf_iterator<char>(pipe_stream)),
+                           std::istreambuf_iterator<char>());
+        log_print(Runtime, "{}", output);
+      }
+    } else {
+      // Console
+      proc::child compiler(std::string(argv0), ccargs);
+      compiler.wait();
     }
 #else
     proc::child compiler(std::string(argv0), ccargs);
