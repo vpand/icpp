@@ -1,8 +1,9 @@
-## v0.1.4
+## v0.2.0
 Bug fixes:
  * icpp: fix the emulation of the x64 sse2 instructions with relocation;
 
 Improvements:
+ * icpp: update unicode to the latest version;
  * icpp: register the input library to icpp's runtime automatically when the script calls load_library;
  * icpp: resolve import symbol lazily to support the script load its dependent libraries dynamically;
  * icpp: allow io cache object resolve imports lazily.

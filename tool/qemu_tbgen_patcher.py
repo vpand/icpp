@@ -22,7 +22,7 @@ def patch_qemu_tbgen(argv):
    
     with open(srcf, 'w') as fp:
         fp.write(icpp_patch_magic)
-        fp.write(srcbuf.replace('uc->tcg_exec_init(uc, 0)', 
+        fp.write(srcbuf.replace('uc->tcg_exec_init(uc, uc->tcg_buffer_size)', 
                                 'uc->tcg_exec_init(uc, %s * 1024 * 1024)' % (argv[2])))
         print("The file %s has been patched." % (srcf))
         sys.exit(0)
