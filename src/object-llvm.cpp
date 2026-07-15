@@ -1489,6 +1489,11 @@ void Object::decodeInsns(TextSection &text) {
         // record its relocation index
         iinfo.rflag = 1;
         iinfo.reloc = rit - irelocs_.begin();
+      } else if (INSN_X64_MOV8RM <= iinfo.type &&
+                 iinfo.type <= INSN_X64_CMOV64RM) {
+        // change as hardware insn type if there's no relocation for this
+        // instruction
+        iinfo.type = INSN_HARDWARE;
       }
       // encode none-hardware instruction if there's no one
       if (iinfo.type != INSN_HARDWARE &&
