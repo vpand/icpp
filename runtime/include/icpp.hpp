@@ -138,7 +138,7 @@ std::string_view rand_string(char *buff, int length);
 Wrapper Utilities
 */
 
-template <size_t N> std::string rand_string() {
+template <std::size_t N> std::string rand_string() {
   char buff[N];
   auto tstr = rand_string(buff, N);
   return {tstr.data(), N};
