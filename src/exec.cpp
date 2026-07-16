@@ -2068,7 +2068,7 @@ int exec_main(std::string_view path, const std::vector<std::string> &deps,
   // construct arguments passed to the main entry of the input file
   std::vector<const char *> iargs;
   iargs.push_back(srcpath.data());
-  for (int i = 0; i < iargc - 1; i++)
+  for (int i = 0; i < iargc; i++)
     iargs.push_back(iargv[i]);
   return ExecEngine(object, deps, iargs).run();
 }

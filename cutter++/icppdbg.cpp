@@ -27,7 +27,8 @@ static const char *vi_version = "0.1.0";
 static const char *api_cpp_print = "?print@cpp@@YAXPEBDZZ";
 static const char *api_cpp_goto = "?cpu_goto@cpp@@YAX_K@Z";
 #else
-#error Set Cutter+'s API symbol list...
+static const char *api_cpp_print = "_ZN3cpp5printEPKcz";
+static const char *api_cpp_goto = "_ZN3cpp8cpu_gotoEy";
 #endif
 
 namespace icpp {
