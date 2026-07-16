@@ -99,9 +99,10 @@ int exec_source(const char *argv0, std::string_view path, int argc,
 }
 
 int exec_repl(const char *argv0) {
-  std::cout << std::format("ICPP {}. Copyright (c) vpand.com.\nRunning C++ "
-                           "anywhere like a script.\n",
-                           version_string());
+  std::cout << std::format(
+      "ICPP {}. Copyright (c) 2024 vpand.com.\nRunning C++ "
+      "anywhere like a script.\n",
+      version_string());
   RunConfig::repl = true;
   RunConfig::inst(argv0, "");
   return icpp::repl_entry(

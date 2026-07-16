@@ -90,8 +90,8 @@ static void print_help() {
       << std::endl
       << "Run the repl shell, e.g:" << std::endl
       << "  icpp" << std::endl
-      << "    ICPP v0.0.1.255. Copyright (c) vpand.com.\n"
-         "    Run a C++ in anywhere like a script.\n"
+      << "    ICPP v0.0.1.255. Copyright (c) 2024 vpand.com.\n"
+         "    Runing C++ anywhere like a script.\n"
          "    >>> #include <stdio.h>\n"
          "    >>> puts(\"Hello world.\")\n"
       << std::endl

@@ -41,6 +41,13 @@ bool is_cpp_source(std::string_view path) {
 }
 
 bool is_interpretable(std::string_view path) {
+  // Ongoing support for binary file execution within `ICPP` has moved to the
+  // https://github.com/AetherLLVM project.
+  //
+  // ICPP will now focus exclusively on C++ scripting.
+#if 1
+  return is_cpp_source(path);
+#else
   if (fs::path(path).has_extension()) {
     for (auto ext : std::array{".exe", ".EXE", ".so", ".dylib"}) {
       if (path.ends_with(ext))
@@ -49,6 +56,7 @@ bool is_interpretable(std::string_view path) {
     return is_cpp_source(path);
   }
   return fs::is_regular_file(path); // unix like exe file ?
+#endif
 }
 
 int rand_value() {

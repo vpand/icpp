@@ -387,7 +387,7 @@ static void exec_code(std::string_view icpp, std::string_view code) {
 
 static int exec_repl(std::string_view icpp) {
   std::cout << std::format(
-      "ICPP {} IOPAD mode. Copyright (c) vpand.com.\nRunning C++ in "
+      "ICPP {} IOPAD mode. Copyright (c) 2024 vpand.com.\nRunning C++ "
       "anywhere like a script.\n",
       icpp::version_string());
   return icpp::repl_entry(
