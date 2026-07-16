@@ -128,9 +128,15 @@ get_dependencies(const std::vector<const char *> &libdirs,
 }
 
 extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
-  auto program = argv[0];
+  std::string_view program = argv[0];
+  if (program.ends_with("clang" EXE_EXTENSION) ||
+      program.ends_with("clang++" EXE_EXTENSION)) {
+    // redirect to clang compiler if the current process is a clang/clang++
+    return iclang_main(argc, (const char **)argv);
+  }
+
   llvm::InitLLVM X(argc, argv);
-  argv[0] = program; // restore the program path modified by llvm
+  argv[0] = (char *)program.data(); // restore the program path modified by llvm
   icpp::precompile_module(argv[0]);
 
   // optimization level passed to clang

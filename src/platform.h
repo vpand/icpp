@@ -66,6 +66,8 @@ constexpr const std::string_view env_home = "userprofile";
 constexpr const std::string_view path_split = ";";
 constexpr const std::string_view ndk_build = "ndk-build.bat";
 
+#define EXE_EXTENSION ".exe"
+
 static inline uint64_t mem_page_size_impl() {
   SYSTEM_INFO info;
   ::GetSystemInfo(&info);
@@ -120,6 +122,8 @@ const thread_create_t thread_create = pthread_create;
 constexpr const std::string_view env_home = "HOME";
 constexpr const std::string_view path_split = ":";
 constexpr const std::string_view ndk_build = "ndk-build";
+
+#define EXE_EXTENSION ""
 
 #if __APPLE__
 #define mem_page_size ((int)PAGE_SIZE)

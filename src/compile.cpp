@@ -27,9 +27,6 @@
 
 namespace proc = boost::process;
 
-// clang compiler main entry
-int iclang_main(int argc, const char **argv);
-
 // implement in llvm-project/clang/tools/driver/driver.cpp
 extern std::string GetExecutablePath(const char *argv0, bool CanonicalPrefixes);
 

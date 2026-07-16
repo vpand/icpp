@@ -8,6 +8,8 @@
 This is a C++ script to release the built icpp files, it'll create an
 icpp release package in the following layout, icpp-vx.x.x-os-arch:
 ---bin
+------clang
+------clang++
 ------icpp
 ------icpp.so/dll/dylib
 ------icpp-gadget.so/dll/dylib
@@ -202,6 +204,8 @@ int main(int argc, char **argv) {
       "imod" EXEEXT,        "iopad" EXEEXT,
       "icpp-gadget" LIBEXT, "icpp-server" EXEEXT,
   };
+  pack_file(srcroot / names[0], bin, true, "clang" EXEEXT);
+  pack_file(srcroot / names[0], bin, true, "clang++" EXEEXT);
   for (auto &name : names)
     pack_file(srcroot / name, bin, true);
 

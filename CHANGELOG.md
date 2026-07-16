@@ -11,6 +11,7 @@ Improvements:
  * icpp: allow io cache object resolve imports lazily.
  * icpp: move all the boost wrapper APIs to icppex header to improve portability;
  * icpp: generate io cache file anyway even in temporary directory;
+ * icpp: export the original clang compiler function if it's a clang/clang++;
  * idbg: add the support of icppdbg library for Cutter++;
 
 ## v0.1.3
