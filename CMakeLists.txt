@@ -164,10 +164,12 @@ if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "ARM64" OR
    ${CMAKE_SYSTEM_PROCESSOR} STREQUAL "arm64" OR
    ${CMAKE_SYSTEM_PROCESSOR} STREQUAL "AARCH64" OR
    ${CMAKE_SYSTEM_PROCESSOR} STREQUAL "aarch64")
+  # the newer version of unicorn has fixed it, so no need to patch anymore
+  #
   # patch to use the right tb_ret_addr
-  execute_process(COMMAND ${PYTHON}
-    ${CMAKE_CURRENT_SOURCE_DIR}/tool/qemu_tbret_patcher.py
-    ${CMAKE_CURRENT_SOURCE_DIR}/third/unicorn/qemu/tcg/aarch64/tcg-target.inc.c)
+  # execute_process(COMMAND ${PYTHON}
+  #  ${CMAKE_CURRENT_SOURCE_DIR}/tool/qemu_tbret_patcher.py
+  #  ${CMAKE_CURRENT_SOURCE_DIR}/third/unicorn/qemu/tcg/aarch64/tcg-target.inc.c)
 endif()
 # icpp only supports x86_64/arm64 currently
 set(UNICORN_ARCH "x86;aarch64" CACHE STRING "" FORCE)
