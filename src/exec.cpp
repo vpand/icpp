@@ -426,8 +426,8 @@ extern "C" void exec_engine_main(StubContext *ctx, ContextICPP *regs) {
   regs->rsp = regs->rax;
 #endif
 
-  // use the instance in thread local storage
-  exec_engine->run(ctx->vmfunc, regs);
+  auto engine = (ExecEngine *)ctx->engine;
+  engine->run(ctx->vmfunc, regs);
 }
 
 void ExecEngine::init() {

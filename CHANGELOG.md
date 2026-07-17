@@ -3,6 +3,7 @@ Bug fixes:
  * icpp: fix the emulation of the x64 sse2 instructions with relocation;
  * icpp: fix the crash when getting the absolute source path;
  * icpp: fix missing the last value of script's argv;
+ * icpp: fix the execution engine mismatch when executing embedded sub script;
  * icpp: do not interpret memory-operation x64 instructions if there's no relocation binding to;
 
 Improvements:

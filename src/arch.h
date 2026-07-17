@@ -287,7 +287,7 @@ uint64_t host_insn_rets();
 
 /*
 when vm registers a callback function to host, we must dynamically
-generate a executable host callback wrapper to it, otherwise program
+generate an executable host callback wrapper for it, otherwise program
 will crash as all of the iobject pages are not executable, e.g.:
 
 original:
@@ -301,7 +301,7 @@ wrapped:
     ...
 */
 struct StubContext {
-  const void *context;
+  const void *engine; // which vmfunc belongs to
   uint64_t vmfunc;
 };
 const void *host_callback_stub(const StubContext &ctx, char *&codeptr);
