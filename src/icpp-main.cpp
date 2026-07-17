@@ -240,6 +240,8 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
   // skip argv[0] and argv[idoubledash, ...]
   auto args = std::span{
       argv + 1, static_cast<std::size_t>(idoubledash - (implicity ? 0 : 1))};
+  // argv[idoubledash + 1, ...]
+  auto script_argc = argc - (idoubledash + 1);
 
   // parse the command line arguments for icpp options
   for (auto p : args) {
@@ -280,7 +282,7 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
       // execute as an installed module
       auto omain = icpp::RuntimeLib::inst().libFull(sp) / "main.o";
       if (fs::exists(omain)) {
-        exitcode = icpp::exec_main(omain.string(), deps, "", argc - idoubledash,
+        exitcode = icpp::exec_main(omain.string(), deps, "", script_argc,
                                    &argv[idoubledash + 1], validcache);
       } else {
         // execute as a dynamic code snippet
@@ -301,9 +303,8 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
         auto opath = icpp::compile_source_icpp(argv[0], sp, icpp_option_opt,
                                                icpp_option_incdirs);
         if (fs::exists(opath)) {
-          exitcode =
-              icpp::exec_main(opath.string(), deps, sp, argc - idoubledash,
-                              &argv[idoubledash + 1], validcache);
+          exitcode = icpp::exec_main(opath.string(), deps, sp, script_argc,
+                                     &argv[idoubledash + 1], validcache);
           if (opath.extension() != icpp::iobj_ext) {
             tmpofs.push_back(opath);
             // done
@@ -326,7 +327,7 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
       }
     } else {
       // pass sp as an executable file
-      exitcode = icpp::exec_main(sp, deps, sp, argc - idoubledash,
+      exitcode = icpp::exec_main(sp, deps, sp, script_argc,
                                  &argv[idoubledash + 1], validcache);
     }
   }
