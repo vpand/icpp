@@ -42,7 +42,7 @@ bool is_cpp_source(std::string_view path) {
 
 bool is_interpretable(std::string_view path) {
   // Ongoing support for binary file execution within `ICPP` has moved to the
-  // https://github.com/AetherLLVM project.
+  // https://github.com/AetherVM project.
   //
   // ICPP will now focus exclusively on C++ scripting.
 #if 1
