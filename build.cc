@@ -5,13 +5,14 @@
 */
 
 /*
-ICPP has upgraded LLVM from 19.0.0git to 22.1.8 since v0.3.0, please use this
-script to build icpp if you want to build your own version.
+ICPP has upgraded LLVM from 19.0.0git to 22.1.8 since v0.3.0, use this
+script to cmake icpp if you want to build your own version.
 
 The reason is:
 To reduce the package size of ICPP + AetherVM, we have to build LLVM as a shared
 library, but too many linking issues occur after we turn LLVM_BUILD_LLVM_DYLIB
-on for LLVM cmake, so this script will patch build.ninja to fix those errors.
+on for LLVM cmake, so this script will patch some llvm headers to fix those
+errors.
 
 The initial icpp package can be downloaded for your local system at:
   https://github.com/vpand/icpp/releases
@@ -47,6 +48,7 @@ bool patch_string(std::string_view infile, std::string_view patch_flag,
     std::ofstream outf(temp_file,
                        std::ios::out | std::ios::binary | std::ios::trunc);
     outf.write(patch_flag.data(), patch_flag.size());
+    outf.write("\n", 1);
     outf.write(content.data(), content.size());
   }
 
@@ -88,27 +90,51 @@ int main(int argc, const char *argv[]) {
     std::system(
         std::format("cmake --build {} -- protoc", build_root.string()).c_str());
   }
-  // stage 2: patch targets which depend on libLLVM
-  constexpr std::string_view patch_flag = "# ICPP Patched File";
+  // stage 2.1: patch targets which depend on libLLVM
+  constexpr std::string_view ninja_patch_flag = "# ICPP Patched File";
   std::string firstline;
   std::getline(std::ifstream(ninja_build, std::ios::binary), firstline);
-  if (!firstline.starts_with(patch_flag)) {
+  if (!firstline.starts_with(ninja_patch_flag)) {
     std::println("Patching {}...", ninja_build.string());
 #define llvm_libpre "third/llvm-project/llvm/lib/"
+#define support_objpre llvm_libpre "Support/CMakeFiles/LLVMSupport.dir/"
 #if __APPLE__
-    patch_string(ninja_build.string(), patch_flag,
-                 ".a  " llvm_libpre "libLLVM.dylib",
-                 ".a " llvm_libpre "libLLVM.dylib " llvm_libpre
-                 "libLLVMSupport.a " llvm_libpre "libLLVMDTLTO.a " llvm_libpre
-                 "libLLVMObject.a " llvm_libpre "libLLVMAnalysis.a " llvm_libpre
-                 "libLLVMPasses.a " llvm_libpre "libLLVMCore.a " llvm_libpre
-                 "libLLVMRemarks.a ");
+    patch_string(
+        ninja_build.string(), ninja_patch_flag,
+        ".a  " llvm_libpre "libLLVM.dylib",
+        ".a " llvm_libpre "libLLVM.dylib " llvm_libpre
+        "libLLVMDTLTO.a " support_objpre "SmallVector.cpp.o " support_objpre
+        "Z3Solver.cpp.o " support_objpre
+        "VirtualOutputBackends.cpp.o " support_objpre
+        "VirtualOutputBackend.cpp.o " support_objpre
+        "VirtualOutputError.cpp.o " support_objpre
+        "VirtualOutputFile.cpp.o " support_objpre "raw_ostream_proxy.cpp.o ");
 #elif __LINUX__
 #error unimplemented for linux
 #else
 #error unimplemented for windows
 #endif
   }
+#if __WIN__ || __APPLE__ // linux has the right definition of LLVM_TEMPLATE_ABI
+  // stage 2.2: patch Compiler.h to correct LLVM_TEMPLATE_ABI
+  constexpr std::string_view hdr_patch_flag = "// ICPP Patched File";
+  firstline.clear();
+  auto hdr_compiler =
+      (proj_root / "third/llvm-project/llvm/include/llvm/Support/Compiler.h")
+          .string();
+  std::getline(std::ifstream(hdr_compiler, std::ios::binary), firstline);
+  if (!firstline.starts_with(hdr_patch_flag)) {
+    std::println("Patching {}...", hdr_compiler);
+    patch_string(hdr_compiler, hdr_patch_flag, "#if !defined(LLVM_ABI)",
+                 R"(
+#if defined(LLVM_EXPORTS)
+#undef LLVM_TEMPLATE_ABI
+#define LLVM_TEMPLATE_ABI LLVM_ABI
+#endif                
+
+#if !defined(LLVM_ABI))");
+  }
+#endif
   // stage 3: build with cmake and ninja
   std::system(
       std::format("cmake --build {} -- lld clang clang-repl clang-format icpp "
@@ -118,7 +144,7 @@ int main(int argc, const char *argv[]) {
   // stage 4: recheck whether build.ninja updated
   firstline.clear();
   std::getline(std::ifstream(ninja_build, std::ios::binary), firstline);
-  if (firstline.starts_with(patch_flag))
+  if (firstline.starts_with(ninja_patch_flag))
     return 0;
   std::println("Rebuilding as build.ninja updated...");
   return main(argc, argv);

@@ -139,12 +139,27 @@ add_library(icpp SHARED
 #  GENERATE_DRIVER
 )
 
+set(LLVMSupport_DIR ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/lib/Support/CMakeFiles/LLVMSupport.dir)
 if(MSVC)
   set(DISABLE_RTTI /GR-)
-  set(LLVM_MINIMAL_LIBS PRIVATE LLVM-22 LLVMObject)
+  set(LLVM_MINIMAL_LIBS PRIVATE LLVM-22 
+    ${LLVMSupport_DIR}/SmallVector.cpp.obj
+    ${LLVMSupport_DIR}/Z3Solver.cpp.obj
+    ${LLVMSupport_DIR}/VirtualOutputBackends.cpp.obj
+    ${LLVMSupport_DIR}/VirtualOutputBackend.cpp.obj
+    ${LLVMSupport_DIR}/VirtualOutputError.cpp.obj
+    ${LLVMSupport_DIR}/VirtualOutputFile.cpp.obj
+    ${LLVMSupport_DIR}/raw_ostream_proxy.cpp.obj)
 else()
   set(DISABLE_RTTI -fno-rtti)
-  set(LLVM_MINIMAL_LIBS PRIVATE LLVM LLVMObject)
+  set(LLVM_MINIMAL_LIBS PRIVATE LLVM 
+    ${LLVMSupport_DIR}/SmallVector.cpp.o
+    ${LLVMSupport_DIR}/Z3Solver.cpp.o
+    ${LLVMSupport_DIR}/VirtualOutputBackends.cpp.o
+    ${LLVMSupport_DIR}/VirtualOutputBackend.cpp.o
+    ${LLVMSupport_DIR}/VirtualOutputError.cpp.o
+    ${LLVMSupport_DIR}/VirtualOutputFile.cpp.o
+    ${LLVMSupport_DIR}/raw_ostream_proxy.cpp.o)
   set_target_properties(icpp PROPERTIES VERSION ${CLANG_EXECUTABLE_VERSION})
 endif()
 set_source_files_properties(${ICPP_LLVM_SOURCES} PROPERTIES COMPILE_FLAGS ${DISABLE_RTTI})
