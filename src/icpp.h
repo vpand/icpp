@@ -12,11 +12,11 @@
 namespace icpp {
 
 // icpp version.
-constexpr const std::uint8_t version_major = 0;
-constexpr const std::uint8_t version_minor = 2;
-constexpr const std::uint8_t version_patch = 0;
+constexpr std::uint8_t version_major = 0;
+constexpr std::uint8_t version_minor = 3;
+constexpr std::uint8_t version_patch = 0;
 // release candidate version, 255 means the official release.
-constexpr const std::uint8_t version_extra = 255;
+constexpr std::uint8_t version_extra = 255;
 
 constexpr int gadget_port = 24703; // defined on the date 2024.7.3
 

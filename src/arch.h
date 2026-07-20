@@ -224,7 +224,7 @@ typedef ContextX64 ContextICPP;
 
 // the stack switch size between the host and interpreter vm
 #define switch_stack_strsize "0x1000"
-constexpr const int switch_stack_size = 0x1000;
+constexpr int switch_stack_size = 0x1000;
 
 ArchType host_arch();
 SystemType host_system();

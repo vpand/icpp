@@ -62,9 +62,9 @@ typedef HANDLE (*thread_create_t)(LPSECURITY_ATTRIBUTES lpThreadAttributes,
 typedef DWORD thread_return_t;
 
 const thread_create_t thread_create = CreateThread;
-constexpr const std::string_view env_home = "userprofile";
-constexpr const std::string_view path_split = ";";
-constexpr const std::string_view ndk_build = "ndk-build.bat";
+constexpr std::string_view env_home = "userprofile";
+constexpr std::string_view path_split = ";";
+constexpr std::string_view ndk_build = "ndk-build.bat";
 
 #define EXE_EXTENSION ".exe"
 
@@ -119,9 +119,9 @@ typedef int (*thread_create_t)(pthread_t *thread, const pthread_attr_t *attr,
 typedef void *thread_return_t;
 
 const thread_create_t thread_create = pthread_create;
-constexpr const std::string_view env_home = "HOME";
-constexpr const std::string_view path_split = ":";
-constexpr const std::string_view ndk_build = "ndk-build";
+constexpr std::string_view env_home = "HOME";
+constexpr std::string_view path_split = ":";
+constexpr std::string_view ndk_build = "ndk-build";
 
 #define EXE_EXTENSION ""
 
@@ -182,9 +182,9 @@ void __stack_chk_fail(void);
 
 #endif // end of ON_WINDOWS
 
-constexpr const std::string_view cppm_init_func = "ZGIW3std";
+constexpr std::string_view cppm_init_func = "ZGIW3std";
 
-const void *load_library(std::string_view path);
+const void *load_native(std::string_view path);
 
 // the symbol name must be in raw format which is exactly parsed from
 // the object file

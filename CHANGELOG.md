@@ -1,3 +1,12 @@
+## v0.3.0
+Bug fixes:
+ * 
+
+Improvements:
+ * icpp: update LLVM to the version 22.1.8 as be synchronized with AetherVM;
+ * icpp: add a clang-repl-based incremental compilation backend;
+ * icpp: add more macros and apis in icpp.hpp interface;
+
 ## v0.2.0
 Bug fixes:
  * icpp: fix the emulation of the x64 sse2 instructions with relocation;

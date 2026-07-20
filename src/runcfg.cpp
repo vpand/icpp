@@ -16,9 +16,9 @@ namespace json = boost::json;
 
 namespace icpp {
 
-constexpr const std::string_view key_debugger = "vm_debugger";
-constexpr const std::string_view key_stacksize = "vm_stack_size";
-constexpr const std::string_view key_stepsize = "uc_step_size";
+constexpr std::string_view key_debugger = "vm_debugger";
+constexpr std::string_view key_stacksize = "vm_stack_size";
+constexpr std::string_view key_stepsize = "uc_step_size";
 
 bool RunConfig::repl = false;
 bool RunConfig::gadget = false;

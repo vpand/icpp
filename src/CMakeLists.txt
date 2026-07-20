@@ -1,4 +1,4 @@
-message(STATUS "Configuring C++ interpreter icpp...")
+message(STATUS "Configuring ICPP [Interpreting C++]...")
 
 # c++
 set(CMAKE_CXX_STANDARD 20)
@@ -15,30 +15,32 @@ if(MSVC)
 elseif(APPLE)
   add_link_options(-Wl,-rpath,@executable_path 
                    -Wl,-rpath,@executable_path/../lib
-                   -Wl,-rpath,@executable_path/../lib/boost)
+                   -Wl,-rpath,@executable_path/../lib/boost
+                   -Wl,-rpath,@loader_path
+                   -Wl,-rpath,@loader_path/../lib)
 else()
   add_link_options(@${CMAKE_CURRENT_SOURCE_DIR}/ld.txt)
 endif()
 
-set(LLVM_LINK_COMPONENTS
-  ${LLVM_TARGETS_TO_BUILD}
-  Analysis
-  CodeGen
-  Core
-  IPO
-  AggressiveInstCombine
-  InstCombine
-  Instrumentation
-  MC
-  MCParser
-  ObjCARCOpts
-  Option
-  ScalarOpts
-  Support
-  TargetParser
-  TransformUtils
-  Vectorize
-)
+#set(LLVM_LINK_COMPONENTS
+#  ${LLVM_TARGETS_TO_BUILD}
+#  Analysis
+#  CodeGen
+#  Core
+#  IPO
+#  AggressiveInstCombine
+#  InstCombine
+#  Instrumentation
+#  MC
+#  MCParser
+#  ObjCARCOpts
+#  Option
+#  ScalarOpts
+#  Support
+#  TargetParser
+#  TransformUtils
+#  Vectorize
+#)
 
 # Support plugins.
 if(CLANG_PLUGIN_SUPPORT)
@@ -49,9 +51,9 @@ set(THIRD_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../third)
 set(LLVM_OBJDUMP_ROOT ${THIRD_ROOT}/llvm-project/llvm/tools/llvm-objdump)
 set(CLANG_DRIVER_ROOT ${THIRD_ROOT}/llvm-project/clang/tools/driver)
 
-execute_process(COMMAND ${CMAKE_COMMAND} -E copy
-  ${CMAKE_CURRENT_SOURCE_DIR}/icpp-driver.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/icpp-driver.cpp)
+#execute_process(COMMAND ${CMAKE_COMMAND} -E copy
+#  ${CMAKE_CURRENT_SOURCE_DIR}/icpp-driver.cpp
+#  ${CMAKE_CURRENT_BINARY_DIR}/icpp-driver.cpp)
 
 # generate the protocol sources with protoc
 add_custom_command(
@@ -87,11 +89,11 @@ file(GLOB ICPP_LLVM_SOURCES
   object.cpp
   object-coff.cpp
   object-llvm.cpp
-  ${LLVM_OBJDUMP_ROOT}/SourcePrinter.cpp
-  ${CLANG_DRIVER_ROOT}/driver.cpp
-  ${CLANG_DRIVER_ROOT}/cc1_main.cpp
-  ${CLANG_DRIVER_ROOT}/cc1as_main.cpp
-  ${CLANG_DRIVER_ROOT}/cc1gen_reproducer_main.cpp
+#  ${LLVM_OBJDUMP_ROOT}/SourcePrinter.cpp
+#  ${CLANG_DRIVER_ROOT}/driver.cpp
+#  ${CLANG_DRIVER_ROOT}/cc1_main.cpp
+#  ${CLANG_DRIVER_ROOT}/cc1as_main.cpp
+#  ${CLANG_DRIVER_ROOT}/cc1gen_reproducer_main.cpp
 )
 
 file(GLOB ICPP_CORE_SOURCES
@@ -111,7 +113,8 @@ file(GLOB ICPP_CORE_SOURCES
 
 # we have patched this macro to build an icpp shared library, 
 # because of this, you can deploy icpp to any kind of runtime environment.
-add_clang_tool(icpp
+#add_clang_tool(icpp
+add_library(icpp SHARED
   ${ICPP_CORE_SOURCES}
   icpp-driver.cpp
   icpp-main.cpp
@@ -125,33 +128,39 @@ add_clang_tool(icpp
   # llvm relational files
   ${ICPP_LLVM_SOURCES}
   
-  PARTIAL_SOURCES_INTENDED
+#  PARTIAL_SOURCES_INTENDED
 
-  DEPENDS
-  intrinsics_gen
-  # These generated headers are included transitively.
-  ARMTargetParserTableGen
-  AArch64TargetParserTableGen
-  ${support_plugins}
-  GENERATE_DRIVER
+#  DEPENDS
+#  intrinsics_gen
+#  # These generated headers are included transitively.
+#  ARMTargetParserTableGen
+#  AArch64TargetParserTableGen
+#  ${support_plugins}
+#  GENERATE_DRIVER
 )
 
 if(MSVC)
   set(DISABLE_RTTI /GR-)
+  set(LLVM_MINIMAL_LIBS PRIVATE LLVM-22 LLVMObject)
 else()
   set(DISABLE_RTTI -fno-rtti)
+  set(LLVM_MINIMAL_LIBS PRIVATE LLVM LLVMObject)
   set_target_properties(icpp PROPERTIES VERSION ${CLANG_EXECUTABLE_VERSION})
 endif()
 set_source_files_properties(${ICPP_LLVM_SOURCES} PROPERTIES COMPILE_FLAGS ${DISABLE_RTTI})
 
-clang_target_link_libraries(icpp
+#clang_target_link_libraries(icpp
+target_link_libraries(icpp
   PRIVATE
-  clangBasic
-  clangCodeGen
-  clangDriver
-  clangFrontend
-  clangFrontendTool
-  clangSerialization
+# from v0.3.0, icpp has moved clang components into backend incremental compilation service
+#
+#  clangBasic
+#  clangCodeGen
+#  clangDriver
+#  clangFrontend
+#  clangFrontendTool
+#  clangSerialization
+  ${LLVM_MINIMAL_LIBS}
 
   unicorn
   boost_algorithm
@@ -163,7 +172,7 @@ clang_target_link_libraries(icpp
   brotlienc
   brotlidec
 )
-  
+
 target_include_directories(icpp PRIVATE
   ${THIRD_ROOT}/llvm-project/llvm/include
   ${THIRD_ROOT}/llvm-project/clang/include
@@ -174,30 +183,24 @@ target_include_directories(icpp PRIVATE
   ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/tools/clang/include
   ${CMAKE_CURRENT_BINARY_DIR}
   ${THIRD_ROOT}/brotli/c/include
-
-  boost_algorithm
-  boost_asio
-  boost_beast
-  boost_json
-  libprotobuf
 )
 
 if(APPLE)
-  target_link_options(icpp PRIVATE 
-    -Wl,-exported_symbol,_icpp_main 
-    -Wl,-exported_symbol,_icpp_exec
-    -Wl,-exported_symbol,_icpp_reglib
-    -Wl,-exported_symbol,_icpp_logger)
+# from v0.3.0, we export ICPP APIs through ICPP_API
+#
+#  target_link_options(icpp PRIVATE 
+#    -Wl,-exported_symbol,_icpp_main 
+#    -Wl,-exported_symbol,_icpp_exec
+#    -Wl,-exported_symbol,_icpp_reglib
+#    -Wl,-exported_symbol,_icpp_logger)
 elseif(LINUX)
-  target_link_options(icpp PRIVATE -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/ld-icpp.version)
+#  target_link_options(icpp PRIVATE -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/ld-icpp.version)
 elseif(WIN32)
   target_link_directories(icpp PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 endif()
-
+target_compile_definitions(icpp PRIVATE ICPP_DLLIMPL=1)
 # remove lib prefix on macOS/Linux
 set_target_properties(icpp PROPERTIES PREFIX "")
-
-add_dependencies(icpp clang-resource-headers)
 
 # icpp command line
 add_executable(icppcli icpp-cli.cpp)
@@ -221,17 +224,18 @@ endif()
 # icpp module manager command line
 message(STATUS "Configuring icpp module manager imod...")
 
-set(LLVM_LINK_COMPONENTS
-  Object
-  Option
-  Support
-)
+#set(LLVM_LINK_COMPONENTS
+#  Object
+#  Option
+#  Support
+#)
 file(GLOB IMOD_LLVM_SOURCES
   icpp-mod.cpp
   object.cpp
   object-coff.cpp
 )
-add_llvm_tool(imod 
+#add_llvm_tool(imod 
+add_executable(imod 
   ${IMOD_LLVM_SOURCES}
   arch.cpp
   icpp.cpp
@@ -246,7 +250,7 @@ add_llvm_tool(imod
   icppmod.pb.cc
   icppiobj.pb.cc
 
-  PARTIAL_SOURCES_INTENDED
+#  PARTIAL_SOURCES_INTENDED
 )
 set_source_files_properties(${IMOD_LLVM_SOURCES} PROPERTIES COMPILE_FLAGS ${DISABLE_RTTI})
 target_include_directories(imod PRIVATE
@@ -254,13 +258,10 @@ target_include_directories(imod PRIVATE
   ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include
   ${THIRD_ROOT}/brotli/c/include
   ${CMAKE_CURRENT_BINARY_DIR}
-  boost_asio
-  boost_beast
-  boost_json
-  boost_process
-  libprotobuf
 )
 target_link_libraries(imod PRIVATE
+  ${LLVM_MINIMAL_LIBS}
+
   boost_asio
   boost_beast
   boost_json
@@ -274,14 +275,15 @@ target_link_libraries(imod PRIVATE
 # icpp gadget to execute it through nework
 message(STATUS "Configuring interpretable object launch pad iopad...")
 
-set(LLVM_LINK_COMPONENTS
-  Option
-  Support
-)
+#set(LLVM_LINK_COMPONENTS
+#  Option
+#  Support
+#)
 file(GLOB IOPAD_LLVM_SOURCES
   icpp-pad.cpp
 )
-add_llvm_tool(iopad 
+#add_llvm_tool(iopad 
+add_executable(iopad 
   ${IOPAD_LLVM_SOURCES}
   arch.cpp
   icpp.cpp
@@ -291,19 +293,17 @@ add_llvm_tool(iopad
   utils.cpp
   icpppad.pb.cc
 
-  PARTIAL_SOURCES_INTENDED
+#  PARTIAL_SOURCES_INTENDED
 )
 set_source_files_properties(${IOPAD_LLVM_SOURCES} PROPERTIES COMPILE_FLAGS ${DISABLE_RTTI})
 target_include_directories(iopad PRIVATE 
   ${THIRD_ROOT}/llvm-project/llvm/include
   ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include
   ${CMAKE_CURRENT_BINARY_DIR}
-  boost_asio
-  boost_json
-  boost_process
-  libprotobuf
 )
 target_link_libraries(iopad PRIVATE 
+  ${LLVM_MINIMAL_LIBS}
+
   boost_asio
   boost_json
   boost_process
@@ -313,20 +313,21 @@ target_link_libraries(iopad PRIVATE
 # icpp gadget, running as a daemon in somewhere to receive the
 # interpretable object to execute
 message(STATUS "Configuring memory resident interpreter icpp-gadget...")
-set(LLVM_LINK_COMPONENTS
-  ${LLVM_TARGETS_TO_BUILD}
-  Object
-  Option
-  Support
-)
+#set(LLVM_LINK_COMPONENTS
+#  ${LLVM_TARGETS_TO_BUILD}
+#  Object
+#  Option
+#  Support
+#)
 file(GLOB IGADGET_LLVM_SOURCES
   icpp-gadget.cpp
   object.cpp
   object-coff.cpp
   object-llvm.cpp
-  ${LLVM_OBJDUMP_ROOT}/SourcePrinter.cpp
+#  ${LLVM_OBJDUMP_ROOT}/SourcePrinter.cpp
 )
-add_llvm_library(icpp-gadget SHARED 
+#add_llvm_library(icpp-gadget SHARED 
+add_library(icpp-gadget SHARED 
   ${ICPP_CORE_SOURCES}
 
   # llvm relational files
@@ -338,9 +339,10 @@ add_llvm_library(icpp-gadget SHARED
   isymhash.pb.cc
   icpppad.pb.cc
 
-  PARTIAL_SOURCES_INTENDED
+#  PARTIAL_SOURCES_INTENDED
 )
 set_target_properties(icpp-gadget PROPERTIES PREFIX "")
+target_compile_definitions(icpp-gadget PRIVATE ICPP_DLLIMPL=1)
 set_source_files_properties(${IGADGET_LLVM_SOURCES} PROPERTIES COMPILE_FLAGS ${DISABLE_RTTI})
 target_include_directories(icpp-gadget PRIVATE 
   ${THIRD_ROOT}/llvm-project/llvm/include
@@ -348,12 +350,10 @@ target_include_directories(icpp-gadget PRIVATE
   ${THIRD_ROOT}/unicorn/include
   ${CMAKE_CURRENT_BINARY_DIR}
   ${LLVM_OBJDUMP_ROOT}
-  boost_asio
-  boost_beast
-  boost_json
-  libprotobuf
 )
 target_link_libraries(icpp-gadget PRIVATE 
+  ${LLVM_MINIMAL_LIBS}
+
   boost_asio
   boost_beast
   boost_json

@@ -12,7 +12,7 @@
 namespace imod {
 
 // icpp module magic value
-constexpr const uint32_t module_magic = 'ppci';
+constexpr uint32_t module_magic = 'ppci';
 
 /*
 The json configuration format to create an icpp module package:

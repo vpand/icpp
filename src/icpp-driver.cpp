@@ -7,8 +7,6 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/LLVMDriver.h"
 
-int clang_main(int argc, char **, const llvm::ToolContext &);
-
 int iclang_main(int argc, const char **argv) {
-  return clang_main(argc, const_cast<char **>(argv), {argv[0], nullptr, false});
+  return -1;
 }

@@ -87,14 +87,19 @@ add_subdirectory(third/boost)
 
 # clang
 message(STATUS "Configuring llvm/clang...")
+
+# since v0.3.0, icpp has switched to use a separate clang backend to do the heavy 
+# compilation works in an incremental mode, so no need to patch anymore
+#
 # patch llvm cmake to link icpp as a shared library, 
 # it'll be much easier to integrate icpp to other native plugin system because of this
-execute_process(COMMAND ${PYTHON}
-  ${CMAKE_CURRENT_SOURCE_DIR}/tool/llvm_cmake_patcher.py
-  ${CMAKE_CURRENT_SOURCE_DIR}/third/llvm-project/llvm/cmake/modules/AddLLVM.cmake)
-# icpp only supports x86_64/arm64 currently
-set(LLVM_TARGETS_TO_BUILD "X86;AArch64" CACHE STRING "" FORCE)
-set(LLVM_ENABLE_PROJECTS "clang" CACHE STRING "" FORCE)
+#execute_process(COMMAND ${PYTHON}
+#  ${CMAKE_CURRENT_SOURCE_DIR}/tool/llvm_cmake_patcher.py
+#  ${CMAKE_CURRENT_SOURCE_DIR}/third/llvm-project/llvm/cmake/modules/AddLLVM.cmake)
+
+# icpp only supports x86_64/arm64 currently, but we're building LLVM which can be reused by AetherVM
+set(LLVM_TARGETS_TO_BUILD "X86;ARM;AArch64;Sparc" CACHE STRING "" FORCE)
+set(LLVM_ENABLE_PROJECTS "clang;clang-tools-extra;lld" CACHE STRING "" FORCE)
 set(LLVM_INCLUDE_UTILS OFF CACHE BOOL "" FORCE)
 set(LLVM_INCLUDE_RUNTIMES OFF CACHE BOOL "" FORCE)
 set(LLVM_INCLUDE_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -102,7 +107,12 @@ set(LLVM_INCLUDE_TESTS OFF CACHE BOOL "" FORCE)
 set(LLVM_INCLUDE_BENCHMARKS OFF CACHE BOOL "" FORCE)
 set(LLVM_ENABLE_ZLIB "OFF" CACHE STRING "" FORCE)
 set(LLVM_ENABLE_ZSTD "OFF" CACHE STRING "" FORCE)
+# build llvm as a shared library to massively reduce the final package size
+set(LLVM_BUILD_LLVM_DYLIB ON CACHE BOOL "" FORCE)
+set(LLVM_LINK_LLVM_DYLIB ON CACHE BOOL "" FORCE)
+set(CLANG_LINK_CLANG_DYLIB OFF CACHE BOOL "" FORCE)
 if(MSVC)
+  set(LLVM_BUILD_LLVM_DYLIB_VIS ON CACHE BOOL "" FORCE)
   # fix the Support/BLAKE3/CMakeLists.txt assembler error when building llvm with ninja
   set(LLVM_DISABLE_ASSEMBLY_FILES TRUE)
   
@@ -184,5 +194,6 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY ${CMAKE_MSVC_RUNTIME_LIBRARY_backup})
 #
 
 add_subdirectory(cutter++)
-add_subdirectory(vmpstudio)
+# use cutter++ instead, vmpstudio has halted
+#add_subdirectory(vmpstudio)
 add_subdirectory(src)

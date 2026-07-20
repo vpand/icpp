@@ -30,9 +30,9 @@ using CObjectFile = llvm::object::ObjectFile;
 
 namespace icpp {
 
-constexpr const uint32_t iobj_magic{'jboi'};
-constexpr const std::string_view iobj_ext{".io"};
-constexpr const std::string_view obj_ext{".o"};
+constexpr uint32_t iobj_magic{'jboi'};
+constexpr std::string_view iobj_ext{".io"};
+constexpr std::string_view obj_ext{".o"};
 
 struct InsnInfo {
   uint32_t type : 8,    // instruction type
@@ -142,7 +142,6 @@ public:
   std::vector<const void *> ctorEntries();
   std::vector<const void *> dtorEntries();
   const InsnInfo *insnInfo(uint64_t vm);
-  std::string sourceInfo(uint64_t vm);
   std::string generateCache();
   void dump();
 

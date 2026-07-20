@@ -135,7 +135,6 @@ bool objdump::UnwindInfo = true;
 std::string objdump::Prefix;
 uint32_t objdump::PrefixStrip;
 int objdump::DbgIndent = 52;
-DebugVarsFormat objdump::DbgVariables = DVDisabled;
 
 void objdump::reportWarning(const Twine &Message, StringRef File) {
   // Output order between errs() and outs() matters especially for archive
@@ -339,40 +338,12 @@ void ObjectDisassembler::init(CObjectFile *Obj, std::string_view Triple) {
     MCPU = Obj->tryGetCPUName().value_or("").str();
 
   DT = new DisassemblerTarget(TheTarget, *Obj, TripleName, MCPU, Features);
-  SP = new SourcePrinter(Obj, TheTarget->getName());
+  SP = nullptr; // new SourcePrinter(Obj, TheTarget->getName());
 }
 
 ObjectDisassembler::~ObjectDisassembler() {
   delete DT;
-  delete SP;
-}
-
-std::string Object::sourceInfo(uint64_t vm) {
-  uint64_t sindex = -1;
-  uint64_t saddr = 0;
-  for (auto &s : ofile_->sections()) {
-    auto expContent = s.getContents();
-    if (!expContent)
-      continue;
-    auto start = reinterpret_cast<uint64_t>(expContent->data());
-    if (start <= vm && vm < start + s.getSize()) {
-      sindex = s.getIndex();
-      saddr = s.getAddress() + vm - start;
-      break;
-    }
-  }
-  if (sindex == -1)
-    return "";
-
-  std::string Output;
-  raw_string_ostream OS(Output);
-  formatted_raw_ostream FOS(OS);
-  auto SectAddr = object::SectionedAddress{saddr, sindex};
-  LiveVariablePrinter LVP(*odiser_.DT->Context->getRegisterInfo(),
-                          *odiser_.DT->SubtargetInfo);
-  odiser_.SP->printSourceLine(FOS, SectAddr, ofile_->getFileName(), LVP);
-  FOS.flush();
-  return Output;
+  // delete SP;
 }
 
 #if ICPP_HAS_AARCH64

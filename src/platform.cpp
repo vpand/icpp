@@ -82,7 +82,7 @@ static constexpr const char *symbol_name(std::string_view raw) {
 
 namespace icpp {
 
-const void *load_library(std::string_view path) {
+const void *load_native(std::string_view path) {
 #if ON_WINDOWS
   auto handle = reinterpret_cast<void *>(::LoadLibraryExA(
       path.data(), nullptr,

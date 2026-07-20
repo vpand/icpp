@@ -79,7 +79,7 @@ Within an IDE frontend should be easier and more convenient to use the icpp pack
 ```sh
 vpand@MacBook-Pro icpp % icpp -h              
 OVERVIEW: ICPP v0.1.0.255 based on Unicorn and Clang/LLVM.
-  Interpreting C++, running C++ in anywhere like a script.
+  Interpreting C++, running C++ anywhere like a script.
 
 USAGE: icpp [options] exec0 [exec1 ...] [[--] args]
 OPTIONS:
@@ -137,7 +137,7 @@ Hello, world.
 ### IMOD
 ```sh
 vpand@MacBook-Pro icpp % imod -h                
-OVERVIEW: ICPP, Interpreting C++, running C++ in anywhere like a script.
+OVERVIEW: ICPP, Interpreting C++, running C++ anywhere like a script.
   IObject Module Manager Tool built with ICPP v0.1.0.255
 USAGE: imod [options]
 
@@ -154,7 +154,7 @@ ICPP Module Manager Options:
 ### IOPAD
 ```sh
 vpand@MacBook-Pro icpp % iopad -h
-OVERVIEW: ICPP, Interpreting C++, running C++ in anywhere like a script.
+OVERVIEW: ICPP, Interpreting C++, running C++ anywhere like a script.
   IObject Launch Pad Tool built with ICPP v0.1.0.255
 USAGE: iopad [options]
 
@@ -172,7 +172,7 @@ ICPP Interpretable Object Launch Pad Options:
 ### ICPP-SERVER
 ```sh
 vpand@MacBook-Pro icpp % icpp-server -h
-OVERVIEW: ICPP, Interpreting C++, running C++ in anywhere like a script.
+OVERVIEW: ICPP, Interpreting C++, running C++ anywhere like a script.
   Remote icpp-gadget server built with ICPP v0.1.0.255
 USAGE: icpp-server [options]
 
@@ -260,7 +260,7 @@ cmake --build clangconf -- clang runtimes -j8
 # use the c++ runtime we built before for llvm's middle codegen tools
 export LD_LIBRARY_PATH="$PWD/llvm/lib/$(uname -m)-unknown-linux-gnu"
 # use the clang that we built before as our compiler
-cmake -DCMAKE_C_COMPILER=$PWD/llvm/bin/clang -DCMAKE_CXX_COMPILER=$PWD/llvm/bin/clang -DCMAKE_BUILD_TYPE=Release ..
+cmake -G Ninja -DCMAKE_C_COMPILER=$PWD/llvm/bin/clang -DCMAKE_CXX_COMPILER=$PWD/llvm/bin/clang -DCMAKE_BUILD_TYPE=Release ..
 ```
 
 #### macOS ARM64/X86_64
@@ -270,10 +270,19 @@ cmake -DCMAKE_C_COMPILER=$PWD/llvm/bin/clang -DCMAKE_CXX_COMPILER=$PWD/llvm/bin/
 #
 # This is a very complicated process. So I strongly recommend that you update your 
 # macOS and Xcode to the latest version to have the C++20 support to simplify the building.
-cmake -DCMAKE_BUILD_TYPE=Release ..
+cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ..
 ```
 
 ### Make
+#### Version >= 0.3.0
+```sh
+# To reduce the package size of ICPP + AetherVM, we have to build LLVM as a shared
+# library, but too many linking issues occur after we turn LLVM_BUILD_LLVM_DYLIB
+# on for LLVM cmake, so this script will patch build.ninja to fix those errors.
+icpp build.cc build
+```
+
+#### Version < 0.3.0
 ```sh
 # build the protoc compiler
 cmake --build . -- protoc -j8

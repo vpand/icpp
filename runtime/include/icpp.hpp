@@ -29,8 +29,18 @@
 // __APPLE__ on macOS/iOS
 #endif
 
+#ifdef __WIN__
+#ifdef ICPP_DLLIMPL
+#define ICPP_API __declspec(dllexport)
+#else
+#define ICPP_API __declspec(dllimport)
+#endif // end of ICPP_DLLIMPL
+#else
+#define ICPP_API __attribute__((visibility("default")))
+#endif // end of __WIN__
+
 // for standard c++ definitions
-#if __ICPP_CROSS__
+#if __ICPP_CROSS__ || ICPP_DLLIMPL
 // c style
 #include <filesystem>
 #include <format>
@@ -58,40 +68,61 @@ Common Utilities
 using strings = std::vector<std::string>;
 using string_views = std::vector<std::string_view>;
 
-// c++ std::format like print implementation
-template <typename... Args>
-static inline int prints(std::format_string<Args...> format, Args &&...args) {
-  auto str = std::vformat(format.get(), std::make_format_args(args...));
-  return std::printf("%s", str.data());
-}
+// for desktop platform
+#if __APPLE__
+constexpr std::string_view lib_ext = ".dylib";
+constexpr std::string_view exe_ext = "";
+constexpr std::string_view platform = "apple";
+constexpr std::string_view os_name = "macos";
+#elif __linux__
+constexpr std::string_view lib_ext = ".so";
+constexpr std::string_view exe_ext = "";
+constexpr std::string_view platform = "linux";
+constexpr std::string_view os_name = "linux";
+#else
+constexpr std::string_view lib_ext = ".dll";
+constexpr std::string_view exe_ext = ".exe";
+constexpr std::string_view platform = "win";
+constexpr std::string_view os_name = "windows";
+#endif
+
+#if __aarch64__ || __arm64__
+#if __linux__
+constexpr std::string_view arch = "aarch64";
+#else
+constexpr std::string_view arch = "arm64";
+#endif
+#else
+constexpr std::string_view arch = "x86_64";
+#endif
 
 /*
 ICPP Specification
 */
 
 // the icpp interpreter version
-std::string_view version();
+ICPP_API std::string_view version();
 
 // the icpp main program argv[0] path
-std::string_view program();
+ICPP_API std::string_view program();
 
 // the current user home directory, e.g.: ~, C:/Users/icpp
-std::string_view home_directory();
+ICPP_API std::string_view home();
 
 // execute a c++ expression
-int exec_expression(std::string_view expr);
+ICPP_API int exec_expression(std::string_view expr);
 
 // execute a c++ source from string
-int exec_string(std::string_view code, int argc = 0,
-                const char **argv = nullptr);
+ICPP_API int exec_string(std::string_view code, int argc = 0,
+                         const char **argv = nullptr);
 
 // execute a c++ source file
-int exec_source(std::string_view path, int argc = 0,
-                const char **argv = nullptr);
+ICPP_API int exec_source(std::string_view path, int argc = 0,
+                         const char **argv = nullptr);
 
 // execute an icpp module installed by imod
-int exec_module(std::string_view module, int argc = 0,
-                const char **argv = nullptr);
+ICPP_API int exec_module(std::string_view module, int argc = 0,
+                         const char **argv = nullptr);
 
 // result setter/getter for main script and its sub script
 // which is executed by exec_* api
@@ -100,51 +131,29 @@ e.g.:
   icpp::exec_expression("result_set(520)");
   icpp::prints("Result: {}", result_get());
 */
-void result_set(long result);
-void result_set(const std::string_view &result);
-long result_get();
-std::string_view result_gets();
+ICPP_API void result_set(std::uint64_t result);
+ICPP_API void result_set(const std::string_view &result);
+ICPP_API std::uint64_t result_get();
+ICPP_API std::string_view result_gets();
 
 // load a native library
-void *load_library(std::string_view path);
+ICPP_API void *load_library(std::string_view path);
 // unload a native library
-void *unload_library(void *handle);
+ICPP_API void *unload_library(void *handle);
 // lookup a native symbol
 // default search in the whole program
-void *resolve_symbol(std::string_view name, void *handle = nullptr);
-// iterate all the native modules in this running process,
+ICPP_API void *resolve_symbol(std::string_view name, void *handle = nullptr);
+// iterate all the native library modules in this running process,
 // return true to break iterating
-void iterate_modules(
+ICPP_API void iterate_library(
     const std::function<bool(std::uint64_t base, std::string_view path)>
         &callback);
 
-// check whether the given path ends with a c++ source file extension or not
-bool is_cpp_source(std::string_view path);
-
 // random value or string generator
-int rand_value();
-/*
-The better prototype should be: std::string rand_string(int length = 8);
-But on Windows, icpp itself is built by clang-cl in Visual Studio, icpp.hpp
-will be built by clang-icpp, so the std::string may be defined in a different
-way, to avoid the type mismatch, herein gives it an old C style one.
+ICPP_API int rand_int();
+ICPP_API std::string rand_str(int length);
 
-As of this, if you want to extend icpp runtime with native modules, the type
-mismatch situation must be considered on Windows.
-*/
-std::string_view rand_string(char *buff, int length);
-
-/*
-Wrapper Utilities
-*/
-
-template <std::size_t N> std::string rand_string() {
-  char buff[N];
-  auto tstr = rand_string(buff, N);
-  return {tstr.data(), N};
-}
-
-struct regex {
+struct ICPP_API regex {
   regex(std::string_view pattern, int flags = std::regex_constants::ECMAScript |
                                               std::regex_constants::icase) {
     init(pattern, flags);
@@ -160,5 +169,9 @@ private:
   void deinit();
   void *context_;
 };
+
+ICPP_API void print(std::uint64_t val);
+ICPP_API void print_hex(std::uint64_t val);
+ICPP_API void print(double val);
 
 } // namespace icpp

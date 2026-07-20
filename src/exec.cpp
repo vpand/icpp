@@ -370,7 +370,7 @@ private:
 static thread_local ExecEngine *exec_engine = nullptr;
 
 void ExecEngine::run(uint64_t pc, ContextICPP *regs) {
-  constexpr const int stack_switch_size = 128;
+  constexpr int stack_switch_size = 128;
 
   // backup the old context and set a new one
 #if ARCH_ARM64
@@ -1999,15 +1999,6 @@ void ExecEngine::dump() {
 
   Debugger debugger(Stopped);
   debugger.dump(robject_->arch(), uc_, robject_->vm2vrva(pc));
-
-  log_print(Raw, "Address Details:");
-  for (uint64_t i = 0; i < regsz; i++) {
-    if (robject_->executable(regs[i], nullptr)) {
-      auto info = robject_->sourceInfo(regs[i]);
-      log_print(Raw, "{:08x}: {}",
-                static_cast<uint32_t>(robject_->vm2vrva(regs[i])), info);
-    }
-  }
 
   log_print(Raw, "\n");
   std::longjmp(jmpbuf_, true);
