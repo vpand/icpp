@@ -128,9 +128,10 @@ get_dependencies(const std::vector<const char *> &libdirs,
 }
 
 extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
-  std::string_view program = argv[0];
+  std::string program = fs::absolute(argv[0]).string();
   if (program.ends_with("clang" EXE_EXTENSION) ||
       program.ends_with("clang++" EXE_EXTENSION)) {
+    argv[0] = (char *)program.data();
     // redirect to clang compiler if the current process is a clang/clang++
     return iclang_main(argc, (const char **)argv);
   }

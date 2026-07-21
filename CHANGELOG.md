@@ -1,6 +1,6 @@
 ## v0.3.0
 Bug fixes:
- * 
+ * icpp: fix a crash when getting icpp parent path with bare command line name;
 
 Improvements:
  * icpp: update LLVM to the version 22.1.8 as be synchronized with AetherVM;

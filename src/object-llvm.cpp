@@ -4,26 +4,6 @@
    See LICENSE in root directory for more details
 */
 
-// The disassembler related stuff is modified from llvm-objdump.
-
-//===-- llvm-objdump.cpp - Object file dumping utility for llvm -----------===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-//
-// This program is a utility that works like binutils "objdump", that is, it
-// dumps out a plethora of information about an object file depending on the
-// flags.
-//
-// The flags and output of this program should be near identical to those of
-// binutils objdump.
-//
-//===----------------------------------------------------------------------===//
-
-#include "SourcePrinter.h"
 #include "arch.h"
 #include "llvm-objdump.h"
 #include "loader.h"
@@ -38,15 +18,6 @@
 #include "llvm/BinaryFormat/COFF.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/BinaryFormat/MachO.h"
-#include "llvm/BinaryFormat/Wasm.h"
-#include "llvm/DebugInfo/BTF/BTFParser.h"
-#include "llvm/DebugInfo/DWARF/DWARFContext.h"
-#include "llvm/DebugInfo/Symbolize/SymbolizableModule.h"
-#include "llvm/DebugInfo/Symbolize/Symbolize.h"
-#include "llvm/Debuginfod/BuildIDFetcher.h"
-#include "llvm/Debuginfod/Debuginfod.h"
-#include "llvm/Debuginfod/HTTPClient.h"
-#include "llvm/Demangle/Demangle.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCDisassembler/MCDisassembler.h"
@@ -70,10 +41,6 @@
 #include "llvm/Object/MachOUniversal.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Object/OffloadBinary.h"
-#include "llvm/Object/Wasm.h"
-#include "llvm/Option/Arg.h"
-#include "llvm/Option/ArgList.h"
-#include "llvm/Option/Option.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Errc.h"
@@ -338,12 +305,10 @@ void ObjectDisassembler::init(CObjectFile *Obj, std::string_view Triple) {
     MCPU = Obj->tryGetCPUName().value_or("").str();
 
   DT = new DisassemblerTarget(TheTarget, *Obj, TripleName, MCPU, Features);
-  SP = nullptr; // new SourcePrinter(Obj, TheTarget->getName());
 }
 
 ObjectDisassembler::~ObjectDisassembler() {
   delete DT;
-  // delete SP;
 }
 
 #if ICPP_HAS_AARCH64

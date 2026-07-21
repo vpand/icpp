@@ -98,7 +98,6 @@ struct ObjectDisassembler {
   // these classes' definition are unavailable for std::unique_ptr,
   // so raw pointer used, we manage them manually
   DisassemblerTarget *DT = nullptr;
-  ::llvm::objdump::SourcePrinter *SP = nullptr;
 };
 
 class Object {
