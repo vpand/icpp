@@ -5,6 +5,7 @@
 */
 
 #include "object.h"
+#include "compile.h"
 #include "icpp.h"
 #include "loader.h"
 #include "platform.h"
@@ -185,9 +186,14 @@ void Object::parseSymbols() {
 }
 
 const void *Object::mainEntry() {
-  auto found = funcs_.find("_main");
+#if __APPLE__
+#define SYM_PREFIX "_"
+#else
+#define SYM_PREFIX ""
+#endif
+  auto found = funcs_.find(std::string(SYM_PREFIX) + current_main());
   if (found == funcs_.end()) {
-    found = funcs_.find("main");
+    found = funcs_.find(SYM_PREFIX "main");
   }
   if (found == funcs_.end()) {
     return nullptr;

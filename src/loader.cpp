@@ -143,9 +143,12 @@ struct ModuleLoader {
     syms_.insert({"_ZGIW3std", reinterpret_cast<const void *>(&nop_function)});
 #endif
 
+    auto bin_root = fs::absolute(RunConfig::inst()->program).parent_path();
+    // register icpp self
+    loadLibrary((bin_root / "icpp" LLVM_PLUGIN_EXT).string());
+
     // load c++ runtime library
-    auto libpath =
-        fs::absolute(RunConfig::inst()->program).parent_path() / "../lib";
+    auto libpath = bin_root / "../lib";
 #if ON_WINDOWS
     // set boost dependency
     ::AddDllDirectory(libpath.wstring().data());

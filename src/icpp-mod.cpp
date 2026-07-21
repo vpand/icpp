@@ -91,6 +91,7 @@ int exec_source(const char *argv0, std::string_view path, int argc,
                 const char **argv) {
   return -1;
 }
+const char *current_main() { return ""; }
 } // namespace icpp
 
 template <typename FILTER, typename PACKER>

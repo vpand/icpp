@@ -138,16 +138,18 @@ Run an C++ expression, e.g:
 ### ICPP REPL
 ```cpp
 vpand@MacBook-Pro icpp % icpp     
-ICPP v0.1.0.255. Copyright (c) vpand.com.
-Running C++ in anywhere like a script.
->>> #include <stdio.h>
->>> puts("Hello, world.")   
+ICPP v0.3.0.255. Copyright (c) 2024 vpand.com.
+Running C++ anywhere like a script.
+>>> std::puts("Hello, world.")
 Hello, world.
->>> import std 
 >>> std::cout << "Hello, world." << std::endl
 Hello, world.
->>> std::cout << std::hex << 88888888 << std::endl
-54c5638
+>>> std::println("Hello, world.")
+Hello, world.
+>>> icpp::print(88888888)
+88888888
+>>> icpp::print_hex(88888888)
+0x54c5638
 ```
 
 ### IMOD

@@ -151,11 +151,9 @@ bool regex::search(std::string_view str) const {
   return std::regex_search(str.data(), str.data() + str.size(), *preg);
 }
 
-void print(std::uint64_t val) { std::cout << val; }
+void print(std::uint64_t val) { std::cout << val << std::endl; }
 
-void print_hex(std::uint64_t val) { std::cout << std::format("0x{:x}", val); }
-
-void print(double val) { std::cout << val; }
+void print_hex(std::uint64_t val) { std::cout << std::format("0x{:x}\n", val); }
 
 } // namespace icpp
 

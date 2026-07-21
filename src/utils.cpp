@@ -173,7 +173,8 @@ int repl_entry(const std::function<void(std::string_view)> &exec) {
     for (auto &d : directives)
       dyncodes += d + "\n";
     // the main entry
-    dyncodes += "int main(void) {" + snippet + ";return 0;}";
+    dyncodes +=
+        "#include <icpp.hpp>\nint main(void) {" + snippet + ";return 0;}";
     exec(dyncodes);
     lastsnippet = snippet;
   }

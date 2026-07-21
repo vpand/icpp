@@ -6,6 +6,7 @@ Improvements:
  * icpp: update LLVM to the version 22.1.8 as be synchronized with AetherVM;
  * icpp: add a clang-repl-based incremental compilation backend;
  * icpp: add more macros and apis in icpp.hpp interface;
+ * icpp: add icpp.hpp in REPL by default;
 
 ## v0.2.0
 Bug fixes:

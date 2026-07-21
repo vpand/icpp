@@ -57,19 +57,20 @@ namespace icpp {
 // used to initialize LLVM targets
 const Target *getTarget(const object::ObjectFile *Obj, std::string &TripleName);
 
-class IncrementalCompilation {
+struct IncrementalCompilation {
   clang::IncrementalCompilerBuilder CB;
   std::unique_ptr<clang::CompilerInstance> DeviceCI;
   std::unique_ptr<clang::Interpreter> Interp;
   llvm::TargetMachine *TargetMachine = nullptr;
-  llvm::legacy::PassManager PM;
   llvm::Module *Module = nullptr;
   llvm::ExitOnError ExitOnErr;
   std::string_view CppPath;
   std::string_view ObjPath;
+  std::string CurMain;
   int SnippetID = 0;
 
-  bool init(int argc, const char **argv) {
+  void init(int argc, const char **argv) {
+    auto OptLevel = "-O1";
     std::vector<const char *> ClangArgv;
     ClangArgv.reserve(argc);
     for (auto i = 1; i < argc; i++) {
@@ -79,14 +80,23 @@ class IncrementalCompilation {
         ObjPath = argv[++i];
       else
         ClangArgv.push_back(argv[i]);
+
+      if (std::string_view(argv[i]).starts_with("-O"))
+        OptLevel = argv[i];
     }
-    CB.SetCompilerArgs(ClangArgv);
 
     if (Interp)
-      return true;
+      return;
+    CB.SetCompilerArgs(ClangArgv);
+
     // initialize LLVM targets
     std::string targetTriple = llvm::sys::getDefaultTargetTriple();
     getTarget(nullptr, targetTriple);
+
+    CodeGenOptLevel OLvl;
+    if (auto Level = CodeGenOpt::parseLevel(OptLevel[2])) {
+      OLvl = *Level;
+    }
 
     auto IEB = std::make_unique<clang::IncrementalExecutorBuilder>();
     IEB->IsOutOfProcess = false;
@@ -106,11 +116,11 @@ class IncrementalCompilation {
     std::string features = "";
 #endif
     llvm::TargetOptions options;
-    auto relocationModel = llvm::Reloc::PIC_;
+    auto relocationModel = Reloc::PIC_;
+    auto codeModel = CodeModel::Large;
     Triple triple{targetTriple};
-    TargetMachine = target->createTargetMachine(triple, cpu, features, options,
-                                                relocationModel);
-    return false;
+    TargetMachine = target->createTargetMachine(
+        triple, cpu, features, options, relocationModel, codeModel, OLvl);
   }
 
   bool parse(std::string_view snippet) {
@@ -132,6 +142,7 @@ class IncrementalCompilation {
     }
 
     auto fileType = llvm::CodeGenFileType::ObjectFile;
+    llvm::legacy::PassManager PM;
     if (TargetMachine->addPassesToEmitFile(PM, dest, nullptr, fileType)) {
       log_print(Runtime, "{}: TargetMachine can't emit a file of this type",
                 ObjPath);
@@ -145,10 +156,8 @@ class IncrementalCompilation {
 
 public:
   int main(int argc, const char **argv) {
-    if (init(argc, argv)) {
-      if (auto err = Interp->Undo())
-        ; // remove last snippet, ignore this error
-    }
+    // argv parsing and lazy initialization
+    init(argc, argv);
 
     ErrorOr<std::unique_ptr<MemoryBuffer>> BufferPtr =
         MemoryBuffer::getFile(CppPath);
@@ -158,19 +167,29 @@ public:
     }
     MemoryBuffer *Buffer = BufferPtr->get();
     auto snippet = strstr(Buffer->getBufferStart(), "int main(");
-    if (!snippet) {
-      return parse(Buffer->getBufferStart()) ? 0 : -1;
+    if (!SnippetID || !snippet) {
+      SnippetID++;
+      return parse(Buffer->getBufferStart()) && codegen() ? 0 : -1;
     }
+
+    // the current main name
+    CurMain = std::format("_{}_main", SnippetID++);
+
     std::string directives{Buffer->getBufferStart(), snippet};
-    // 1. parse directives before main entry
-    // 2. parse main definition
-    // 3. generate the final object from current temporary module
-    return parse(directives) && parse(snippet) && codegen() ? 0 : -1;
+    auto snippet_withid = std::format(R"({}
+#undef main
+#define main {}
+extern "C" {})",
+                                      directives, CurMain, snippet);
+    return parse(snippet_withid) && codegen() ? 0 : -1;
   }
 };
 
+static std::unique_ptr<IncrementalCompilation> compiler;
+
+const char *current_main() { return compiler ? compiler->CurMain.c_str() : ""; }
+
 int increment_main(int argc, const char **argv) {
-  static std::unique_ptr<IncrementalCompilation> compiler;
   if (!compiler)
     compiler = std::make_unique<IncrementalCompilation>();
   return compiler->main(argc, argv);

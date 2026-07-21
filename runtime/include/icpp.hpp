@@ -172,6 +172,5 @@ private:
 
 ICPP_API void print(std::uint64_t val);
 ICPP_API void print_hex(std::uint64_t val);
-ICPP_API void print(double val);
 
 } // namespace icpp

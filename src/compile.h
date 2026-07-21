@@ -29,4 +29,6 @@ fs::path compile_source_icpp(const char *argv0, std::string_view path,
 
 void precompile_module(const char *argv0);
 
+const char *current_main();
+
 } // namespace icpp
