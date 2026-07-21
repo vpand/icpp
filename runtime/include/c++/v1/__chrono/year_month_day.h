@@ -19,8 +19,10 @@
 #include <__chrono/time_point.h>
 #include <__chrono/year.h>
 #include <__chrono/year_month.h>
+#include <__compare/ordering.h>
 #include <__config>
-#include <compare>
+#include <__cstddef/size_t.h>
+#include <__functional/hash.h>
 #include <limits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -239,33 +241,11 @@ operator==(const year_month_day_last& __lhs, const year_month_day_last& __rhs) n
   return __lhs.year() == __rhs.year() && __lhs.month_day_last() == __rhs.month_day_last();
 }
 
-_LIBCPP_HIDE_FROM_ABI inline constexpr bool
-operator!=(const year_month_day_last& __lhs, const year_month_day_last& __rhs) noexcept {
-  return !(__lhs == __rhs);
-}
-
-_LIBCPP_HIDE_FROM_ABI inline constexpr bool
-operator<(const year_month_day_last& __lhs, const year_month_day_last& __rhs) noexcept {
-  if (__lhs.year() < __rhs.year())
-    return true;
-  if (__lhs.year() > __rhs.year())
-    return false;
-  return __lhs.month_day_last() < __rhs.month_day_last();
-}
-
-_LIBCPP_HIDE_FROM_ABI inline constexpr bool
-operator>(const year_month_day_last& __lhs, const year_month_day_last& __rhs) noexcept {
-  return __rhs < __lhs;
-}
-
-_LIBCPP_HIDE_FROM_ABI inline constexpr bool
-operator<=(const year_month_day_last& __lhs, const year_month_day_last& __rhs) noexcept {
-  return !(__rhs < __lhs);
-}
-
-_LIBCPP_HIDE_FROM_ABI inline constexpr bool
-operator>=(const year_month_day_last& __lhs, const year_month_day_last& __rhs) noexcept {
-  return !(__lhs < __rhs);
+_LIBCPP_HIDE_FROM_ABI inline constexpr strong_ordering
+operator<=>(const year_month_day_last& __lhs, const year_month_day_last& __rhs) noexcept {
+  if (auto __c = __lhs.year() <=> __rhs.year(); __c != 0)
+    return __c;
+  return __lhs.month_day_last() <=> __rhs.month_day_last();
 }
 
 _LIBCPP_HIDE_FROM_ABI inline constexpr year_month_day_last operator/(const year_month& __lhs, last_spec) noexcept {
@@ -351,6 +331,27 @@ _LIBCPP_HIDE_FROM_ABI inline constexpr bool year_month_day::ok() const noexcept 
 }
 
 } // namespace chrono
+
+#  if _LIBCPP_STD_VER >= 26
+
+template <>
+struct hash<chrono::year_month_day> {
+  _LIBCPP_HIDE_FROM_ABI static size_t operator()(const chrono::year_month_day& __ymd) noexcept {
+    return std::__hash_combine(
+        hash<chrono::year>{}(__ymd.year()),
+        std::__hash_combine(hash<chrono::month>{}(__ymd.month()), hash<chrono::day>{}(__ymd.day())));
+  }
+};
+
+template <>
+struct hash<chrono::year_month_day_last> {
+  _LIBCPP_HIDE_FROM_ABI static size_t operator()(const chrono::year_month_day_last& __ymdl) noexcept {
+    return std::__hash_combine(
+        hash<chrono::year>{}(__ymdl.year()), hash<chrono::month_day_last>{}(__ymdl.month_day_last()));
+  }
+};
+
+#  endif // _LIBCPP_STD_VER >= 26
 
 _LIBCPP_END_NAMESPACE_STD
 
