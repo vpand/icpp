@@ -55,7 +55,11 @@ static void icpp_Init_thread_abort(int *const pOnce) { *pOnce = uninitialized; }
 
 #if ON_WINDOWS
 extern uint64_t __security_cookie;
+#else
+#include <dlfcn.h>
 #endif
+
+extern "C" __ICPP_EXPORT__ void icpp_nop(void) {}
 
 namespace icpp {
 
@@ -78,7 +82,17 @@ static const void *global_locals[] = {
 
 libcpp_thread_create_t libcpp_thread_create = nullptr;
 
-static void nop_function(void) {}
+static std::string icpp_library() {
+#if ON_WINDOWS
+  return (fs::absolute(RunConfig::inst()->program).parent_path() /
+          "icpp" LLVM_PLUGIN_EXT)
+      .string();
+#else
+  Dl_info dli;
+  dladdr((void *)icpp_nop, &dli);
+  return dli.dli_fname;
+#endif
+}
 
 struct ModuleLoader {
   ModuleLoader() : mainid_(std::this_thread::get_id()) {
@@ -122,8 +136,8 @@ struct ModuleLoader {
                   reinterpret_cast<const void *>(&_CxxThrowException)});
     syms_.insert({"__security_cookie",
                   reinterpret_cast<const void *>(&__security_cookie)});
-    syms_.insert({"__security_check_cookie",
-                  reinterpret_cast<const void *>(&nop_function)});
+    syms_.insert(
+        {"__security_check_cookie", reinterpret_cast<const void *>(&icpp_nop)});
     syms_.insert({"_tls_index", &_tls_index});
     syms_.insert({"_Init_thread_epoch", &_init_thread_epoch});
     syms_.insert({"_Init_thread_header",
@@ -138,14 +152,14 @@ struct ModuleLoader {
     syms_.insert({"___dso_handle", &__dso_handle});
     // currently, the clang cpp module initializer is a nop function,
     // and we will skip to call it in ctor caller
-    syms_.insert({"__ZGIW3std", reinterpret_cast<const void *>(&nop_function)});
+    syms_.insert({"__ZGIW3std", reinterpret_cast<const void *>(&icpp_nop)});
 #else
-    syms_.insert({"_ZGIW3std", reinterpret_cast<const void *>(&nop_function)});
+    syms_.insert({"_ZGIW3std", reinterpret_cast<const void *>(&icpp_nop)});
 #endif
 
     auto bin_root = fs::absolute(RunConfig::inst()->program).parent_path();
     // register icpp self
-    loadLibrary((bin_root / "icpp" LLVM_PLUGIN_EXT).string());
+    loadLibrary(icpp_library());
 
     // load c++ runtime library
     auto libpath = bin_root / "../lib";

@@ -209,6 +209,12 @@ int main(int argc, char **argv) {
   for (auto &name : names)
     pack_file(srcroot / name, bin, true);
 
+  // copy LLVM files
+  pack_file(srcroot / "../third/llvm-project/llvm/lib/libLLVM" LIBEXT, lib,
+            true);
+  pack_file(srcroot / "../third/llvm-project/llvm/bin/clang-format" EXEEXT, bin,
+            true);
+
   // copy libc++ file
 #if __APPLE__
   pack_file(srcroot / "../libcxx/lib" / libcpp, lib, true, libcpp_name);

@@ -127,17 +127,8 @@ get_dependencies(const std::vector<const char *> &libdirs,
   return deps;
 }
 
-struct argv_restore_t {
-  argv_restore_t(char **arg) : argv(arg) { argv0 = argv[0]; }
-  ~argv_restore_t() { argv[0] = argv0; }
-
-  char **argv;
-  char *argv0;
-};
-
 extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
   std::string program = fs::absolute(argv[0]).string();
-  argv_restore_t argv_restore(argv);
   if (program.ends_with("clang" EXE_EXTENSION) ||
       program.ends_with("clang++" EXE_EXTENSION)) {
     argv[0] = (char *)program.data();

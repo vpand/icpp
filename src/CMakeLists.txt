@@ -4,6 +4,9 @@ message(STATUS "Configuring ICPP [Interpreting C++]...")
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED)
 
+# disable the absolute rpath
+set(CMAKE_SKIP_RPATH TRUE)
+
 if(MSVC)
   # enable exception for icpp relational projects
   set(LLVM_ENABLE_EH TRUE)
