@@ -8,13 +8,16 @@
 
 #include "utils.h"
 
-// orginal clang compiler main entry
-int iclang_main(int argc, const char **argv);
-
 namespace icpp {
 
-// orignal clang-format main entry
+// original clang-format main entry
 int cformat_main(int argc, const char **argv);
+
+// original clang compiler main entry
+int clang_main(int argc, const char **argv);
+
+// incremental clang compiler main entry
+int increment_main(int argc, const char **argv);
 
 int compile_source_clang(int argc, const char **argv, bool cl = false);
 

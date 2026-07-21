@@ -138,11 +138,12 @@ add_library(icpp SHARED
 #  ${support_plugins}
 #  GENERATE_DRIVER
 )
-
-set(LLVMSupport_DIR ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/lib/Support/CMakeFiles/LLVMSupport.dir)
+set(LLVMLIB_DIR ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/lib)
+set(LLVMSupport_DIR ${LLVMLIB_DIR}/Support/CMakeFiles/LLVMSupport.dir)
+set(ClangDriver_DIR ${LLVMLIB_DIR}/../tools/clang/tools/driver/CMakeFiles/clang.dir)
 if(MSVC)
   set(DISABLE_RTTI /GR-)
-  set(LLVM_MINIMAL_LIBS PRIVATE LLVM-22 
+  set(LLVM_MINIMAL_LIBS LLVM-22 
     ${LLVMSupport_DIR}/SmallVector.cpp.obj
     ${LLVMSupport_DIR}/Z3Solver.cpp.obj
     ${LLVMSupport_DIR}/VirtualOutputBackends.cpp.obj
@@ -150,9 +151,15 @@ if(MSVC)
     ${LLVMSupport_DIR}/VirtualOutputError.cpp.obj
     ${LLVMSupport_DIR}/VirtualOutputFile.cpp.obj
     ${LLVMSupport_DIR}/raw_ostream_proxy.cpp.obj)
+  set(CLANG_DRIVER_OBJS
+    ${ClangDriver_DIR}/cc1_main.cpp.obj
+    ${ClangDriver_DIR}/cc1gen_reproducer_main.cpp.obj
+    ${ClangDriver_DIR}/driver.cpp.obj
+    ${ClangDriver_DIR}/cc1as_main.cpp.obj
+    ${ClangDriver_DIR}/clang-driver.cpp.obj)
 else()
   set(DISABLE_RTTI -fno-rtti)
-  set(LLVM_MINIMAL_LIBS PRIVATE LLVM 
+  set(LLVM_MINIMAL_LIBS LLVM 
     ${LLVMSupport_DIR}/SmallVector.cpp.o
     ${LLVMSupport_DIR}/Z3Solver.cpp.o
     ${LLVMSupport_DIR}/VirtualOutputBackends.cpp.o
@@ -160,22 +167,60 @@ else()
     ${LLVMSupport_DIR}/VirtualOutputError.cpp.o
     ${LLVMSupport_DIR}/VirtualOutputFile.cpp.o
     ${LLVMSupport_DIR}/raw_ostream_proxy.cpp.o)
+  set(CLANG_DRIVER_OBJS
+    ${ClangDriver_DIR}/cc1_main.cpp.o
+    ${ClangDriver_DIR}/cc1gen_reproducer_main.cpp.o
+    ${ClangDriver_DIR}/driver.cpp.o
+    ${ClangDriver_DIR}/cc1as_main.cpp.o
+    ${ClangDriver_DIR}/clang-driver.cpp.o)
   set_target_properties(icpp PROPERTIES VERSION ${CLANG_EXECUTABLE_VERSION})
 endif()
+# unfortunately, the dynamic libclang-cpp doesn't work in our case, too many 
+# link issues in dynamic libLLVM environment
+# manually link clang's libraries into icpp so that we can get a minimal 
+# cold and incremental compiler driver in one place
+set(CLANG_LIBS 
+  ${LLVMLIB_DIR}/libclangAST.a 
+  ${LLVMLIB_DIR}/libclangBasic.a 
+  ${LLVMLIB_DIR}/libclangFrontend.a
+  ${LLVMLIB_DIR}/libclangLex.a
+  ${LLVMLIB_DIR}/libclangInterpreter.a 
+  ${LLVMLIB_DIR}/libclangFrontendTool.a 
+  ${LLVMLIB_DIR}/libclangCodeGen.a 
+  ${LLVMLIB_DIR}/libclangExtractAPI.a 
+  ${LLVMLIB_DIR}/libclangInstallAPI.a 
+  ${LLVMLIB_DIR}/libclangRewriteFrontend.a 
+  ${LLVMLIB_DIR}/libclangStaticAnalyzerFrontend.a 
+  ${LLVMLIB_DIR}/libclangStaticAnalyzerCheckers.a 
+  ${LLVMLIB_DIR}/libclangStaticAnalyzerCore.a
+  ${LLVMLIB_DIR}/libclangCrossTU.a 
+  ${LLVMLIB_DIR}/libclangDriver.a 
+  ${LLVMLIB_DIR}/libclangIndex.a 
+  ${LLVMLIB_DIR}/libclangOptions.a 
+  ${LLVMLIB_DIR}/libclangParse.a 
+  ${LLVMLIB_DIR}/libclangSerialization.a 
+  ${LLVMLIB_DIR}/libclangSema.a 
+  ${LLVMLIB_DIR}/libclangAPINotes.a 
+  ${LLVMLIB_DIR}/libclangEdit.a 
+  ${LLVMLIB_DIR}/libclangAnalysisLifetimeSafety.a 
+  ${LLVMLIB_DIR}/libclangAnalysis.a 
+  ${LLVMLIB_DIR}/libclangASTMatchers.a 
+  ${LLVMLIB_DIR}/libclangSupport.a 
+  ${LLVMLIB_DIR}/libclangFormat.a 
+  ${LLVMLIB_DIR}/libclangToolingInclusions.a 
+  ${LLVMLIB_DIR}/libclangToolingCore.a 
+  ${LLVMLIB_DIR}/libclangRewrite.a)
+target_link_directories(icpp PRIVATE 
+  ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/lib)
 set_source_files_properties(${ICPP_LLVM_SOURCES} PROPERTIES COMPILE_FLAGS ${DISABLE_RTTI})
 
 #clang_target_link_libraries(icpp
 target_link_libraries(icpp
   PRIVATE
-# from v0.3.0, icpp has moved clang components into backend incremental compilation service
-#
-#  clangBasic
-#  clangCodeGen
-#  clangDriver
-#  clangFrontend
-#  clangFrontendTool
-#  clangSerialization
+
   ${LLVM_MINIMAL_LIBS}
+  ${CLANG_DRIVER_OBJS}
+  ${CLANG_LIBS}
 
   unicorn
   boost_algorithm

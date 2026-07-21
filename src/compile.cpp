@@ -6,6 +6,7 @@
 
 #include "compile.h"
 #include "arch.h"
+#include "icpp.h"
 #include "object.h"
 #include "platform.h"
 #include "runcfg.h"
@@ -24,6 +25,7 @@
 #include <boost/process.hpp>
 #pragma clang diagnostic pop
 #endif
+#include <llvm/Config/llvm-config.h>
 
 namespace proc = boost::process;
 
@@ -65,6 +67,7 @@ int compile_source_clang(int argc, const char **argv, bool cl) {
     }
   }
 
+#if 0
   // construct a full path which the last element must be "clang" to make clang
   // driver happy, otherwise it can't compile source to object, it seems that
   // clang driver depends on clang name to do the right compilation logic
@@ -76,11 +79,10 @@ int compile_source_clang(int argc, const char **argv, bool cl) {
                      .string();
   auto argv0 = argv[0];
   argv[0] = program.c_str();
-  // iclang_main will invoke clang_main to generate the object file with the
-  // default host triple
-  auto result = iclang_main(argc, argv);
+#endif
+
+  auto result = increment_main(argc, argv);
   if (result) {
-    argv[0] = argv0;
     log_print(Develop, "Failed to compile: {}", argv_string(argc, argv));
   }
   return result;
@@ -90,6 +92,7 @@ int compile_source_icpp(int argc, const char **argv) {
   auto root = fs::absolute(fs::path(argv[0])).parent_path() / "..";
   auto rtinc = (root / "include").string();
   bool cross_compile = false, cl = false, cppsrc = true;
+  bool cppmod = is_cppm_source(argv[argc - 1]);
   std::string cppminc;
   std::vector<const char *> args;
   for (int i = 0; i < argc; i++) {
@@ -126,7 +129,9 @@ int compile_source_icpp(int argc, const char **argv) {
 
 #if __APPLE__
   std::string_view argsysroot = "-isysroot";
-  auto isysroot = std::format("{}/apple", rtinc);
+  std::string_view isysroot =
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/"
+      "Developer/SDKs/MacOSX.sdk";
   bool ios = false;
   for (int i = 0; i < argc - 1; i++) {
     if (std::string_view(argv[i]) == "-target") {
@@ -136,6 +141,9 @@ int compile_source_icpp(int argc, const char **argv) {
           target.find("ios") != std::string_view::npos) {
         cross_compile = true;
         ios = target.find("ios") != std::string_view::npos;
+        if (ios)
+          isysroot = "/Applications/Xcode.app/Contents/Developer/Platforms/"
+                     "iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk";
       }
       break;
     }
@@ -254,7 +262,16 @@ int compile_source_icpp(int argc, const char **argv) {
     modincs.push_back(std::move(icppinc));
     args.push_back(modincs.rbegin()->data());
   }
-
+  if (cppmod) {
+    // compile the module source in a standalone clang process
+    std::vector<std::string> ccargs;
+    for (auto i = 1; i < args.size(); i++)
+      ccargs.push_back(args[i]);
+    auto clang = (root / "bin/clang" EXE_EXTENSION).string();
+    proc::child compiler(clang, ccargs);
+    compiler.wait();
+    return compiler.exit_code();
+  }
   return compile_source_clang(static_cast<int>(args.size()), &args[0], cl);
 }
 
@@ -299,6 +316,10 @@ fs::path compile_source_icpp(const char *argv0, std::string_view path,
     compile_source_icpp(static_cast<int>(args.size()), &args[0]);
     return cache;
   } else {
+#if 1 // from ICPP >= 0.3.0
+    // do the incremental compilation
+    compile_source_icpp(static_cast<int>(args.size()), &args[0]);
+#else
     // compile the input source in a standalone icpp process
     std::vector<std::string> ccargs;
     for (auto i = 1; i < args.size(); i++)
@@ -327,16 +348,20 @@ fs::path compile_source_icpp(const char *argv0, std::string_view path,
     proc::child compiler(std::string(argv0), ccargs);
     compiler.wait();
 #endif
+#endif // end of ICPP >= 0.3.0
     return fs::path(opath);
   }
 }
 
 static void precompile_module(const char *argv0, const fs::path &root,
                               const fs::path pcmroot, const fs::path &cppm) {
-  must_exist(pcmroot);
+  auto pcmpath = (pcmroot / cppm.stem()).string() + ".pcm";
+  if (fs::exists(pcmpath))
+    return; // already generated
 
   auto cppmpath = (root / "module" / cppm).string();
-  auto pcmpath = (pcmroot / cppm.stem()).string() + ".pcm";
+  must_exist(pcmroot);
+  log_print(Raw, "Initializing the C++ modules {}...", cppm.string());
 
   std::vector<const char *> args;
   args.push_back(argv0);
@@ -355,37 +380,27 @@ static void precompile_module(const char *argv0, const fs::path &root,
   args.push_back(cppmpath.data());
 
   log_print(Develop, "Precompiling {} to {} ...", cppmpath, pcmpath);
-  compile_source_icpp(static_cast<int>(args.size()), &args[0]);
+  if (compile_source_icpp(static_cast<int>(args.size()), &args[0]) != 0) {
+    log_print(Runtime, "Failed to compile {}.", cppm.string());
+    exit(-1);
+  }
 }
 
 void precompile_module(const char *argv0) {
-  auto pcmroot =
-      fs::path(home_directory()) /
-      std::format(".icpp/module/{:08x}",
-                  static_cast<uint32_t>(std::hash<std::string>{}(argv0)));
+  auto pcmroot = fs::path(home_directory()) /
+                 std::format(".icpp/module/{}", LLVM_VERSION_STRING);
   pcm_root = pcmroot.string();
-  if (fs::exists(pcmroot))
-    return; // already generated the standard pcm files
-
-  log_print(Raw, "Initializing the standard C++ modules...");
 
   auto icpproot = fs::path(argv0).parent_path().parent_path();
   for (auto &cppm : {"std.cppm", "std.compat.cppm"})
     precompile_module(argv0, icpproot, pcmroot, cppm);
-
-  std::ofstream outf(pcmroot / "icpp.txt");
-  outf << argv0 << std::endl;
 }
 
 int cformat_main(int argc, const char *argv[]) {
   std::vector<std::string> fargs;
   for (auto i = 1; i < argc; i++)
     fargs.push_back(argv[i]);
-  auto format = fs::path(argv[0]).parent_path() / "clang-format"
-#if ON_WINDOWS
-                                                  ".exe"
-#endif
-      ;
+  auto format = fs::path(argv[0]).parent_path() / "clang-format" EXE_EXTENSION;
   proc::child child(format.string(), fargs);
   child.wait();
   return child.exit_code();

@@ -153,7 +153,7 @@ static const char *archName(const ObjectFile *Obj) {
   }
 }
 
-static const Target *getTarget(const ObjectFile *Obj, std::string &TripleName) {
+const Target *getTarget(const ObjectFile *Obj, std::string &TripleName) {
   static bool init_llvm = false;
   if (!init_llvm) {
     init_llvm = true;
@@ -172,6 +172,8 @@ static const Target *getTarget(const ObjectFile *Obj, std::string &TripleName) {
     init_target(X86);
 #endif
   }
+  if (!Obj)
+    return nullptr;
 
   // Figure out the target triple.
   Triple TheTriple("unknown-unknown-unknown");
@@ -307,9 +309,7 @@ void ObjectDisassembler::init(CObjectFile *Obj, std::string_view Triple) {
   DT = new DisassemblerTarget(TheTarget, *Obj, TripleName, MCPU, Features);
 }
 
-ObjectDisassembler::~ObjectDisassembler() {
-  delete DT;
-}
+ObjectDisassembler::~ObjectDisassembler() { delete DT; }
 
 #if ICPP_HAS_AARCH64
 

@@ -127,18 +127,26 @@ get_dependencies(const std::vector<const char *> &libdirs,
   return deps;
 }
 
+struct argv_restore_t {
+  argv_restore_t(char **arg) : argv(arg) { argv0 = argv[0]; }
+  ~argv_restore_t() { argv[0] = argv0; }
+
+  char **argv;
+  char *argv0;
+};
+
 extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
   std::string program = fs::absolute(argv[0]).string();
+  argv_restore_t argv_restore(argv);
   if (program.ends_with("clang" EXE_EXTENSION) ||
       program.ends_with("clang++" EXE_EXTENSION)) {
     argv[0] = (char *)program.data();
     // redirect to clang compiler if the current process is a clang/clang++
-    return iclang_main(argc, (const char **)argv);
+    return icpp::clang_main(argc, (const char **)argv);
   }
 
   llvm::InitLLVM X(argc, argv);
   argv[0] = (char *)program.data(); // restore the program path modified by llvm
-  icpp::precompile_module(argv[0]);
 
   // optimization level passed to clang
   const char *icpp_option_opt = "-O2";
@@ -160,10 +168,6 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
 
   // professional json configuration file for trace/profile/plugin
   const char *icpp_option_procfg = "";
-
-  // if nothing input, then enter in REPL mode
-  if (argc == 1)
-    return icpp::exec_repl(argv[0]);
 
   // calculate the double dash index, all the args after idoubledash will be
   // passed to the input file as its cli argc/argv
@@ -195,7 +199,7 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
     if (arg == "-c" || arg == "-o") {
       icpp::RunConfig::inst(argv[0], "");
       // let icpp clang wrapper do the compilation task directly
-      return icpp::compile_source_icpp(argc, const_cast<const char **>(argv));
+      return icpp::clang_main(argc, const_cast<const char **>(argv));
     }
     if (arg == "-f") {
       // source file format
@@ -231,6 +235,12 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
         break;
     }
   }
+  // initialize standard C++ modules
+  icpp::precompile_module(argv[0]);
+  // if nothing input, then enter in REPL mode
+  if (argc == 1)
+    return icpp::exec_repl(argv[0]);
+
   // set the implicit idoubledash position
   bool implicity = false;
   if (idoubledash == argc && ilastfile > 0) {

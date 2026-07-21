@@ -40,6 +40,22 @@ No matter if you're a beginner or an expert with C++, ICPP is suitable for you. 
 ## How it works
 ### Interpreter
 Local interpreter mode lets you run C++ directly in your local system.
+#### Version >= 0.3.0
+Incremental compilation mode:
+```mermaid
+graph LR
+    A(C++ Source) -- Clang Interpreter --> C(LLVM IR Module)
+    B(C++ Snippet) -- Clang Interpreter --> C
+    C -- LLVM LLC --> E(Object)
+    D -- Loader --> F(ICPP)
+    E -- Loader --> F
+    F -- vCPU --> G(Running output)
+    G -- Cache.io --> D(IObject)
+    G -- Incremental Input --> B
+```
+
+#### Version < 0.3.0
+Cold compilation mode: 
 ```mermaid
 graph LR
     A(C++ Source) -- Clang --> B(Object)
