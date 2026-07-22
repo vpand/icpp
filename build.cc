@@ -22,6 +22,10 @@ Usage: icpp build.cc [build_dir]
 
 #include "runtime/include/icpp.hpp"
 
+#if __LINUX__
+#include <stdlib.h>
+#endif
+
 namespace {
 
 bool patch_string(std::string_view infile, std::string_view patch_flag,
@@ -69,6 +73,15 @@ int main(int argc, const char *argv[]) {
 
   auto proj_root = fs::absolute(argv[0]).parent_path();
   auto build_root = argc == 2 ? fs::absolute(build_dir) : proj_root / build_dir;
+#if __LINUX__
+  auto prebuilt_llvm_bin = proj_root.string() + "/build/llvm/bin";
+  // set rpath for the temporary tools like protoc and llvm-tblgen
+  setenv("LD_LIBRARY_PATH",
+         std::format("{}/../lib/{}-unknown-linux-gnu", prebuilt_llvm_bin,
+                     icpp::arch)
+             .c_str(),
+         true);
+#endif
   // stage 1: check whether need to initialize ninja build
   auto ninja_build = build_root / "build.ninja";
   if (!fs::exists(ninja_build)) {
@@ -77,7 +90,6 @@ int main(int argc, const char *argv[]) {
         std::format("cmake -G Ninja -S {} -B {} -DCMAKE_BUILD_TYPE={}",
                     proj_root.string(), build_root.string(), build_type);
 #elif __LINUX__
-    auto prebuilt_llvm_bin = proj_root.string() + "/build/llvm/bin";
     auto cmake =
         std::format("cmake -G Ninja -S {} -B {} -DCMAKE_BUILD_TYPE={} "
                     "-DCMAKE_C_COMPILER={}/clang -DCMAKE_CXX_COMPILER={}/clang",
@@ -118,6 +130,14 @@ int main(int argc, const char *argv[]) {
         "VirtualOutputError.cpp.o " support_objpre
         "VirtualOutputFile.cpp.o " support_objpre "raw_ostream_proxy.cpp.o ");
 #elif __LINUX__
+    patch_string(ninja_build.string(), ninja_patch_flag,
+                 ".a  " llvm_libpre "libLLVM.so.22.1",
+                 ".a " llvm_libpre "libLLVM.so.22.1 " support_objpre
+                 "VirtualOutputBackends.cpp.o " support_objpre
+                 "VirtualOutputBackend.cpp.o " support_objpre
+                 "VirtualOutputError.cpp.o " support_objpre
+                 "VirtualOutputFile.cpp.o " support_objpre
+                 "raw_ostream_proxy.cpp.o ");
 #else
 #endif
   }
@@ -143,7 +163,7 @@ int main(int argc, const char *argv[]) {
 #endif
   // stage 3: build with cmake and ninja
   std::system(
-      std::format("cmake --build {} -- lld clang clang-repl clang-format icpp "
+      std::format("cmake --build {} -- clang clang-repl clang-format icpp "
                   "icppcli imod iopad icpp-gadget icpp-server",
                   build_root.string())
           .c_str());

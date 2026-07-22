@@ -99,10 +99,8 @@ message(STATUS "Configuring llvm/clang...")
 
 # icpp only supports x86_64/arm64 currently, but we're building LLVM which can be 
 # reused by AetherVM
-# lld is used to convert icpp's interpreting object cache file .io to native library 
-# if user requests to get the maximal running speed
 set(LLVM_TARGETS_TO_BUILD "X86;ARM;AArch64;Sparc" CACHE STRING "" FORCE)
-set(LLVM_ENABLE_PROJECTS "clang;lld" CACHE STRING "" FORCE)
+set(LLVM_ENABLE_PROJECTS "clang" CACHE STRING "" FORCE)
 set(LLVM_INCLUDE_UTILS OFF CACHE BOOL "" FORCE)
 set(LLVM_INCLUDE_RUNTIMES OFF CACHE BOOL "" FORCE)
 set(LLVM_INCLUDE_EXAMPLES OFF CACHE BOOL "" FORCE)
