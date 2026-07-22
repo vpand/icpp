@@ -70,21 +70,23 @@ using string_views = std::vector<std::string_view>;
 
 // for desktop platform
 #if __APPLE__
-constexpr std::string_view lib_ext = ".dylib";
-constexpr std::string_view exe_ext = "";
+#define LIB_EXT ".dylib"
+#define EXE_EXT ""
 constexpr std::string_view platform = "apple";
 constexpr std::string_view os_name = "macos";
 #elif __linux__
-constexpr std::string_view lib_ext = ".so";
-constexpr std::string_view exe_ext = "";
+#define LIB_EXT ".so"
+#define EXE_EXT ""
 constexpr std::string_view platform = "linux";
 constexpr std::string_view os_name = "linux";
 #else
-constexpr std::string_view lib_ext = ".dll";
-constexpr std::string_view exe_ext = ".exe";
+#define LIB_EXT ".dll"
+#define EXE_EXT ".exe"
 constexpr std::string_view platform = "win";
 constexpr std::string_view os_name = "windows";
 #endif
+constexpr std::string_view lib_ext = LIB_EXT;
+constexpr std::string_view exe_ext = EXE_EXT;
 
 #if __aarch64__ || __arm64__
 #if __linux__

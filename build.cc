@@ -77,9 +77,17 @@ int main(int argc, const char *argv[]) {
         std::format("cmake -G Ninja -S {} -B {} -DCMAKE_BUILD_TYPE={}",
                     proj_root.string(), build_root.string(), build_type);
 #elif __LINUX__
-#error unimplemented for linux
+    auto prebuilt_llvm_bin = proj_root.string() + "/build/llvm/bin";
+    auto cmake =
+        std::format("cmake -G Ninja -S {} -B {} -DCMAKE_BUILD_TYPE={} "
+                    "-DCMAKE_C_COMPILER={}/clang -DCMAKE_CXX_COMPILER={}/clang",
+                    proj_root.string(), build_root.string(), build_type,
+                    prebuilt_llvm_bin, prebuilt_llvm_bin);
 #else
-#error unimplemented for windows
+    auto cmake =
+        std::format("cmake -G Ninja -S {} -B {} -DCMAKE_BUILD_TYPE={} "
+                    "-DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl",
+                    proj_root.string(), build_root.string(), build_type);
 #endif
     std::system(cmake.c_str());
     if (!fs::exists(ninja_build)) {
@@ -110,9 +118,7 @@ int main(int argc, const char *argv[]) {
         "VirtualOutputError.cpp.o " support_objpre
         "VirtualOutputFile.cpp.o " support_objpre "raw_ostream_proxy.cpp.o ");
 #elif __LINUX__
-#error unimplemented for linux
 #else
-#error unimplemented for windows
 #endif
   }
 #if __WIN__ || __APPLE__ // linux has the right definition of LLVM_TEMPLATE_ABI
