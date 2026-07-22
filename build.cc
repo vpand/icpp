@@ -82,6 +82,7 @@ int main(int argc, const char *argv[]) {
              .c_str(),
          true);
 #endif
+
   // stage 1: check whether need to initialize ninja build
   auto ninja_build = build_root / "build.ninja";
   if (!fs::exists(ninja_build)) {
@@ -110,6 +111,7 @@ int main(int argc, const char *argv[]) {
     std::system(
         std::format("cmake --build {} -- protoc", build_root.string()).c_str());
   }
+
   // stage 2.1: patch targets which depend on libLLVM
   constexpr std::string_view ninja_patch_flag = "# ICPP Patched File";
   std::string firstline;
@@ -139,19 +141,22 @@ int main(int argc, const char *argv[]) {
                  "VirtualOutputFile.cpp.o " support_objpre
                  "raw_ostream_proxy.cpp.o ");
 #else
+    patch_string(ninja_build.string(), ninja_patch_flag, "NO NEED TO PATCH",
+                 "");
 #endif
   }
-#if __WIN__ || __APPLE__ // linux has the right definition of LLVM_TEMPLATE_ABI
+
   // stage 2.2: patch Compiler.h to correct LLVM_TEMPLATE_ABI
   constexpr std::string_view hdr_patch_flag = "// ICPP Patched File";
   firstline.clear();
-  auto hdr_compiler =
+#if __APPLE__ // linux has the right definition of LLVM_TEMPLATE_ABI
+  auto header =
       (proj_root / "third/llvm-project/llvm/include/llvm/Support/Compiler.h")
           .string();
-  std::getline(std::ifstream(hdr_compiler, std::ios::binary), firstline);
+  std::getline(std::ifstream(header, std::ios::binary), firstline);
   if (!firstline.starts_with(hdr_patch_flag)) {
-    std::println("Patching {}...", hdr_compiler);
-    patch_string(hdr_compiler, hdr_patch_flag, "#if !defined(LLVM_ABI)",
+    std::println("Patching {}...", header);
+    patch_string(header, hdr_patch_flag, "#if !defined(LLVM_ABI)",
                  R"(
 #if defined(LLVM_EXPORTS)
 #undef LLVM_TEMPLATE_ABI
@@ -160,13 +165,49 @@ int main(int argc, const char *argv[]) {
 
 #if !defined(LLVM_ABI))");
   }
+#elif __WIN__
+  auto llvm_include = proj_root / "third/llvm-project/llvm/include";
+  auto header =
+      (llvm_include / "llvm/ExecutionEngine/Orc/BacktraceTools.h").string();
+  std::getline(std::ifstream(header, std::ios::binary), firstline);
+  if (!firstline.starts_with(hdr_patch_flag)) {
+    std::println("Patching {}...", header);
+    patch_string(header, hdr_patch_flag, " LLVM_ABI ", " /*LLVM_ABI*/ ");
+  }
+  auto patched_include = build_root / "include_patched";
+  if (!fs::exists(patched_include)) {
+    std::println("Generating new llvm include...");
+    std::error_code err;
+    fs::copy(llvm_include, patched_include, fs::copy_options::recursive, err);
+    // patch LLVM_ABI definition to tread all the LLVM symbols as locals so that
+    // we have chance to add prebuilt LLVM libraries to targets if some symbols
+    // are missing anyway, because as long as a symbol has been marked as
+    // dllimport it must be in a .lib export section
+    header = (patched_include / "llvm/Support/Compiler.h").string();
+    std::println("Patching {}...", header);
+    patch_string(header, "", "#if !defined(LLVM_ABI)",
+                 R"(
+#undef LLVM_ABI
+#undef LLVM_TEMPLATE_ABI
+#define LLVM_ABI
+#define LLVM_TEMPLATE_ABI
+
+#if !defined(LLVM_ABI))");
+  }
 #endif
-  // stage 3: build with cmake and ninja
-  std::system(
-      std::format("cmake --build {} -- clang clang-repl clang-format icpp "
-                  "icppcli imod iopad icpp-gadget icpp-server",
-                  build_root.string())
-          .c_str());
+
+  // stage 3.1: build with cmake and ninja, firstly clang stuff
+  if (!fs::exists(build_root / llvm_libpre / "../bin/clang" EXE_EXT))
+    std::system(std::format("cmake --build {} -- clang clang-repl clang-format",
+                            build_root.string())
+                    .c_str());
+
+  // stage 3.2: secondly icpp stuff
+  std::system(std::format("cmake --build {} -- icpp "
+                          "icppcli imod iopad icpp-gadget icpp-server",
+                          build_root.string())
+                  .c_str());
+
   // stage 4: recheck whether build.ninja updated
   firstline.clear();
   std::getline(std::ifstream(ninja_build, std::ios::binary), firstline);

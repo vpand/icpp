@@ -144,16 +144,13 @@ add_library(icpp SHARED
 set(LLVMLIB_DIR ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/lib)
 set(LLVMSupport_DIR ${LLVMLIB_DIR}/Support/CMakeFiles/LLVMSupport.dir)
 set(ClangDriver_DIR ${LLVMLIB_DIR}/../tools/clang/tools/driver/CMakeFiles/clang.dir)
-if(MSVC)
+if(MSVC) 
+  set(STATIC_LIB ".lib")
+  set(LLVMLIB_PREFIX ${LLVMLIB_DIR}/)
+  # use patched llvm headers, see build.cc for more information
+  set(LLVM_INCLUDE_ROOT ${CMAKE_BINARY_DIR}/include_patched)
   set(DISABLE_RTTI /GR-)
-  set(LLVM_MINIMAL_LIBS LLVM-22 
-    ${LLVMSupport_DIR}/SmallVector.cpp.obj
-    ${LLVMSupport_DIR}/Z3Solver.cpp.obj
-    ${LLVMSupport_DIR}/VirtualOutputBackends.cpp.obj
-    ${LLVMSupport_DIR}/VirtualOutputBackend.cpp.obj
-    ${LLVMSupport_DIR}/VirtualOutputError.cpp.obj
-    ${LLVMSupport_DIR}/VirtualOutputFile.cpp.obj
-    ${LLVMSupport_DIR}/raw_ostream_proxy.cpp.obj)
+  set(LLVM_MINIMAL_LIBS ${LLVMLIB_DIR}/LLVM-22.lib version)
   set(CLANG_DRIVER_OBJS
     ${ClangDriver_DIR}/cc1_main.cpp.obj
     ${ClangDriver_DIR}/cc1gen_reproducer_main.cpp.obj
@@ -161,6 +158,9 @@ if(MSVC)
     ${ClangDriver_DIR}/cc1as_main.cpp.obj
     ${ClangDriver_DIR}/clang-driver.cpp.obj)
 else()
+  set(STATIC_LIB ".a")
+  set(LLVMLIB_PREFIX ${LLVMLIB_DIR}/lib)
+  set(LLVM_INCLUDE_ROOT ${THIRD_ROOT}/llvm-project/llvm/include)
   set(DISABLE_RTTI -fno-rtti)
   set(LLVM_MINIMAL_LIBS LLVM 
     ${LLVMSupport_DIR}/SmallVector.cpp.o
@@ -183,36 +183,36 @@ endif()
 # manually link clang's libraries into icpp so that we can get a minimal 
 # cold and incremental compiler driver in one place
 set(CLANG_LIBS 
-  ${LLVMLIB_DIR}/libclangAST.a 
-  ${LLVMLIB_DIR}/libclangBasic.a 
-  ${LLVMLIB_DIR}/libclangFrontend.a
-  ${LLVMLIB_DIR}/libclangLex.a
-  ${LLVMLIB_DIR}/libclangInterpreter.a 
-  ${LLVMLIB_DIR}/libclangFrontendTool.a 
-  ${LLVMLIB_DIR}/libclangCodeGen.a 
-  ${LLVMLIB_DIR}/libclangExtractAPI.a 
-  ${LLVMLIB_DIR}/libclangInstallAPI.a 
-  ${LLVMLIB_DIR}/libclangRewriteFrontend.a 
-  ${LLVMLIB_DIR}/libclangStaticAnalyzerFrontend.a 
-  ${LLVMLIB_DIR}/libclangStaticAnalyzerCheckers.a 
-  ${LLVMLIB_DIR}/libclangStaticAnalyzerCore.a
-  ${LLVMLIB_DIR}/libclangCrossTU.a 
-  ${LLVMLIB_DIR}/libclangDriver.a 
-  ${LLVMLIB_DIR}/libclangIndex.a 
-  ${LLVMLIB_DIR}/libclangOptions.a 
-  ${LLVMLIB_DIR}/libclangParse.a 
-  ${LLVMLIB_DIR}/libclangSerialization.a 
-  ${LLVMLIB_DIR}/libclangSema.a 
-  ${LLVMLIB_DIR}/libclangAPINotes.a 
-  ${LLVMLIB_DIR}/libclangEdit.a 
-  ${LLVMLIB_DIR}/libclangAnalysisLifetimeSafety.a 
-  ${LLVMLIB_DIR}/libclangAnalysis.a 
-  ${LLVMLIB_DIR}/libclangASTMatchers.a 
-  ${LLVMLIB_DIR}/libclangSupport.a 
-  ${LLVMLIB_DIR}/libclangFormat.a 
-  ${LLVMLIB_DIR}/libclangToolingInclusions.a 
-  ${LLVMLIB_DIR}/libclangToolingCore.a 
-  ${LLVMLIB_DIR}/libclangRewrite.a)
+  ${LLVMLIB_PREFIX}clangAST${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangBasic${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangFrontend${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangLex${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangInterpreter${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangFrontendTool${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangCodeGen${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangExtractAPI${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangInstallAPI${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangRewriteFrontend${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangStaticAnalyzerFrontend${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangStaticAnalyzerCheckers${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangStaticAnalyzerCore${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangCrossTU${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangDriver${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangIndex${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangOptions${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangParse${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangSerialization${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangSema${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangAPINotes${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangEdit${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangAnalysisLifetimeSafety${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangAnalysis${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangASTMatchers${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangSupport${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangFormat${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangToolingInclusions${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangToolingCore${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangRewrite${STATIC_LIB})
 target_link_directories(icpp PRIVATE 
   ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/lib)
 set_source_files_properties(${ICPP_LLVM_SOURCES} PROPERTIES COMPILE_FLAGS ${DISABLE_RTTI})
@@ -237,7 +237,7 @@ target_link_libraries(icpp
 )
 
 target_include_directories(icpp PRIVATE
-  ${THIRD_ROOT}/llvm-project/llvm/include
+  ${LLVM_INCLUDE_ROOT}
   ${THIRD_ROOT}/llvm-project/clang/include
   ${LLVM_OBJDUMP_ROOT}
   ${THIRD_ROOT}/unicorn/include
@@ -258,8 +258,9 @@ if(APPLE)
 #    -Wl,-exported_symbol,_icpp_logger)
 elseif(LINUX)
 #  target_link_options(icpp PRIVATE -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/ld-icpp.version)
-elseif(WIN32)
+elseif(MSVC)
   target_link_directories(icpp PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+  target_link_options(icpp PRIVATE "/FORCE:MULTIPLE")
 endif()
 target_compile_definitions(icpp PRIVATE ICPP_DLLIMPL=1)
 # remove lib prefix on macOS/Linux
@@ -317,7 +318,7 @@ add_executable(imod
 )
 set_source_files_properties(${IMOD_LLVM_SOURCES} PROPERTIES COMPILE_FLAGS ${DISABLE_RTTI})
 target_include_directories(imod PRIVATE
-  ${THIRD_ROOT}/llvm-project/llvm/include
+  ${LLVM_INCLUDE_ROOT}
   ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include
   ${THIRD_ROOT}/brotli/c/include
   ${CMAKE_CURRENT_BINARY_DIR}
@@ -360,7 +361,7 @@ add_executable(iopad
 )
 set_source_files_properties(${IOPAD_LLVM_SOURCES} PROPERTIES COMPILE_FLAGS ${DISABLE_RTTI})
 target_include_directories(iopad PRIVATE 
-  ${THIRD_ROOT}/llvm-project/llvm/include
+  ${LLVM_INCLUDE_ROOT}
   ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include
   ${CMAKE_CURRENT_BINARY_DIR}
 )
@@ -408,7 +409,7 @@ set_target_properties(icpp-gadget PROPERTIES PREFIX "")
 target_compile_definitions(icpp-gadget PRIVATE ICPP_DLLIMPL=1)
 set_source_files_properties(${IGADGET_LLVM_SOURCES} PROPERTIES COMPILE_FLAGS ${DISABLE_RTTI})
 target_include_directories(icpp-gadget PRIVATE 
-  ${THIRD_ROOT}/llvm-project/llvm/include
+  ${LLVM_INCLUDE_ROOT}
   ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include
   ${THIRD_ROOT}/unicorn/include
   ${CMAKE_CURRENT_BINARY_DIR}
@@ -427,7 +428,7 @@ if(APPLE)
   target_link_options(icpp-gadget PRIVATE -Wl,-exported_symbol -Wl,_icpp_gadget)
 elseif(LINUX)
   target_link_options(icpp-gadget PRIVATE -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/ld-gadget.version)
-elseif(WIN32)
+elseif(MSVC)
   target_link_directories(icpp-gadget PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 endif()
 

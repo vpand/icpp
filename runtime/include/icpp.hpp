@@ -44,6 +44,8 @@
 // c style
 #include <filesystem>
 #include <format>
+#include <fstream>
+#include <functional>
 #include <regex>
 #include <string>
 #include <string_view>

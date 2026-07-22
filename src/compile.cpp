@@ -35,7 +35,7 @@ extern std::string GetExecutablePath(const char *argv0, bool CanonicalPrefixes);
 #else
 static std::string GetExecutablePath(const char *argv0,
                                      bool CanonicalPrefixes) {
-  return fs::absolute(argv0);
+  return fs::absolute(argv0).string();
 }
 #endif
 

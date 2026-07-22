@@ -5,7 +5,6 @@
 */
 
 #include "arch.h"
-#include "llvm-objdump.h"
 #include "loader.h"
 #include "log.h"
 #include "object.h"
@@ -77,70 +76,28 @@
 
 using namespace llvm;
 using namespace llvm::object;
-using namespace llvm::objdump;
-using namespace llvm::opt;
 
-constexpr const char *ToolName = "icpp";
-
-bool objdump::ArchiveHeaders = false;
-bool objdump::Demangle = true;
-bool objdump::Disassemble = true;
-bool objdump::DisassembleAll = false;
-bool objdump::SymbolDescription = true;
-bool objdump::TracebackTable = true;
-bool objdump::SectionContents = false;
-bool objdump::PrintLines = true;
-bool objdump::ShowRawInsn = true;
-bool objdump::LeadingAddr = true;
-bool objdump::Relocations = true;
-bool objdump::PrintImmHex = true;
-bool objdump::PrivateHeaders = true;
-bool objdump::SectionHeaders = true;
-bool objdump::PrintSource = true;
-bool objdump::SymbolTable = true;
-bool objdump::UnwindInfo = true;
-std::string objdump::Prefix;
-uint32_t objdump::PrefixStrip;
-int objdump::DbgIndent = 52;
-
-void objdump::reportWarning(const Twine &Message, StringRef File) {
-  // Output order between errs() and outs() matters especially for archive
-  // files where the output is per member object.
-  outs().flush();
-  WithColor::warning(errs(), ToolName)
-      << "'" << File << "': " << Message << "\n";
-}
-
-[[noreturn]] void objdump::reportError(StringRef File, const Twine &Message) {
-  outs().flush();
-  WithColor::error(errs(), ToolName) << "'" << File << "': " << Message << "\n";
-  exit(1);
-}
-
-[[noreturn]] void objdump::reportError(Error E, StringRef FileName,
-                                       StringRef ArchiveName,
-                                       StringRef ArchitectureName) {
-  assert(E);
-  outs().flush();
-  WithColor::error(errs(), ToolName);
-  if (ArchiveName != "")
-    errs() << ArchiveName << "(" << FileName << ")";
-  else
-    errs() << "'" << FileName << "'";
-  if (!ArchitectureName.empty())
-    errs() << " (for architecture " << ArchitectureName << ")";
-  errs() << ": ";
-  logAllUnhandledErrors(std::move(E), errs());
-  exit(1);
-}
-
-/// Get the column at which we want to start printing the instruction
-/// disassembly, taking into account anything which appears to the left of it.
-unsigned objdump::getInstStartColumn(const MCSubtargetInfo &STI) {
-  return !ShowRawInsn ? 16 : STI.getTargetTriple().isX86() ? 40 : 24;
-}
+#if _WIN32
+namespace llvm {
+// define to fix linking error
+char ErrorList::ID = 0;
+char ErrorInfoBase::ID = 0;
+} // namespace llvm
+#endif
 
 namespace icpp {
+
+// internal disassembler's error, it's very unlikely to happen...
+
+[[noreturn]] void reportError(StringRef File, const Twine &Message) {
+  outs().flush();
+  errs() << "'" << File << "': " << Message << "\n";
+  exit(-1);
+}
+
+[[noreturn]] void reportError(Error E, StringRef FileName) {
+  reportError(FileName, llvm::toString(std::move(E)));
+}
 
 static const char *archName(const ObjectFile *Obj) {
   switch (Obj->getArch()) {
@@ -268,7 +225,7 @@ DisassemblerTarget::DisassemblerTarget(const Target *TheTarget, ObjectFile &Obj,
   if (!InstPrinter)
     reportError(Obj.getFileName(),
                 "no instruction printer for target " + TripleName);
-  InstPrinter->setPrintImmHex(PrintImmHex);
+  InstPrinter->setPrintImmHex(true);
   InstPrinter->setPrintBranchImmAsAddress(true);
   InstPrinter->setMCInstrAnalysis(InstrAnalysis.get());
 }

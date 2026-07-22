@@ -1,5 +1,12 @@
 # cmake
 cmake_minimum_required(VERSION 3.20)
+
+# to make CMAKE_MSVC_RUNTIME_LIBRARY take effect
+if(MSVC)
+  cmake_policy(SET CMP0091 NEW)
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+endif()
+
 project(icpp CXX C ASM)
 
 # is there any kind of defined variable like APPLE/MSVC for Linux ?
@@ -13,16 +20,10 @@ if(APPLE)
 endif()
 
 # workaround to process the different python/build command line name
-if(WIN32)
+if(MSVC)
   # python3 on Windows should be invoked as python
   set(PYTHON python)
   set(BUILDCMD ninja)
-  # use the MultiThreadedDLL dynamical runtime mode for compiling and linking
-  if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL")
-  else()
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
-  endif()
   set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MD /O2 /Ob2 -DNDEBUG")
   set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MDd")
   set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD /O2 /Ob2 -DNDEBUG")
@@ -80,7 +81,7 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
 # boost
 message(STATUS "Configuring boost...")
-if (WIN32)
+if (MSVC)
   set(BOOST_CONTEXT_IMPLEMENTATION winfib)
 endif()
 add_subdirectory(third/boost)
