@@ -19,8 +19,15 @@ if(APPLE)
   set(CMAKE_C_COMPILER "/usr/bin/clang" CACHE FILEPATH "" FORCE)
 endif()
 
+# build LLVM as shared library by default
+set(LLVM_SHLIB ON)
+
 # workaround to process the different python/build command line name
 if(MSVC)
+  if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    # build LLVM as static library on Windows in Debug mode to make life easier
+    set(LLVM_SHLIB OFF)
+  endif()
   # python3 on Windows should be invoked as python
   set(PYTHON python)
   set(BUILDCMD ninja)
@@ -110,11 +117,11 @@ set(LLVM_INCLUDE_BENCHMARKS OFF CACHE BOOL "" FORCE)
 set(LLVM_ENABLE_ZLIB "OFF" CACHE STRING "" FORCE)
 set(LLVM_ENABLE_ZSTD "OFF" CACHE STRING "" FORCE)
 # build llvm as a shared library to massively reduce the final package size
-set(LLVM_BUILD_LLVM_DYLIB ON CACHE BOOL "" FORCE)
-set(LLVM_LINK_LLVM_DYLIB ON CACHE BOOL "" FORCE)
+set(LLVM_BUILD_LLVM_DYLIB ${LLVM_SHLIB} CACHE BOOL "" FORCE)
+set(LLVM_LINK_LLVM_DYLIB ${LLVM_SHLIB} CACHE BOOL "" FORCE)
 set(CLANG_LINK_CLANG_DYLIB OFF CACHE BOOL "" FORCE)
 if(MSVC)
-  set(LLVM_BUILD_LLVM_DYLIB_VIS ON CACHE BOOL "" FORCE)
+  set(LLVM_BUILD_LLVM_DYLIB_VIS ${LLVM_SHLIB} CACHE BOOL "" FORCE)
   # fix the Support/BLAKE3/CMakeLists.txt assembler error when building llvm with ninja
   set(LLVM_DISABLE_ASSEMBLY_FILES TRUE)
   

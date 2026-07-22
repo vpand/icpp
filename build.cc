@@ -124,7 +124,7 @@ int main(int argc, const char *argv[]) {
     patch_string(
         ninja_build.string(), ninja_patch_flag,
         ".a  " llvm_libpre "libLLVM.dylib",
-        ".a " llvm_libpre "libLLVM.dylib " llvm_libpre
+        ".a  " llvm_libpre "libLLVM.dylib " llvm_libpre
         "libLLVMDTLTO.a " support_objpre "SmallVector.cpp.o " support_objpre
         "Z3Solver.cpp.o " support_objpre
         "VirtualOutputBackends.cpp.o " support_objpre
@@ -134,7 +134,7 @@ int main(int argc, const char *argv[]) {
 #elif __LINUX__
     patch_string(ninja_build.string(), ninja_patch_flag,
                  ".a  " llvm_libpre "libLLVM.so.22.1",
-                 ".a " llvm_libpre "libLLVM.so.22.1 " support_objpre
+                 ".a  " llvm_libpre "libLLVM.so.22.1 " support_objpre
                  "VirtualOutputBackends.cpp.o " support_objpre
                  "VirtualOutputBackend.cpp.o " support_objpre
                  "VirtualOutputError.cpp.o " support_objpre
