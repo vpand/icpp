@@ -25,25 +25,31 @@ else()
   add_link_options(@${CMAKE_CURRENT_SOURCE_DIR}/ld.txt)
 endif()
 
-#set(LLVM_LINK_COMPONENTS
-#  ${LLVM_TARGETS_TO_BUILD}
-#  Analysis
-#  CodeGen
-#  Core
-#  IPO
-#  AggressiveInstCombine
-#  InstCombine
-#  Instrumentation
-#  MC
-#  MCParser
-#  ObjCARCOpts
-#  Option
-#  ScalarOpts
-#  Support
-#  TargetParser
-#  TransformUtils
-#  Vectorize
-#)
+set(LLVM_LINK_COMPONENTS
+  ${LLVM_TARGETS_TO_BUILD}
+  Analysis
+  CodeGen
+  Core
+  IPO
+  AggressiveInstCombine
+  InstCombine
+  Instrumentation
+  MC
+  MCParser
+  ObjCARCOpts
+  Option
+  ScalarOpts
+  Support
+  TargetParser
+  TransformUtils
+  Vectorize
+  OrcJIT
+  OrcShared
+  OrcDebugging
+  LTO
+  Coverage
+  FrontendDriver
+)
 
 # Support plugins.
 if(CLANG_PLUGIN_SUPPORT)
@@ -150,7 +156,12 @@ if(MSVC)
   # use patched llvm headers, see build.cc for more information
   set(LLVM_INCLUDE_ROOT ${CMAKE_BINARY_DIR}/include_patched)
   set(DISABLE_RTTI /GR-)
-  set(LLVM_MINIMAL_LIBS ${LLVMLIB_DIR}/LLVM-22.lib version)
+  if(LLVM_SHLIB)
+    set(LLVM_MINIMAL_LIBS ${LLVMLIB_DIR}/LLVM-22.lib version)
+  else()
+    llvm_map_components_to_libnames(llvm_libs ${LLVM_LINK_COMPONENTS})
+    set(LLVM_MINIMAL_LIBS ${llvm_libs} version)
+  endif()
   set(CLANG_DRIVER_OBJS
     ${ClangDriver_DIR}/cc1_main.cpp.obj
     ${ClangDriver_DIR}/cc1gen_reproducer_main.cpp.obj

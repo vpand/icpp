@@ -77,7 +77,7 @@
 using namespace llvm;
 using namespace llvm::object;
 
-#if _WIN32
+#if _WIN32 && NDEBUG
 namespace llvm {
 // define to fix linking error
 char ErrorList::ID = 0;
