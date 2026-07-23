@@ -27,17 +27,9 @@
 #endif
 #include <llvm/Config/llvm-config.h>
 
-namespace proc = boost::process;
+#define SUPPORT_CLANG_CL 0
 
-#if 0
-// implement in llvm-project/clang/tools/driver/driver.cpp
-extern std::string GetExecutablePath(const char *argv0, bool CanonicalPrefixes);
-#else
-static std::string GetExecutablePath(const char *argv0,
-                                     bool CanonicalPrefixes) {
-  return fs::absolute(argv0).string();
-}
-#endif
+namespace proc = boost::process;
 
 namespace icpp {
 
@@ -67,15 +59,16 @@ int compile_source_clang(int argc, const char **argv, bool cl) {
     }
   }
 
-#if 0
+#if SUPPORT_CLANG_CL
   // construct a full path which the last element must be "clang" to make clang
   // driver happy, otherwise it can't compile source to object, it seems that
-  // clang driver depends on clang name to do the right compilation logic
-  auto exepath = GetExecutablePath(argv[0], true);
+  // clang driver depends on clang name to do the right compilation logic, like
+  // to determine the langue semantics
+  auto exepath = fs::path(RunConfig::inst()->program);
   // this full path ends with "clang", it's exactly the format that clang driver
   // wants
-  auto program = (fs::path(exepath).parent_path() / ".." / "lib" /
-                  (cl ? "clang-cl" : "clang"))
+  auto program = (exepath.parent_path() /
+                  (cl ? "clang-cl" EXE_EXTENSION : "clang" EXE_EXTENSION))
                      .string();
   auto argv0 = argv[0];
   argv[0] = program.c_str();
@@ -110,9 +103,11 @@ int compile_source_icpp(int argc, const char **argv) {
   args.push_back("-Wno-#pragma-messages");
   args.push_back("-Wno-unknown-argument");
 
-  // use C++23 standard
-  if (cppsrc)
+  // use C++23 standard and enable exception
+  if (cppsrc) {
     args.push_back("-std=c++23");
+    args.push_back("-fcxx-exceptions");
+  }
 
   /*
   The header search paths should contain the C++ Standard Library headers before
@@ -179,6 +174,7 @@ int compile_source_icpp(int argc, const char **argv) {
     }
   }
   if (ucrtinc.size()) {
+#if SUPPORT_CLANG_CL
     // use C++23 standard
     if (cppsrc) {
       args.push_back("/clang:-std=c++23");
@@ -186,6 +182,7 @@ int compile_source_icpp(int argc, const char **argv) {
       args.push_back("/clang:-nostdinc++");
       args.push_back("/clang:-nostdlib++");
     }
+#endif
     args.push_back(vcinc.data());
     args.push_back(ucrtinc.data());
     args.push_back("-target");
@@ -196,14 +193,16 @@ int compile_source_icpp(int argc, const char **argv) {
         "x86_64"
 #endif
         "-pc-windows-msvc19.0.0");
+#if SUPPORT_CLANG_CL
     cppminc = "/clang:";
 
     // MultiThreadedDLL
     args.push_back("/MD");
     // enable exception
-    args.push_back("/EHsc");
+    args.push_back("/EHs");
 
     cl = true; // set as clang-cl mode
+#endif
   }
 #else
   for (int i = 0; i < argc - 1; i++) {
@@ -267,7 +266,14 @@ int compile_source_icpp(int argc, const char **argv) {
     std::vector<std::string> ccargs;
     for (auto i = 1; i < args.size(); i++)
       ccargs.push_back(args[i]);
-    auto clang = (root / "bin/clang" EXE_EXTENSION).string();
+    auto clang = (root / "bin/"
+#if ON_WINDOWS && SUPPORT_CLANG_CL
+                         "clang-cl" EXE_EXTENSION
+#else
+                         "clang" EXE_EXTENSION
+#endif
+                  )
+                     .string();
     proc::child compiler(clang, ccargs);
     compiler.wait();
     return compiler.exit_code();
@@ -366,7 +372,7 @@ static void precompile_module(const char *argv0, const fs::path &root,
   std::vector<const char *> args;
   args.push_back(argv0);
   args.push_back("-w");
-#if _WIN32
+#if _WIN32 && SUPPORT_CLANG_CL
   std::string outarg("/clang:");
   outarg += pcmpath;
   args.push_back("/clang:-o");

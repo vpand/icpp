@@ -48,8 +48,12 @@ else()
     set(LLVM_TARGETS_TO_BUILD "AArch64" CACHE STRING "" FORCE)
 endif()
 
-# enable cxx for C/C++ runtime library
-set(LLVM_ENABLE_RUNTIMES "libunwind;libcxxabi;libcxx" CACHE STRING "" FORCE)
+# enable cxx for C++ runtime library
+if(MSVC)
+  set(LLVM_ENABLE_RUNTIMES "libcxx" CACHE STRING "" FORCE)
+else()
+  set(LLVM_ENABLE_RUNTIMES "libunwind;libcxxabi;libcxx" CACHE STRING "" FORCE)
+endif()
 
 set(LLVM_INCLUDE_RUNTIMES ON CACHE BOOL "" FORCE)
 set(LLVM_LIBC_FULL_BUILD ON CACHE BOOL "" FORCE)

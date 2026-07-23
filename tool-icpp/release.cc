@@ -206,6 +206,9 @@ int main(int argc, char **argv) {
   };
   pack_file(srcroot / names[0], bin, true, "clang" EXEEXT);
   pack_file(srcroot / names[0], bin, true, "clang++" EXEEXT);
+#if _WIN32
+  pack_file(srcroot / names[0], bin, true, "clang-cl" EXEEXT);
+#endif
   for (auto &name : names)
     pack_file(srcroot / name, bin, true);
 
@@ -226,17 +229,14 @@ int main(int argc, char **argv) {
   pack_file(libcxx / libcppabi, lib, true, libcppabi_name);
   pack_file(libcxx / libunwind, lib, true, libunwind_name);
 #else
-  pack_file(srcroot / "../libcxx/Release/lib/Release" / libcpp, lib, false);
+  pack_file(srcroot / "../libcxx/lib" / libcpp, lib, false);
   // c++.lib is needed for other users who want to build runtime library for
   // icpp, e.g.: AetherBinary exports APIs with stl classes as parameters or
   // return value, to make script, which refers those APIs, have the same C++
   // ABI with icpp, it should be compiled with icpp's C++ runtime
-  pack_file(srcroot / "../libcxx/Release/lib/Release/c++.lib", lib, false);
+  pack_file(srcroot / "../libcxx/c++.lib", lib, false);
   pack_file(srcroot / "../../cmake/boost/demangle/build/demangle.dll", lib,
             false);
-  // create the clang-cl magic file for msvc cl building
-  std::ofstream outf(lib / "clang-cl");
-  outf << "icpp internal flag file for windows platform.";
 #endif
 
   // copy platform/c/c++ headers
