@@ -8,6 +8,7 @@ Improvements:
  * icpp: add a clang-repl-based incremental compilation backend;
  * icpp: add more macros and apis in icpp.hpp interface;
  * icpp: add icpp.hpp in REPL by default;
+ * icpp: add qemu code page mmu patch to return address directly;
 
 ## v0.2.0
 Bug fixes:

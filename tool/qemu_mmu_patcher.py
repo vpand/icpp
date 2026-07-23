@@ -21,6 +21,12 @@ def patch_qemu_mmu(argv):
             print("The file %s has already been patched." % (srcf))
             sys.exit(0)
     '''
+    tb_page_addr_t get_page_addr_code_hostp(CPUArchState *env, target_ulong addr,
+                                            void **hostp)
+    {
+        struct uc_struct *uc = env->uc;
+        uintptr_t mmu_idx = cpu_mmu_index(env, true);
+
     ...
 
     static uint64_t inline
@@ -41,7 +47,14 @@ def patch_qemu_mmu(argv):
     with open(srcf, 'w') as fp:
         # part0
         fp.write(icpp_patch_magic)
-        fp.write(parts[0])
+        # added by ICPP version 0.3.0
+        # return code page address directly
+        v030_split_magic = 'uintptr_t mmu_idx = cpu_mmu_index(env, true);'
+        v030_parts = parts[0].split(v030_split_magic)
+        fp.write(v030_parts[0])
+        fp.write("return addr; // ICPP\n\t")
+        fp.write(v030_split_magic)
+        fp.write(v030_parts[1])
         # part1
         fp.write(split_magic)
         first_left_curly_brace_pos = parts[1].find('{')
