@@ -352,6 +352,7 @@ extern "C" __ICPP_EXPORT__ int icpp_exec(const char *icpp, const char *path,
   if (!path) {
     icpp::RunConfig::inst(icpp, "");
     icpp::Loader::initialize();
+    icpp::exec_string(icpp, "");
     return true;
   }
 

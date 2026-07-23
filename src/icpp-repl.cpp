@@ -105,6 +105,10 @@ int exec_repl(const char *argv0) {
       version_string());
   RunConfig::repl = true;
   RunConfig::inst(argv0, "");
+  // let the incremental compiler can cache the initial ASTs just in case the
+  // first time user inputs some syntactically wrong snippet which will ruin the
+  // whole parser context
+  exec_string(argv0, "");
   return icpp::repl_entry(
       [&](std::string_view dyncode) { exec_string(argv0, dyncode, true); });
 }

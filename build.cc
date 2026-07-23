@@ -28,8 +28,8 @@ Usage: icpp build.cc [build_dir]
 
 namespace {
 
-bool patch_string(std::string_view infile, std::string_view patch_flag,
-                  std::string_view pattern, std::string_view replace) {
+bool patch_file_string(std::string_view infile, std::string_view patch_flag,
+                       std::string_view pattern, std::string_view replace) {
   std::stringstream buffer;
   {
     // read file
@@ -59,6 +59,20 @@ bool patch_string(std::string_view infile, std::string_view patch_flag,
   // rename the temp as the original file
   fs::rename(temp_file, infile);
   return true;
+}
+
+bool starts_with(std::string_view infile, std::string_view flag) {
+  std::string firstline;
+  std::getline(std::ifstream(fs::path(infile), std::ios::binary), firstline);
+  return firstline.starts_with(flag);
+}
+
+void check_patch(std::string_view infile, std::string_view patch_flag,
+                 std::string_view pattern, std::string_view replace) {
+  if (!starts_with(infile, patch_flag)) {
+    std::println("Patching {}...", infile);
+    patch_file_string(infile, patch_flag, pattern, replace);
+  }
 }
 
 } // namespace
@@ -114,66 +128,52 @@ int main(int argc, const char *argv[]) {
 
   // stage 2.1: patch targets which depend on libLLVM
   constexpr std::string_view ninja_patch_flag = "# ICPP Patched File";
-  std::string firstline;
-  std::getline(std::ifstream(ninja_build, std::ios::binary), firstline);
-  if (!firstline.starts_with(ninja_patch_flag)) {
-    std::println("Patching {}...", ninja_build.string());
 #define llvm_libpre "third/llvm-project/llvm/lib/"
 #define support_objpre llvm_libpre "Support/CMakeFiles/LLVMSupport.dir/"
 #if __APPLE__
-    patch_string(
-        ninja_build.string(), ninja_patch_flag,
-        ".a  " llvm_libpre "libLLVM.dylib",
-        ".a  " llvm_libpre "libLLVM.dylib " llvm_libpre
-        "libLLVMDTLTO.a " support_objpre "SmallVector.cpp.o " support_objpre
-        "Z3Solver.cpp.o " support_objpre
-        "VirtualOutputBackends.cpp.o " support_objpre
-        "VirtualOutputBackend.cpp.o " support_objpre
-        "VirtualOutputError.cpp.o " support_objpre
-        "VirtualOutputFile.cpp.o " support_objpre "raw_ostream_proxy.cpp.o ");
+  check_patch(
+      ninja_build.string(), ninja_patch_flag,
+      ".a  " llvm_libpre "libLLVM.dylib",
+      ".a  " llvm_libpre "libLLVM.dylib " llvm_libpre
+      "libLLVMDTLTO.a " support_objpre "SmallVector.cpp.o " support_objpre
+      "Z3Solver.cpp.o " support_objpre
+      "VirtualOutputBackends.cpp.o " support_objpre
+      "VirtualOutputBackend.cpp.o " support_objpre
+      "VirtualOutputError.cpp.o " support_objpre
+      "VirtualOutputFile.cpp.o " support_objpre "raw_ostream_proxy.cpp.o ");
 #elif __LINUX__
-    patch_string(ninja_build.string(), ninja_patch_flag,
-                 ".a  " llvm_libpre "libLLVM.so.22.1",
-                 ".a  " llvm_libpre "libLLVM.so.22.1 " support_objpre
-                 "VirtualOutputBackends.cpp.o " support_objpre
-                 "VirtualOutputBackend.cpp.o " support_objpre
-                 "VirtualOutputError.cpp.o " support_objpre
-                 "VirtualOutputFile.cpp.o " support_objpre
-                 "raw_ostream_proxy.cpp.o ");
+  check_patch(ninja_build.string(), ninja_patch_flag,
+              ".a  " llvm_libpre "libLLVM.so.22.1",
+              ".a  " llvm_libpre "libLLVM.so.22.1 " support_objpre
+              "VirtualOutputBackends.cpp.o " support_objpre
+              "VirtualOutputBackend.cpp.o " support_objpre
+              "VirtualOutputError.cpp.o " support_objpre
+              "VirtualOutputFile.cpp.o " support_objpre
+              "raw_ostream_proxy.cpp.o ");
 #else
-    patch_string(ninja_build.string(), ninja_patch_flag, "NO NEED TO PATCH",
-                 "");
+  check_patch(ninja_build.string(), ninja_patch_flag, "NO NEED TO PATCH", "");
 #endif
-  }
 
   // stage 2.2: patch Compiler.h to correct LLVM_TEMPLATE_ABI
   constexpr std::string_view hdr_patch_flag = "// ICPP Patched File";
-  firstline.clear();
 #if __APPLE__ // linux has the right definition of LLVM_TEMPLATE_ABI
   auto header =
       (proj_root / "third/llvm-project/llvm/include/llvm/Support/Compiler.h")
           .string();
-  std::getline(std::ifstream(header, std::ios::binary), firstline);
-  if (!firstline.starts_with(hdr_patch_flag)) {
-    std::println("Patching {}...", header);
-    patch_string(header, hdr_patch_flag, "#if !defined(LLVM_ABI)",
-                 R"(
+  check_patch(header, hdr_patch_flag, "#if !defined(LLVM_ABI)",
+              R"(
 #if defined(LLVM_EXPORTS)
 #undef LLVM_TEMPLATE_ABI
 #define LLVM_TEMPLATE_ABI LLVM_ABI
 #endif                
 
 #if !defined(LLVM_ABI))");
-  }
 #elif __WIN__
   auto llvm_include = proj_root / "third/llvm-project/llvm/include";
   auto header =
       (llvm_include / "llvm/ExecutionEngine/Orc/BacktraceTools.h").string();
-  std::getline(std::ifstream(header, std::ios::binary), firstline);
-  if (!firstline.starts_with(hdr_patch_flag)) {
-    std::println("Patching {}...", header);
-    patch_string(header, hdr_patch_flag, " LLVM_ABI ", " /*LLVM_ABI*/ ");
-  }
+
+  check_patch(header, hdr_patch_flag, " LLVM_ABI ", " /*LLVM_ABI*/ ");
   auto patched_include = build_root / "include_patched";
   if (!fs::exists(patched_include)) {
     std::println("Generating new llvm include...");
@@ -184,9 +184,8 @@ int main(int argc, const char *argv[]) {
     // are missing anyway, because as long as a symbol has been marked as
     // dllimport it must be in a .lib export section
     header = (patched_include / "llvm/Support/Compiler.h").string();
-    std::println("Patching {}...", header);
-    patch_string(header, "", "#if !defined(LLVM_ABI)",
-                 R"(
+    check_patch(header, "", "#if !defined(LLVM_ABI)",
+                R"(
 #undef LLVM_ABI
 #undef LLVM_TEMPLATE_ABI
 #define LLVM_ABI
@@ -195,6 +194,16 @@ int main(int argc, const char *argv[]) {
 #if !defined(LLVM_ABI))");
   }
 #endif
+
+  // state 2.3: patch DeclarationName.cpp to disable abort when user has input
+  // syntactically wrong snippet
+  auto source =
+      (proj_root / "third/llvm-project/clang/lib/AST/DeclarationName.cpp")
+          .string();
+  check_patch(source, hdr_patch_flag,
+              "castAsCXXLiteralOperatorIdName()->FETokenInfo;\n  default:",
+              "castAsCXXLiteralOperatorIdName()->FETokenInfo;\n  default: "
+              "return nullptr; // ICPP");
 
   // stage 3.1: build with cmake and ninja, firstly clang stuff
   if (!fs::exists(build_root / llvm_libpre / "../bin/clang" EXE_EXT))
@@ -209,9 +218,7 @@ int main(int argc, const char *argv[]) {
                   .c_str());
 
   // stage 4: recheck whether build.ninja updated
-  firstline.clear();
-  std::getline(std::ifstream(ninja_build, std::ios::binary), firstline);
-  if (firstline.starts_with(ninja_patch_flag))
+  if (starts_with(ninja_build.string(), ninja_patch_flag))
     return 0;
   std::println("Rebuilding as build.ninja updated...");
   return main(argc, argv);

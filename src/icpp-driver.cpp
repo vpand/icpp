@@ -126,7 +126,7 @@ struct IncrementalCompilation {
   bool parse(std::string_view snippet) {
     auto expModule = Interp->Parse(snippet);
     if (!expModule) {
-      log_print(Runtime, "{}", llvm::toString(expModule.takeError()));
+      log_print(Develop, "{}", llvm::toString(expModule.takeError()));
       return false;
     }
     Module = expModule->TheModule.get();
