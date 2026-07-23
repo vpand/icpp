@@ -188,4 +188,12 @@ void iterate_modules(
 #endif
 }
 
+void set_env(std::string_view key, std::string_view value) {
+#if ON_WINDOWS
+  _putenv_s(key.data(), value.data());
+#else
+  setenv(key.data(), value.data(), true);
+#endif
+}
+
 } // namespace icpp

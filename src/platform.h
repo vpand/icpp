@@ -193,4 +193,6 @@ const void *find_symbol(const void *handle, std::string_view raw);
 void iterate_modules(
     const std::function<bool(uint64_t base, std::string_view path)> &callback);
 
+void set_env(std::string_view key, std::string_view value);
+
 } // namespace icpp

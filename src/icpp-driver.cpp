@@ -7,6 +7,7 @@
 #include "arch.h"
 #include "log.h"
 #include "platform.h"
+#include "runcfg.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticFrontend.h"
 #include "clang/Basic/Version.h"
@@ -57,7 +58,7 @@ namespace icpp {
 // used to initialize LLVM targets
 const Target *getTarget(const object::ObjectFile *Obj, std::string &TripleName);
 
-struct IncrementalCompilation {
+struct IncrementalCompilation : public clang::DiagnosticConsumer {
   clang::IncrementalCompilerBuilder CB;
   std::unique_ptr<clang::CompilerInstance> DeviceCI;
   std::unique_ptr<clang::Interpreter> Interp;
@@ -68,6 +69,14 @@ struct IncrementalCompilation {
   std::string_view ObjPath;
   std::string CurMain;
   int SnippetID = 0;
+
+  void HandleDiagnostic(clang::DiagnosticsEngine::Level Level,
+                        const clang::Diagnostic &Info) override {
+    llvm::SmallString<100> Msg;
+    Info.FormatDiagnostic(Msg);
+
+    log_print(Runtime, "{}", Msg.str().data());
+  }
 
   void init(int argc, const char **argv) {
     auto OptLevel = "-O1";
@@ -84,7 +93,8 @@ struct IncrementalCompilation {
       if (std::string_view(argv[i]).starts_with("-O"))
         OptLevel = argv[i];
     }
-
+    // we've patched the incremental parser to get this environment value
+    set_env("ICPP_SCRIPT", CppPath);
     if (Interp)
       return;
     CB.SetCompilerArgs(ClangArgv);
@@ -103,6 +113,10 @@ struct IncrementalCompilation {
 
     ExitOnErr.setBanner("icpp: ");
     auto CI = ExitOnErr(CB.CreateCpp());
+    if (log_writer) {
+      // use dynamic log printer if icpp runtime has one
+      CI->getDiagnostics().setClient(this, /*ShouldOwnClient=*/false);
+    }
     Interp =
         ExitOnErr(clang::Interpreter::create(std::move(CI), std::move(IEB)));
 

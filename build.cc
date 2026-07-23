@@ -61,16 +61,39 @@ bool patch_file_string(std::string_view infile, std::string_view patch_flag,
   return true;
 }
 
-bool starts_with(std::string_view infile, std::string_view flag) {
+bool starts_with(std::string_view infile, std::string_view flag,
+                 bool *cr = nullptr) {
   std::string firstline;
   std::getline(std::ifstream(fs::path(infile), std::ios::binary), firstline);
+  if (cr)
+    *cr = firstline.back() == '\r';
   return firstline.starts_with(flag);
+}
+
+void lf2crlf(std::string &str) {
+  std::size_t pos = 0;
+  while ((pos = str.find('\n', pos)) != std::string::npos) {
+    if (pos == 0 || str[pos - 1] != '\r') {
+      str.replace(pos, 1, "\r\n");
+      pos += 2;
+    } else {
+      pos += 1;
+    }
+  }
 }
 
 void check_patch(std::string_view infile, std::string_view patch_flag,
                  std::string_view pattern, std::string_view replace) {
-  if (!starts_with(infile, patch_flag)) {
+  bool cr = false;
+  if (!starts_with(infile, patch_flag, &cr)) {
     std::println("Patching {}...", infile);
+    std::string newpat;
+    if (cr && pattern.contains('\n')) {
+      newpat = pattern;
+      // the source code may in \r\n mode converted by git
+      lf2crlf(newpat);
+      pattern = newpat;
+    }
     patch_file_string(infile, patch_flag, pattern, replace);
   }
 }
@@ -195,15 +218,21 @@ int main(int argc, const char *argv[]) {
   }
 #endif
 
-  // state 2.3: patch DeclarationName.cpp to disable abort when user has input
+#define clang_libpre "third/llvm-project/clang/lib/"
+  // stage 2.3: patch DeclarationName.cpp to disable abort when user has input
   // syntactically wrong snippet
-  auto source =
-      (proj_root / "third/llvm-project/clang/lib/AST/DeclarationName.cpp")
-          .string();
+  auto source = (proj_root / clang_libpre "AST/DeclarationName.cpp").string();
   check_patch(source, hdr_patch_flag,
               "castAsCXXLiteralOperatorIdName()->FETokenInfo;\n  default:",
               "castAsCXXLiteralOperatorIdName()->FETokenInfo;\n  default: "
               "return nullptr; // ICPP");
+
+  // stage 2.4: patch IncrementalParser.cpp to let script's __FILE__ and
+  // std::source_location can work properly
+  source =
+      (proj_root / clang_libpre "Interpreter/IncrementalParser.cpp").string();
+  check_patch(source, hdr_patch_flag, "SourceName << ",
+              R"(SourceName << getenv("ICPP_SCRIPT"); //)");
 
   // stage 3.1: build with cmake and ninja, firstly clang stuff
   if (!fs::exists(build_root / llvm_libpre / "../bin/clang" EXE_EXT))
