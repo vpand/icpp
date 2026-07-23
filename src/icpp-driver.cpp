@@ -117,7 +117,7 @@ struct IncrementalCompilation {
 #endif
     llvm::TargetOptions options;
     auto relocationModel = Reloc::PIC_;
-    auto codeModel = CodeModel::Large;
+    auto codeModel = CodeModel::Small;
     Triple triple{targetTriple};
     TargetMachine = target->createTargetMachine(
         triple, cpu, features, options, relocationModel, codeModel, OLvl);
@@ -185,13 +185,15 @@ extern "C" {})",
   }
 };
 
-static std::unique_ptr<IncrementalCompilation> compiler;
+// use a raw pointer instance to live as long as icpp's running and explicitly
+// ignores its destructor to be called to skip the internal module code emitting
+static IncrementalCompilation *compiler = nullptr;
 
 const char *current_main() { return compiler ? compiler->CurMain.c_str() : ""; }
 
 int increment_main(int argc, const char **argv) {
   if (!compiler)
-    compiler = std::make_unique<IncrementalCompilation>();
+    compiler = new IncrementalCompilation;
   return compiler->main(argc, argv);
 }
 

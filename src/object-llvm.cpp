@@ -1061,7 +1061,7 @@ static int reloc_addend(const CObjectFile *object,
 }
 
 static RelocSymbol get_symbol(uint64_t addr, const SymbolRef &sym,
-                              uint32_t rtype) {
+                              uint32_t rtype, const CObjectFile *object) {
   RelocSymbol rsym;
   rsym.rtype = rtype;
 
@@ -1091,6 +1091,10 @@ static RelocSymbol get_symbol(uint64_t addr, const SymbolRef &sym,
       if (rsym.name == "printf")
         rsym.sflags |= SymbolRef::SF_Undefined;
     }
+    // mark undefined flag explicitly from COFFSymbol
+    auto coffsym = ((COFFObjectFile *)object)->getCOFFSymbol(sym);
+    if (coffsym.isAnyUndefined())
+      rsym.sflags |= SymbolRef::SF_Undefined;
 #endif
   }
   return rsym;
@@ -1144,7 +1148,7 @@ static void reloc_symbols(ObjectFile *ofile, ArchType arch, TextSection &text,
         for (const Elf_Rela &r : *expRelas) {
           auto sym = oelf->toSymbolRef(*expSymtab, r.getSymbol(false));
           auto addr = text.frva + r.r_offset;
-          auto rsym = get_symbol(addr, sym, r.getType(false));
+          auto rsym = get_symbol(addr, sym, r.getType(false), ofile);
           if (rsym.name.size()) {
             rsym.addend = r.r_addend;
             /*
@@ -1171,7 +1175,7 @@ static void reloc_symbols(ObjectFile *ofile, ArchType arch, TextSection &text,
     for (auto &r : texts.relocations()) {
       auto addr = text.frva + r.getOffset();
       auto sym = r.getSymbol();
-      auto rsym = get_symbol(addr, *sym, r.getType());
+      auto rsym = get_symbol(addr, *sym, r.getType(), ofile);
       if (rsym.name.size()) {
         if (addend) {
           rsym.addend = addend;
@@ -1732,7 +1736,7 @@ void Object::parseSections() {
           for (const Elf_Rela &r : *expRelas) {
             auto sym = oelf->toSymbolRef(*expSymtab, r.getSymbol(false));
             auto addr = s.getAddress() + r.r_offset;
-            auto rsym = get_symbol(addr, sym, r.getType(false));
+            auto rsym = get_symbol(addr, sym, r.getType(false), ofile_.get());
             if (rsym.name.size()) {
               rsym.addend = r.r_addend;
               relocateData(s.getIndex(), expContent.get(), r.r_offset, &rsym);
@@ -1770,7 +1774,7 @@ void Object::parseSections() {
                     toString(expFlags.takeError()));
           continue;
         }
-        auto rsym = get_symbol(0, *sym, r.getType());
+        auto rsym = get_symbol(0, *sym, r.getType(), ofile_.get());
         if (rsym.stype == SymbolRef::ST_File)
           continue;
         relocateData(s.getIndex(), sectBuff, r.getOffset(), &rsym);
