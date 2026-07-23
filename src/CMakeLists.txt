@@ -98,6 +98,7 @@ file(GLOB ICPP_LLVM_SOURCES
   object.cpp
   object-coff.cpp
   object-llvm.cpp
+  icpp-driver.cpp
 #  ${LLVM_OBJDUMP_ROOT}/SourcePrinter.cpp
 #  ${CLANG_DRIVER_ROOT}/driver.cpp
 #  ${CLANG_DRIVER_ROOT}/cc1_main.cpp
@@ -125,7 +126,6 @@ file(GLOB ICPP_CORE_SOURCES
 #add_clang_tool(icpp
 add_library(icpp SHARED
   ${ICPP_CORE_SOURCES}
-  icpp-driver.cpp
   icpp-main.cpp
   icpp-repl.cpp
 
