@@ -138,14 +138,17 @@ Run an C++ expression, e.g:
 ### ICPP REPL
 ```cpp
 vpand@MacBook-Pro icpp % icpp     
-ICPP v0.3.0.255. Copyright (c) 2024 vpand.com.
-Running C++ anywhere like a script.
+ICPP v0.3.0 (Jul 24 2026), Running C++ anywhere like a script.
 >>> std::puts("Hello, world.")
 Hello, world.
 >>> std::cout << "Hello, world." << std::endl
 Hello, world.
 >>> std::println("Hello, world.")
 Hello, world.
+>>> for (auto &w : {"Hello", ",", "world", "!\n"}) { \
+...   std::cout << w; \
+... }
+Hello,world!
 >>> icpp::print(88888888)
 88888888
 >>> icpp::print_hex(88888888)

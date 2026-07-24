@@ -393,8 +393,10 @@ static void precompile_module(const char *argv0, const fs::path &root,
 }
 
 void precompile_module(const char *argv0) {
-  auto pcmroot = fs::path(home_directory()) /
-                 std::format(".icpp/module/{}", LLVM_VERSION_STRING);
+  auto pcmroot =
+      fs::path(home_directory()) /
+      std::format(".icpp/module/{}-{:08x}", LLVM_VERSION_STRING,
+                  static_cast<uint32_t>(std::hash<std::string>{}(argv0)));
   pcm_root = pcmroot.string();
 
   auto icpproot = fs::path(argv0).parent_path().parent_path();

@@ -7,12 +7,15 @@
 #include "utils.h"
 #include "platform.h"
 #include "runcfg.h"
+#include "llvm/LineEditor/LineEditor.h"
 #include <array>
 #include <boost/algorithm/string.hpp>
 #include <cstdlib>
 #include <format>
 #include <random>
 #include <set>
+
+using namespace llvm;
 
 namespace icpp {
 
@@ -129,44 +132,32 @@ fs::path convert_file(std::string_view path, std::string_view newext) {
 }
 
 int repl_entry(const std::function<void(std::string_view)> &exec) {
+  LineEditor editor("");
+  editor.setPrompt(">>> ");
   std::set<std::string> directives;
-  std::string lastsnippet;
-  while (!std::cin.eof()) {
-    std::string snippet;
-    std::cout << ">>> ";
-    std::getline(std::cin, snippet);
-    boost::trim<std::string>(snippet);
-    if (!snippet.length()) {
-      if (!lastsnippet.length())
-        continue;
-      // repeat the last snippet if nothing input
-      snippet = lastsnippet;
-    }
+  std::string snippets;
+  while (true) {
+    std::optional<std::string> optline = editor.readLine();
+    if (!optline)
+      break;
+    std::string line = *optline;
+    boost::trim<std::string>(line);
 
-    // only support ascii snippet input
-    bool valid = true;
-    for (auto c : snippet) {
-      if (!std::isprint(c)) {
-        valid = false;
-        break;
-      }
-    }
-    if (!valid) {
-      std::cout << "Ignored this non ascii snippet code: " << snippet
-                << std::endl;
-      continue;
-    }
-
-    if (snippet.starts_with("#") || snippet.starts_with("typedef ") ||
-        snippet.starts_with("using ") || snippet.starts_with("namespace ") ||
-        snippet.starts_with(R"(extern "C")") ||
-        snippet.starts_with("import ")) {
+    if (line.starts_with("#") || line.starts_with("typedef ") ||
+        line.starts_with("using ") || line.starts_with("namespace ") ||
+        line.starts_with(R"(extern "C")") || line.starts_with("import ")) {
       // accumulated compiler directives, like #include, #define, etc.
-      if (snippet[0] != '#')
-        snippet += ";";
-      directives.insert(snippet);
+      if (line[0] != '#')
+        line += ";";
+      directives.insert(line);
+      continue;
+    } else if (line.ends_with("\\")) {
+      line.pop_back();
+      snippets += line;
+      editor.setPrompt("... ");
       continue;
     }
+    snippets += line;
 
     std::string dyncodes;
     // the # prefixed compiler directives
@@ -174,9 +165,12 @@ int repl_entry(const std::function<void(std::string_view)> &exec) {
       dyncodes += d + "\n";
     // the main entry
     dyncodes +=
-        "#include <icpp.hpp>\nint main(void) {" + snippet + ";return 0;}";
+        "#include <icpp.hpp>\nint main(void) {" + snippets + ";return 0;}";
     exec(dyncodes);
-    lastsnippet = snippet;
+
+    // reset
+    snippets.clear();
+    editor.setPrompt(">>> ");
   }
   return 0;
 }

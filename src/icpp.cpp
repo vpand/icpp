@@ -11,8 +11,7 @@ namespace icpp {
 
 std::string_view version_string() {
   static auto version =
-      std::format("v{}.{}.{}.{}", version_major, version_minor, version_patch,
-                  version_extra);
+      std::format("v{}.{}.{}", version_major, version_minor, version_patch);
   return version;
 }
 
