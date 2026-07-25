@@ -81,11 +81,16 @@ constexpr const std::string_view arch = "x86_64";
 #else
 #define EXEEXT ""
 #define VERSEP "."
+std::string_view _ICPPRT() {
+  static std::string rt =
 #if __APPLE__
-#define ICPPRT std::format("icpp" VERSEP "{}" LIBEXT, LLVM_VERSION_MAJOR)
+      std::format("icpp" VERSEP "{}" LIBEXT, LLVM_VERSION_MAJOR);
 #else
-#define ICPPRT std::format("icpp" LIBEXT VERSEP "{}", LLVM_VERSION_MAJOR)
+      std::format("icpp" LIBEXT VERSEP "{}", LLVM_VERSION_MAJOR);
 #endif
+  return rt;
+}
+#define ICPPRT _ICPPRT()
 #endif
 
 // the final libc++ dynamic library name used by icpp runtime

@@ -227,13 +227,6 @@ int main(int argc, const char *argv[]) {
               "castAsCXXLiteralOperatorIdName()->FETokenInfo;\n  default: "
               "return nullptr; // ICPP");
 
-  // stage 2.4: patch IncrementalParser.cpp to let script's __FILE__ and
-  // std::source_location can work properly
-  source =
-      (proj_root / clang_libpre "Interpreter/IncrementalParser.cpp").string();
-  check_patch(source, hdr_patch_flag, "SourceName << ",
-              R"(SourceName << getenv("ICPP_SCRIPT"); //)");
-
   // stage 3.1: build with cmake and ninja, firstly clang stuff
   if (!fs::exists(build_root / llvm_libpre / "../bin/clang" EXE_EXT))
     std::system(std::format("cmake --build {} -- clang clang-repl clang-format",

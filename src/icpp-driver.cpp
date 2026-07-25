@@ -93,8 +93,6 @@ struct IncrementalCompilation : public clang::DiagnosticConsumer {
       if (std::string_view(argv[i]).starts_with("-O"))
         OptLevel = argv[i];
     }
-    // we've patched the incremental parser to get this environment value
-    set_env("ICPP_SCRIPT", CppPath);
     if (Interp)
       return;
     CB.SetCompilerArgs(ClangArgv);
@@ -138,6 +136,8 @@ struct IncrementalCompilation : public clang::DiagnosticConsumer {
   }
 
   bool parse(std::string_view snippet) {
+    SnippetID++; // advance the current snippet ID
+
     auto expModule = Interp->Parse(snippet);
     if (!expModule) {
       log_print(Develop, "{}", llvm::toString(expModule.takeError()));
@@ -168,10 +168,19 @@ struct IncrementalCompilation : public clang::DiagnosticConsumer {
     return true;
   }
 
+  int compile(std::string_view snippet) {
+    return parse(snippet) && codegen() ? 0 : -1;
+  }
+
 public:
   int main(int argc, const char **argv) {
     // argv parsing and lazy initialization
     init(argc, argv);
+
+    // treat the first input source as a standalone file, use a #include
+    // directive to make __FILE__ and std::source_location work properly
+    if (!SnippetID)
+      return compile(std::format(R"(#include "{}")", CppPath));
 
     ErrorOr<std::unique_ptr<MemoryBuffer>> BufferPtr =
         MemoryBuffer::getFile(CppPath);
@@ -180,14 +189,14 @@ public:
       return -1;
     }
     MemoryBuffer *Buffer = BufferPtr->get();
+    // parse and feed only the main function, ignore everything before main
+    // function definition to avoid type redefinition error
     auto snippet = strstr(Buffer->getBufferStart(), "int main(");
-    if (!SnippetID || !snippet) {
-      SnippetID++;
-      return parse(Buffer->getBufferStart()) && codegen() ? 0 : -1;
-    }
+    if (!snippet)
+      return compile(Buffer->getBufferStart());
 
     // the current main name
-    CurMain = std::format("_{}_main", SnippetID++);
+    CurMain = std::format("_{}_main", SnippetID);
 
     std::string directives{Buffer->getBufferStart(), snippet};
     auto snippet_withid = std::format(R"({}
@@ -195,7 +204,7 @@ public:
 #define main {}
 extern "C" {})",
                                       directives, CurMain, snippet);
-    return parse(snippet_withid) && codegen() ? 0 : -1;
+    return compile(snippet_withid);
   }
 };
 
