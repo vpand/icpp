@@ -1,6 +1,7 @@
 ## v0.3.0
 Bug fixes:
  * icpp: fix a crash when getting icpp parent path with bare command line name;
+ * icpp: fix a crash when running icpp with a bare name on linux;
  * icpp: fix windows coff weak undefined symbol parse;
 
 Improvements:

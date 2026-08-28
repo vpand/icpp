@@ -64,6 +64,14 @@ int __attribute__((visibility("default"))) icpp_main(int argc,
     dladdr(reinterpret_cast<const void *>(&icpp_main), &dli);
     char progbuf[1024];
     auto program = realpath(dli.dli_fname, progbuf);
+#if __linux__
+    if (!program) {
+      // it's a bare icpp name on command line, fallback to linux specific path
+      auto count = readlink("/proc/self/exe", progbuf, sizeof(progbuf) - 1);
+      progbuf[count] = 0;
+      program = &progbuf[0];
+    }
+#endif
     auto libicpp = fs::path(program).parent_path() / icpp;
 
     // make sure argv[0] passing to icpp runtime is an absolute path,
