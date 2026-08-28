@@ -14,3 +14,6 @@
 [submodule "third/ios-cmake"]
 	path = third/ios-cmake
 	url = https://github.com/leetal/ios-cmake.git
+[submodule "third/llvm-project"]
+	path = third/llvm-project
+	url = https://github.com/GeekNeo/llvm-project
