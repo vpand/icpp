@@ -23,7 +23,6 @@ static void print_version() {
             << "Interpreting C++, running C++ anywhere like a script."
             << std::endl
             << "Project website: https://github.com/vpand/icpp/" << std::endl
-            << "Sponsor website: https://vpand.com/" << std::endl
             << std::endl;
 }
 

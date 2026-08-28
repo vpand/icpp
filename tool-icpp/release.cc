@@ -218,8 +218,12 @@ int main(int argc, char **argv) {
     pack_file(srcroot / name, bin, true);
 
   // copy LLVM files
-  pack_file(srcroot / "../third/llvm-project/llvm/lib/libLLVM" LIBEXT, lib,
-            true);
+  pack_file(srcroot / "../third/llvm-project/llvm/lib/libLLVM" LIBEXT, lib, true
+#if __linux__
+            ,
+            "libLLVM" LIBEXT ".22.1"
+#endif
+  );
   pack_file(srcroot / "../third/llvm-project/llvm/bin/clang-format" EXEEXT, bin,
             true);
 

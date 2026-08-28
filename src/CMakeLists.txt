@@ -194,12 +194,14 @@ endif()
 # manually link clang's libraries into icpp so that we can get a minimal 
 # cold and incremental compiler driver in one place
 set(CLANG_LIBS 
-  ${LLVMLIB_PREFIX}clangAST${STATIC_LIB}
   ${LLVMLIB_PREFIX}clangBasic${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangCodeGen${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangDriver${STATIC_LIB}
   ${LLVMLIB_PREFIX}clangFrontend${STATIC_LIB}
-  ${LLVMLIB_PREFIX}clangLex${STATIC_LIB}
   ${LLVMLIB_PREFIX}clangInterpreter${STATIC_LIB}
   ${LLVMLIB_PREFIX}clangFrontendTool${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangOptions${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangSerialization${STATIC_LIB}
   ${LLVMLIB_PREFIX}clangCodeGen${STATIC_LIB}
   ${LLVMLIB_PREFIX}clangExtractAPI${STATIC_LIB}
   ${LLVMLIB_PREFIX}clangInstallAPI${STATIC_LIB}
@@ -210,6 +212,7 @@ set(CLANG_LIBS
   ${LLVMLIB_PREFIX}clangCrossTU${STATIC_LIB}
   ${LLVMLIB_PREFIX}clangDriver${STATIC_LIB}
   ${LLVMLIB_PREFIX}clangIndex${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangFrontend${STATIC_LIB}
   ${LLVMLIB_PREFIX}clangOptions${STATIC_LIB}
   ${LLVMLIB_PREFIX}clangParse${STATIC_LIB}
   ${LLVMLIB_PREFIX}clangSerialization${STATIC_LIB}
@@ -219,13 +222,18 @@ set(CLANG_LIBS
   ${LLVMLIB_PREFIX}clangAnalysisLifetimeSafety${STATIC_LIB}
   ${LLVMLIB_PREFIX}clangAnalysis${STATIC_LIB}
   ${LLVMLIB_PREFIX}clangASTMatchers${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangAST${STATIC_LIB}
   ${LLVMLIB_PREFIX}clangSupport${STATIC_LIB}
   ${LLVMLIB_PREFIX}clangFormat${STATIC_LIB}
   ${LLVMLIB_PREFIX}clangToolingInclusions${STATIC_LIB}
   ${LLVMLIB_PREFIX}clangToolingCore${STATIC_LIB}
-  ${LLVMLIB_PREFIX}clangRewrite${STATIC_LIB})
+  ${LLVMLIB_PREFIX}clangRewrite${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangLex${STATIC_LIB}
+  ${LLVMLIB_PREFIX}clangBasic${STATIC_LIB}
+)
 target_link_directories(icpp PRIVATE 
-  ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/lib)
+  ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/lib
+)
 set_source_files_properties(${ICPP_LLVM_SOURCES} PROPERTIES COMPILE_FLAGS ${DISABLE_RTTI})
 
 #clang_target_link_libraries(icpp
@@ -269,6 +277,7 @@ if(APPLE)
 #    -Wl,-exported_symbol,_icpp_logger)
 elseif(LINUX)
 #  target_link_options(icpp PRIVATE -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/ld-icpp.version)
+  target_link_options(icpp PRIVATE -Wl,--no-undefined)
 elseif(MSVC)
   target_link_directories(icpp PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   target_link_options(icpp PRIVATE "/FORCE:MULTIPLE")
