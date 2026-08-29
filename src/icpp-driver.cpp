@@ -221,6 +221,13 @@ int increment_main(int argc, const char **argv) {
 }
 
 int clang_main(int argc, const char **argv) {
+#if __linux__
+  // disable the all warnings as error flag
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "-Werror") == 0)
+      argv[i] = "-Wno-gcc-install-dir-libstdcxx";
+  }
+#endif
   return ::clang_main(argc, const_cast<char **>(argv),
                       {argv[0], nullptr, false});
 }
