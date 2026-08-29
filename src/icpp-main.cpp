@@ -175,7 +175,7 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
     if (arg == "--version") {
       print_version();
       // continuing let clang print its version
-      return icpp::compile_source_clang(argc, const_cast<const char **>(argv));
+      return icpp::clang_main(argc, const_cast<const char **>(argv));
     }
     if (arg == "-h" || arg == "-help") {
       print_help();
@@ -184,7 +184,7 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
     if (arg == "--help") {
       print_help();
       // continuing let clang print its help list
-      return icpp::compile_source_clang(argc, const_cast<const char **>(argv));
+      return icpp::clang_main(argc, const_cast<const char **>(argv));
     }
     if (arg == "-c" || arg == "-o") {
       icpp::RunConfig::inst(argv[0], "");
