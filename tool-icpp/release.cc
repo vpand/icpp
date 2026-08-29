@@ -224,6 +224,8 @@ int main(int argc, char **argv) {
             "libLLVM" LIBEXT ".22.1"
 #endif
   );
+  pack_file(srcroot / "../third/llvm-project/llvm/bin/llvm-link" EXEEXT, bin,
+            true);
   pack_file(srcroot / "../third/llvm-project/llvm/bin/clang-format" EXEEXT, bin,
             true);
 

@@ -11,6 +11,7 @@ Improvements:
  * icpp: add more macros and apis in icpp.hpp interface;
  * icpp: add icpp.hpp in REPL by default;
  * icpp: add qemu code page mmu patch to return address directly;
+ * icpp: add llvm-link to final product icpp package;
 
 ## v0.2.0
 Bug fixes:

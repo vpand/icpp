@@ -227,11 +227,13 @@ int main(int argc, const char *argv[]) {
               "castAsCXXLiteralOperatorIdName()->FETokenInfo;\n  default: "
               "return nullptr; // ICPP");
 
-  // stage 3.1: build with cmake and ninja, firstly clang stuff
+  // stage 3.1: build with cmake and ninja, firstly llvm/clang stuff
   if (!fs::exists(build_root / llvm_libpre / "../bin/clang" EXE_EXT))
-    std::system(std::format("cmake --build {} -- clang clang-repl clang-format",
-                            build_root.string())
-                    .c_str());
+    std::system(
+        std::format(
+            "cmake --build {} -- llvm-link clang clang-repl clang-format",
+            build_root.string())
+            .c_str());
 
   // stage 3.2: secondly icpp stuff
   std::system(std::format("cmake --build {} -- icpp "
