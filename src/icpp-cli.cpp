@@ -58,19 +58,18 @@ int __attribute__((visibility("default"))) icpp_main(int argc,
     auto icpp = std::format("icpp.{}{}", LLVM_VERSION_MAJOR, LLVM_PLUGIN_EXT);
 #endif
     // cli and lib must be in the same directory
+    char progbuf[1024];
+#if __linux__
+    // directly fetch the original executable full path
+    auto count = readlink("/proc/self/exe", progbuf, sizeof(progbuf) - 1);
+    progbuf[count] = 0;
+    auto program = &progbuf[0];
+#else
     // using dladdr to lookup the executable full path instead of argv[0] can
     // make relative path also work
     Dl_info dli;
     dladdr(reinterpret_cast<const void *>(&icpp_main), &dli);
-    char progbuf[1024];
     auto program = realpath(dli.dli_fname, progbuf);
-#if __linux__
-    if (!program) {
-      // it's a bare icpp name on command line, fallback to linux specific path
-      auto count = readlink("/proc/self/exe", progbuf, sizeof(progbuf) - 1);
-      progbuf[count] = 0;
-      program = &progbuf[0];
-    }
 #endif
     auto libicpp = fs::path(program).parent_path() / icpp;
 
