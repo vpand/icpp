@@ -189,8 +189,7 @@ public:
       return -1;
     }
     MemoryBuffer *Buffer = BufferPtr->get();
-    // parse and feed only the main function, ignore everything before main
-    // function definition to avoid type redefinition error
+    // split the main function to assign an ID to the current one
     auto snippet = strstr(Buffer->getBufferStart(), "int main(");
     if (!snippet)
       return compile(Buffer->getBufferStart());

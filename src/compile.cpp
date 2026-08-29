@@ -121,6 +121,10 @@ int compile_source_icpp(int argc, const char **argv) {
     args.push_back("-nostdinc++");
     args.push_back("-nostdlib++");
   }
+  // add clang builtin include
+  auto builtininc = std::format("-I{}/lib/clang/{}/include", root.string(),
+                                LLVM_VERSION_MAJOR);
+  args.push_back(builtininc.data());
 
 #if __APPLE__
   std::string_view argsysroot = "-isysroot";
