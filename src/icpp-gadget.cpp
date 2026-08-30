@@ -12,7 +12,6 @@
 #include "platform.h"
 #include "runcfg.h"
 #include "utils.h"
-#include <boost/asio.hpp>
 #include <cstdarg>
 #include <icppdbg.pb.h>
 #include <icpppad.pb.h>
@@ -21,6 +20,8 @@
 #include <llvm/Support/InitLLVM.h>
 #include <mutex>
 #include <unicorn/unicorn.h>
+
+#include "asio-workaround.h"
 
 namespace cl = llvm::cl;
 namespace asio = boost::asio;

@@ -118,6 +118,23 @@ int main(int argc, const char *argv[]) {
                      icpp::arch)
              .c_str(),
          true);
+#elif __WIN__
+  // setup c++.dll for the temporary tools like llvm-tblgen to run properly
+  auto prebuilt_cxx = build_root / "libcxx/lib/c++.dll";
+  auto llvm_bin_cxx = build_root / "third/llvm-project/llvm/bin/c++.dll";
+  if (fs::exists(prebuilt_cxx)) {
+    if (!fs::exists(llvm_bin_cxx)) {
+      prebuilt_cxx.make_preferred();
+      llvm_bin_cxx.make_preferred();
+      std::system(std::format("mklink {} {}", llvm_bin_cxx.string(),
+                              prebuilt_cxx.string())
+                      .c_str());
+    }
+  } else {
+    std::println("You should prebuild {} before building icpp...",
+                 prebuilt_cxx.string());
+    return -1;
+  }
 #endif
 
   // stage 1: check whether need to initialize ninja build

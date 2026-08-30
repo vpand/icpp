@@ -8,12 +8,13 @@
 
 #include "arch.h"
 #include "utils.h"
-#include <boost/asio.hpp>
 #include <condition_variable>
 #include <cstdint>
 #include <mutex>
 #include <set>
 #include <thread>
+
+#include "asio-workaround.h"
 
 typedef struct uc_struct uc_engine;
 

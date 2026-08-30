@@ -240,6 +240,22 @@ cd build
 ```
 
 ### CMake
+#### Windows libc++
+To make the Windows version of ICPP runtime have the same C++ symbols as macOS and Linux, we're gonna build and apply LLVM's libc++ for the following steps on Windows.
+```sh
+# NOTE:
+# all the following steps must be done in "x64 Native Tools Command Prompt for VS"
+# or
+# run VS_ROOT/.../VC/Auxiliary/Build/vcvarsall.bat to initialize for 'x64'
+# replace it to arm64 if you're on a Windows-ARM64 device.
+vcvarsall x64
+# we use clang-cl as our compiler, to make it working, you should:
+# have installed the Visual Studio with LLVM Toolchain support.
+cmake -G Ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_BUILD_TYPE=Release -B cxxconf ../cmake/cxxconf
+# build the libc++, the output will be in libcxx/include, libcxx/lib.
+cmake --build cxxconf
+```
+
 #### Windows X86_64
 ```sh
 # NOTE:

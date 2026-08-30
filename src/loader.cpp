@@ -164,6 +164,9 @@ struct ModuleLoader {
     // load c++ runtime library
     auto libpath = bin_root / "../lib";
 #if ON_WINDOWS
+    // reset libpath as binpath
+    libpath = bin_root;
+
     // set boost dependency
     ::AddDllDirectory(libpath.wstring().data());
     ::LoadLibraryA("Shell32.dll");

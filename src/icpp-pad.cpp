@@ -23,11 +23,12 @@
 #include <boost/process.hpp>
 #pragma clang diagnostic pop
 #endif
-#include <boost/asio.hpp>
 #include <filesystem>
 #include <fstream>
 #include <icpppad.pb.h>
 #include <set>
+
+#include "asio-workaround.h"
 
 namespace proc = boost::process;
 namespace cl = llvm::cl;

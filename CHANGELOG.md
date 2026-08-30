@@ -6,6 +6,7 @@ Bug fixes:
 
 Improvements:
  * icpp: update LLVM to the version 22.1.8 as be synchronized with AetherVM;
+ * icpp: use LLVM's libc++ as icpp's C++ runtime on Windows as the same as Linux;
  * icpp: add new repl implementation based on LLVM LineEdit;
  * icpp: add a clang-repl-based incremental compilation backend;
  * icpp: add more macros and apis in icpp.hpp interface;

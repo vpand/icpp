@@ -49,6 +49,7 @@ set(LLVM_LINK_COMPONENTS
   LTO
   Coverage
   FrontendDriver
+  LineEditor
 )
 
 # Support plugins.

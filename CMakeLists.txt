@@ -47,6 +47,13 @@ if(MSVC)
     $<$<COMPILE_LANGUAGE:C>:-Wno-error=incompatible-pointer-types>)
   # /EHsc enables standard synchronous C++ exception handling
   add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/EHsc>)
+  # apply our prebuilt libc++
+  set(ICXXROOT ${CMAKE_BINARY_DIR}/libcxx)
+  set(ICXXINCLUDE ${ICXXROOT}/include)
+  set(ICXXLIB ${ICXXROOT}/lib)
+  # apply our custom built libc++ compile/link flags
+  add_compile_options(-Xclang -stdlib=libc++ -I${ICXXINCLUDE}/c++/v1)
+  add_link_options(/LIBPATH:${ICXXLIB} c++.lib vcruntime.lib msvcprt.lib)
 else()
   set(PYTHON python3)
   set(BUILDCMD make)
