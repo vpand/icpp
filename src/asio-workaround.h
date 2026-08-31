@@ -34,3 +34,7 @@ constexpr __ph<10> _10;
 #endif // end of ON_WINDOWS
 
 #include <boost/asio.hpp>
+
+#ifdef _WIN32
+#undef placeholders
+#endif

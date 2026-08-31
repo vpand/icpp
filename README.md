@@ -240,8 +240,8 @@ cd build
 ```
 
 ### CMake
-#### Windows libc++
-To make the Windows version of ICPP runtime have the same C++ symbols as macOS and Linux, we're gonna build and apply LLVM's libc++ for the following steps on Windows.
+#### Windows prebuilt
+To make the Windows version of ICPP runtime have the same C++ symbols as macOS and Linux so that we can only maintain one unified C++ API interface, we're gonna build and apply LLVM's clang/libc++ for the further steps on Windows.
 ```sh
 # NOTE:
 # all the following steps must be done in "x64 Native Tools Command Prompt for VS"
@@ -251,30 +251,18 @@ To make the Windows version of ICPP runtime have the same C++ symbols as macOS a
 vcvarsall x64
 # we use clang-cl as our compiler, to make it working, you should:
 # have installed the Visual Studio with LLVM Toolchain support.
-cmake -G Ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_BUILD_TYPE=Release -B cxxconf ../cmake/cxxconf
-# build the libc++, the output will be in libcxx/include, libcxx/lib.
-cmake --build cxxconf
+cmake -G Ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -B clangconf -DCMAKE_BUILD_TYPE=Release ../cmake/clangconf
+# build our clang compiler with itself's libc++ support
+cmake --build clangconf -- clang runtimes cxxabi_msvc
 ```
 
 #### Windows X86_64
 ```sh
-# NOTE:
-# all the following steps must be done in "x64 Native Tools Command Prompt for VS"
-# or
-# run VS_ROOT/.../VC/Auxiliary/Build/vcvarsall.bat to initialize for 'x64'
-vcvarsall x64
-# we use clang-cl as our compiler, to make it working, you should:
-# have installed the Visual Studio with LLVM Toolchain support.
-cmake -G Ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_BUILD_TYPE=Release ..
+cmake -G Ninja -DCMAKE_C_COMPILER=%CD%\llvm\bin\clang-cl.exe -DCMAKE_CXX_COMPILER=%CD%\llvm\bin\clang-cl.exe -DCMAKE_BUILD_TYPE=Release ..
 ```
 
 #### Windows ARM64
 ```sh
-# NOTE:
-# all the following steps must be done in "ARM64 Native Tools Command Prompt for VS"
-# or
-# run VS_ROOT/.../VC/Auxiliary/Build/vcvarsall.bat to initialize for 'arm64'
-vcvarsall arm64
 # we use clang-cl as our compiler, to make it working, you should:
 # have installed the Visual Studio with LLVM Toolchain support.
 #
@@ -285,12 +273,11 @@ vcvarsall arm64
 # 2.copy VC_ROOT/bin/armasm64.exe to LLVM_ROOT/bin/armasm64.exe.exe;
 # 3.build cmake/boost/armasm64 and copy it to LLVM_ROOT/bin/armasm64.exe;
 #
-cmake -G Ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_MT=llvm-mt -DCMAKE_ASM_MASM_COMPILE_OBJECT=armasm64 -DCMAKE_BUILD_TYPE=Release ..
+cmake -G Ninja -DCMAKE_C_COMPILER=%CD%\llvm\bin\clang-cl.exe -DCMAKE_CXX_COMPILER=%CD%\llvm\bin\clang-cl.exe -DCMAKE_MT=llvm-mt -DCMAKE_ASM_MASM_COMPILE_OBJECT=armasm64 -DCMAKE_BUILD_TYPE=Release ..
 ```
 
 #### Linux AArch64/X86_64
 ```sh
-# create the clang to be customized building scripts
 cmake -G Ninja -B clangconf -DCMAKE_BUILD_TYPE=Release ../cmake/clangconf
 # build our clang compiler with itself's libc++ support
 cmake --build clangconf -- clang runtimes

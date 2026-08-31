@@ -18,7 +18,13 @@ endif()
 set(LLVM_ENABLE_PROJECTS "clang" CACHE STRING "" FORCE)
 
 # enable cxx,cxxabi,unwind C++ runtime library
-set(LLVM_ENABLE_RUNTIMES "all" CACHE STRING "" FORCE)
+if(MSVC)
+  add_library(cxxabi_msvc STATIC 
+    ${CMAKE_CURRENT_SOURCE_DIR}/../cxxconf/cxxabi/cxxabi.cpp)
+  set(LLVM_ENABLE_RUNTIMES "libcxx" CACHE STRING "" FORCE)
+else()
+  set(LLVM_ENABLE_RUNTIMES "libunwind;libcxxabi;libcxx" CACHE STRING "" FORCE)
+endif()
 set(LLVM_INCLUDE_RUNTIMES ON CACHE BOOL "" FORCE)
 
 set(LLVM_INCLUDE_UTILS OFF CACHE BOOL "" FORCE)
@@ -28,4 +34,4 @@ set(LLVM_INCLUDE_BENCHMARKS OFF CACHE BOOL "" FORCE)
 set(LLVM_ENABLE_ZLIB "OFF" CACHE STRING "" FORCE)
 set(LLVM_ENABLE_ZSTD "OFF" CACHE STRING "" FORCE)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../third/llvm-project/llvm
-                 ${CMAKE_CURRENT_SOURCE_DIR}/../../build/llvm)
+                 ${CMAKE_CURRENT_BINARY_DIR}/../llvm)

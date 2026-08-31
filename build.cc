@@ -22,7 +22,8 @@ Usage: icpp build.cc [build_dir]
 
 #include "runtime/include/icpp.hpp"
 
-#if __LINUX__
+#if __LINUX__ || __WIN__
+// for environment variable setter
 #include <stdlib.h>
 #endif
 
@@ -102,39 +103,34 @@ void check_patch(std::string_view infile, std::string_view patch_flag,
 
 int main(int argc, const char *argv[]) {
   std::string_view build_dir = argc == 2 ? argv[1] : "build";
-  std::string_view build_type = build_dir.contains("debug") ||
-                                        build_dir.contains("Debug") ||
-                                        build_dir.contains("dev")
-                                    ? "Debug"
-                                    : "Release";
+  std::string_view build_type =
+      build_dir.contains("debug") || build_dir.contains("Debug") ||
+              build_dir.contains("dev")
+          ?
+#if __WIN__
+          // to make our ABI and Runtime compatible with prebuilt c++.dll, we
+          // can't apply a real DEBUG build
+          "RelWithDebInfo"
+#else
+          "Debug"
+#endif
+          : "Release";
 
   auto proj_root = fs::absolute(argv[0]).parent_path();
   auto build_root = argc == 2 ? fs::absolute(build_dir) : proj_root / build_dir;
+  // set rpath for the temporary tools like protoc and llvm-tblgen to let them
+  // run properly during compilation
 #if __LINUX__
   auto prebuilt_llvm_bin = proj_root.string() + "/build/llvm/bin";
-  // set rpath for the temporary tools like protoc and llvm-tblgen
   setenv("LD_LIBRARY_PATH",
          std::format("{}/../lib/{}-unknown-linux-gnu", prebuilt_llvm_bin,
                      icpp::arch)
              .c_str(),
          true);
 #elif __WIN__
-  // setup c++.dll for the temporary tools like llvm-tblgen to run properly
-  auto prebuilt_cxx = build_root / "libcxx/lib/c++.dll";
-  auto llvm_bin_cxx = build_root / "third/llvm-project/llvm/bin/c++.dll";
-  if (fs::exists(prebuilt_cxx)) {
-    if (!fs::exists(llvm_bin_cxx)) {
-      prebuilt_cxx.make_preferred();
-      llvm_bin_cxx.make_preferred();
-      std::system(std::format("mklink {} {}", llvm_bin_cxx.string(),
-                              prebuilt_cxx.string())
-                      .c_str());
-    }
-  } else {
-    std::println("You should prebuild {} before building icpp...",
-                 prebuilt_cxx.string());
-    return -1;
-  }
+  _putenv_s("PATH",
+            std::format("{}\\llvm\\lib;{}", build_root.string(), getenv("PATH"))
+                .c_str());
 #endif
 
   // stage 1: check whether need to initialize ninja build
@@ -151,10 +147,12 @@ int main(int argc, const char *argv[]) {
                     proj_root.string(), build_root.string(), build_type,
                     prebuilt_llvm_bin, prebuilt_llvm_bin);
 #else
-    auto cmake =
-        std::format("cmake -G Ninja -S {} -B {} -DCMAKE_BUILD_TYPE={} "
-                    "-DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl",
-                    proj_root.string(), build_root.string(), build_type);
+    auto clang_cl =
+        std::format("{}/llvm/bin/clang-cl.exe", build_root.string());
+    auto cmake = std::format("cmake -G Ninja -S {} -B {} -DCMAKE_BUILD_TYPE={} "
+                             "-DCMAKE_C_COMPILER={} -DCMAKE_CXX_COMPILER={}",
+                             proj_root.string(), build_root.string(),
+                             build_type, clang_cl, clang_cl);
 #endif
     std::system(cmake.c_str());
     if (!fs::exists(ninja_build)) {
@@ -224,14 +222,20 @@ int main(int argc, const char *argv[]) {
     // are missing anyway, because as long as a symbol has been marked as
     // dllimport it must be in a .lib export section
     header = (patched_include / "llvm/Support/Compiler.h").string();
-    check_patch(header, "", "#if !defined(LLVM_ABI)",
+    check_patch(header, hdr_patch_flag, "#if !defined(LLVM_ABI)",
                 R"(
 #undef LLVM_ABI
 #undef LLVM_TEMPLATE_ABI
 #define LLVM_ABI
 #define LLVM_TEMPLATE_ABI
+#define LLVM_ABI_ICPP __declspec(dllimport)
 
 #if !defined(LLVM_ABI))");
+
+    header = (patched_include / "llvm/Support/Error.h").string();
+    // mark these IDs as import symbol
+    check_patch(header, hdr_patch_flag, "static char ID;",
+                "LLVM_ABI_ICPP static char ID;");
   }
 #endif
 

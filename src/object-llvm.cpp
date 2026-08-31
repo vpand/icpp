@@ -4,6 +4,18 @@
    See LICENSE in root directory for more details
 */
 
+#if _WIN32
+#include "llvm/Support/Compiler.h"
+// turn LLVM_ABI import on
+#undef LLVM_ABI
+#define LLVM_ABI __declspec(dllimport)
+// import symbols
+#include "llvm/ADT/SmallVector.h"
+// turn LLVM_ABI import off
+#undef LLVM_ABI
+#define LLVM_ABI
+#endif // end of _WIN32
+
 #include "arch.h"
 #include "loader.h"
 #include "log.h"
@@ -53,7 +65,6 @@
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/WithColor.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Host.h"
 #include "llvm/TargetParser/Triple.h"
 #include <algorithm>
@@ -77,21 +88,12 @@
 using namespace llvm;
 using namespace llvm::object;
 
-#if _WIN32 && NDEBUG
-namespace llvm {
-// define to fix linking error
-char ErrorList::ID = 0;
-char ErrorInfoBase::ID = 0;
-} // namespace llvm
-#endif
-
 namespace icpp {
 
 // internal disassembler's error, it's very unlikely to happen...
 
 [[noreturn]] void reportError(StringRef File, const Twine &Message) {
-  outs().flush();
-  errs() << "'" << File << "': " << Message << "\n";
+  std::cerr << "'" << File.data() << "': " << Message.str() << "\n";
   exit(-1);
 }
 

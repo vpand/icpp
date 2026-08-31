@@ -245,12 +245,12 @@ int main(int argc, char **argv) {
   pack_file(libcxx / libcppabi, lib, true, libcppabi_name);
   pack_file(libcxx / libunwind, lib, true, libunwind_name);
 #else
-  pack_file(srcroot / "../libcxx/lib" / libcpp, bin, false);
+  pack_file(srcroot / "../llvm/lib" / libcpp, bin, false);
   // c++.lib is needed for other users who want to build runtime library for
   // icpp, e.g.: AetherBinary exports APIs with stl classes as parameters or
   // return value, to make script, which refers those APIs, have the same C++
   // ABI with icpp, it should be compiled with icpp's C++ runtime
-  pack_file(srcroot / "../libcxx/lib/c++.lib", lib, false);
+  pack_file(srcroot / "../llvm/lib/c++.lib", lib, false);
   pack_file(srcroot / "../../cmake/boost/demangle/build/demangle.dll", lib,
             false);
 #endif
