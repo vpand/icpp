@@ -210,8 +210,13 @@ int main(int argc, const char *argv[]) {
   auto llvm_include = proj_root / "third/llvm-project/llvm/include";
   auto header =
       (llvm_include / "llvm/ExecutionEngine/Orc/BacktraceTools.h").string();
-
   check_patch(header, hdr_patch_flag, " LLVM_ABI ", " /*LLVM_ABI*/ ");
+
+  // export dump method
+  header = (llvm_include / "llvm/Support/SMTAPI.h").string();
+  check_patch(header, hdr_patch_flag, "LLVM_DUMP_METHOD void dump() const;",
+              "LLVM_ABI void dump() const;");
+
   auto patched_include = build_root / "include_patched";
   if (!fs::exists(patched_include)) {
     std::println("Generating new llvm include...");
