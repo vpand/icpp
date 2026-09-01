@@ -1282,22 +1282,29 @@ void ExecEngine::interpretCondMovRegMem(const InsnInfo *&inst, uint64_t &pc) {
   }
 }
 
+#include "sse-workaround.cpp"
+
 void ExecEngine::interpretSSERegMem(const InsnInfo *&inst, uint64_t &pc) {
   // SSE_INSN xmmN, [TARGET]
   auto target = reinterpret_cast<uint64_t>(robject_->relocTarget(inst->reloc));
-  alignas(0x10) char dyncode[64]; // xmm buffer needs to be 0x10 alignment
-  char *ptr = &dyncode[0];
+  alignas(0x10) uint8_t dyncode[64]; // xmm buffer needs to be 0x10 alignment
+  auto ptr = &dyncode[0];
   // copy the buffer of target with the size of xmm register
   std::memcpy(ptr, (void *)target, 0x10);
   ptr += 0x10;
   // copy opcode
-  char *opcode = ptr;
+  auto opcode = ptr;
   *(uint32_t *)ptr = *(uint32_t *)pc;
-  ptr += 4;
+  ptr += inst->len - 4;
   // target = pc + oplen + offset
   // offset = target - (pc + oplen)
   // set the new offset
   *(int32_t *)ptr = -0x10 - inst->len;
+
+  // try interpret the new instruction directly
+  if (interpretPackedDoubleOp(uc_, opcode))
+    return;
+
   // execute the new instruction
   auto err = uc_emu_start(uc_, reinterpret_cast<uint64_t>(opcode), -1, 0, 1);
   if (err != UC_ERR_OK) {
@@ -1805,7 +1812,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       break;
     default:
 #if ARCH_X64
-      if (inst->rflag && inst->len == 8 && *(uint32_t *)(pc + 4) == 0) {
+      if (inst->rflag && *(uint32_t *)(pc + inst->len - 4) == 0) {
         // relocate and emulate the SSE instruction
         interpretSSERegMem(inst, pc);
         break;

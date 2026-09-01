@@ -65,7 +65,7 @@ struct RelocInfo {
 struct DynSection {
   uint32_t index; // section index
   // dynamically allocated buffer for this section, e.g.: bss common
-  std::string buffer;
+  std::vector<char> buffer;
 };
 
 struct TextSection {

@@ -1295,6 +1295,7 @@ void Object::decodeInsns(TextSection &text) {
         const void *rtaddr = nullptr;
         auto &rsym = found->second;
         auto symtype = reloc_symtype(iinfo, arch(), type(), rsym);
+        bool dyn = false;
         if (rsym.sflags & SymbolRef::SF_Undefined) {
           // an extern relocation
           rtaddr =
@@ -1313,7 +1314,6 @@ void Object::decodeInsns(TextSection &text) {
                 rsym.name.data(), vm2rva(opc));
             abort();
           }
-          bool dyn = false;
           auto sectname = expSect.get()->getName();
           if (!sectname) {
             // never be here
@@ -1380,10 +1380,10 @@ void Object::decodeInsns(TextSection &text) {
                                           static_cast<uint32_t>(symtype)});
         }
         if (0) {
-          log_print(Develop, "Relocated {:06x}.{} symbol {} at {}.",
-                    (int)iinfo.rva,
+          log_print(Develop, "Relocated {:06x}.{} symbol {} at {}{}.",
+                    (int)(iinfo.rva - text.frva + text.vrva),
                     symtype == SymbolRef::ST_Data ? "data" : "func", rit->name,
-                    rit->target);
+                    rit->target, dyn ? " (dynamic section)" : "");
         }
         // record its relocation index
         iinfo.rflag = 1;
@@ -1690,17 +1690,30 @@ void Object::parseSections() {
         news.vrva = news.frva - textsects_[0].frva;
       if (0) {
         log_print(Develop,
-                  "Section index={} frva={:x} vmrva={:x} vm={:x} size={} {}.",
+                  "T.Section index={} frva={:x} vmrva={:x} vm={:x} size={} {}.",
                   news.index, news.frva, news.vrva, news.vm, news.size,
                   name.data());
       }
     } else if (s.isBSS() || name.ends_with("bss") || name.ends_with("common")) {
-      dynsects_.push_back(
-          {static_cast<uint32_t>(s.getIndex()), std::string(s.getSize(), 0)});
+      dynsects_.push_back({static_cast<uint32_t>(s.getIndex()),
+                           std::vector<char>(s.getSize(), 0)});
+      if (0) {
+        auto rit = dynsects_.rbegin();
+        log_print(Develop,
+                  "U.Section index={} frva=0 vmrva={:x} vm={:p} size={} {}.",
+                  rit->index, vmrva, (void *)rit->buffer.data(),
+                  rit->buffer.size(), name.data());
+      }
     } else {
       auto expContent = s.getContents();
       if (!expContent)
         continue;
+      if (0) {
+        log_print(Develop,
+                  "D.Section index={} frva=0 vmrva={:x} vm={:p} size={} {}.",
+                  s.getIndex(), vmrva, (void *)expContent.get().data(),
+                  expContent.get().size(), name.data());
+      }
       // commit relocations for this data section
       if (type() == ELF_Reloc) {
         LLVM_ELF_IMPORT_TYPES_ELFT(object::ELF64LE);
@@ -1762,10 +1775,17 @@ void Object::parseSections() {
         // aligned for .text reference
         auto &dyns = dynsects_.emplace_back(
             DynSection{static_cast<uint32_t>(s.getIndex()),
-                       std::string(sectBuff.size(), 0)});
+                       std::vector<char>(sectBuff.size(), 0)});
         std::memcpy(const_cast<char *>(dyns.buffer.data()), sectBuff.data(),
                     sectBuff.size());
-        sectBuff = dyns.buffer;
+        sectBuff = {dyns.buffer.data(), dyns.buffer.size()};
+        if (0) {
+          auto rit = dynsects_.rbegin();
+          log_print(Develop,
+                    "R.Section index={} frva=0 vmrva={:x} vm={:p} size={} {}.",
+                    rit->index, vmrva, (void *)rit->buffer.data(),
+                    rit->buffer.size(), name.data());
+        }
       }
 #endif
       for (auto r : s.relocations()) {
