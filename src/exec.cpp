@@ -1087,7 +1087,7 @@ uint64_t ExecEngine::interpretCalcMemX64(const InsnInfo *&inst, uint64_t &pc,
       if (offimm == -1)
         offimm = 0;
 
-      // relocate to other runtime address
+      // relocate to the real runtime address
       memaddr = reinterpret_cast<uint64_t>(robject_->relocTarget(inst->reloc)) +
                 offimm;
     } else {
@@ -1262,8 +1262,8 @@ void ExecEngine::interpretCondMovRegMem(const InsnInfo *&inst, uint64_t &pc) {
   auto target = interpretCalcMemX64(inst, pc, basereg_op_idx, &ops);
   char dyncode[64];
   char *ptr = &dyncode[0];
-  // set the target pointer
-  *(uint64_t *)ptr = target;
+  // set the content of the target pointer
+  *(uint64_t *)ptr = *(uint64_t *)target;
   ptr += 8;
   // copy opcode
   char *opcode = ptr;
@@ -1282,8 +1282,6 @@ void ExecEngine::interpretCondMovRegMem(const InsnInfo *&inst, uint64_t &pc) {
   }
 }
 
-#include "sse-workaround.cpp"
-
 void ExecEngine::interpretSSERegMem(const InsnInfo *&inst, uint64_t &pc) {
   // SSE_INSN xmmN, [TARGET]
   auto target = reinterpret_cast<uint64_t>(robject_->relocTarget(inst->reloc));
@@ -1300,10 +1298,6 @@ void ExecEngine::interpretSSERegMem(const InsnInfo *&inst, uint64_t &pc) {
   // offset = target - (pc + oplen)
   // set the new offset
   *(int32_t *)ptr = -0x10 - inst->len;
-
-  // try interpret the new instruction directly
-  if (interpretPackedDoubleOp(uc_, opcode))
-    return;
 
   // execute the new instruction
   auto err = uc_emu_start(uc_, reinterpret_cast<uint64_t>(opcode), -1, 0, 1);

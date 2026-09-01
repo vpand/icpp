@@ -188,8 +188,6 @@ int main(int argc, const char *argv[]) {
               "VirtualOutputError.cpp.o " support_objpre
               "VirtualOutputFile.cpp.o " support_objpre
               "raw_ostream_proxy.cpp.o ");
-#else
-  check_patch(ninja_build.string(), ninja_patch_flag, "NO NEED TO PATCH", "");
 #endif
 
   // stage 2.2: patch Compiler.h to correct LLVM_TEMPLATE_ABI
@@ -266,10 +264,13 @@ int main(int argc, const char *argv[]) {
                           "icppcli imod iopad icpp-gadget icpp-server",
                           build_root.string())
                   .c_str());
-
+#if __WIN__
+  return 0;
+#else
   // stage 4: recheck whether build.ninja updated
   if (starts_with(ninja_build.string(), ninja_patch_flag))
     return 0;
   std::println("Rebuilding as build.ninja updated...");
   return main(argc, argv);
+#endif
 }

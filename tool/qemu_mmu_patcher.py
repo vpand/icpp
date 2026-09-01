@@ -52,7 +52,10 @@ def patch_qemu_mmu(argv):
         v030_split_magic = 'uintptr_t mmu_idx = cpu_mmu_index(env, true);'
         v030_parts = parts[0].split(v030_split_magic)
         fp.write(v030_parts[0])
-        fp.write("return addr; // ICPP\n\t")
+        # disable this patch for now, because it will cause some problems occasionally,
+        # we'll have replaced unicorn with AetherVM from version 0.4.0 to improve the 
+        # performance of emulation and have better maintainability.
+        #fp.write("return addr; // ICPP\n\t")
         fp.write(v030_split_magic)
         fp.write(v030_parts[1])
         # part1

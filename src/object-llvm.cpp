@@ -1768,26 +1768,6 @@ void Object::parseSections() {
         continue; // empty section
 
       auto sectBuff = expContent.get();
-#if _WIN32
-      if (!s.relocations().empty() &&
-          (reinterpret_cast<uint64_t>(sectBuff.data()) & 1)) {
-        // move this section to dynamic sections as we need it to be 4/8 bytes
-        // aligned for .text reference
-        auto &dyns = dynsects_.emplace_back(
-            DynSection{static_cast<uint32_t>(s.getIndex()),
-                       std::vector<char>(sectBuff.size(), 0)});
-        std::memcpy(const_cast<char *>(dyns.buffer.data()), sectBuff.data(),
-                    sectBuff.size());
-        sectBuff = {dyns.buffer.data(), dyns.buffer.size()};
-        if (0) {
-          auto rit = dynsects_.rbegin();
-          log_print(Develop,
-                    "R.Section index={} frva=0 vmrva={:x} vm={:p} size={} {}.",
-                    rit->index, vmrva, (void *)rit->buffer.data(),
-                    rit->buffer.size(), name.data());
-        }
-      }
-#endif
       for (auto r : s.relocations()) {
         auto sym = r.getSymbol();
         auto expFlags = sym->getFlags();
