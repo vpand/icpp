@@ -251,6 +251,11 @@ int main(int argc, char **argv) {
   // return value, to make script, which refers those APIs, have the same C++
   // ABI with icpp, it should be compiled with icpp's C++ runtime
   pack_file(srcroot / "../llvm/lib/c++.lib", lib, false);
+  pack_file(srcroot /
+                std::format(
+                    "../llvm/lib/clang/22/lib/windows/clang_rt.builtins-{}.lib",
+                    arch),
+            lib, false, "clang_rt.builtins.lib");
   pack_file(srcroot / "../../cmake/boost/demangle/build/demangle.dll", lib,
             false);
 #endif

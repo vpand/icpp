@@ -21,7 +21,7 @@ set(LLVM_ENABLE_PROJECTS "clang" CACHE STRING "" FORCE)
 if(MSVC)
   add_library(cxxabi_msvc STATIC 
     ${CMAKE_CURRENT_SOURCE_DIR}/../cxxconf/cxxabi/cxxabi.cpp)
-  set(LLVM_ENABLE_RUNTIMES "libcxx" CACHE STRING "" FORCE)
+  set(LLVM_ENABLE_RUNTIMES "libcxx;compiler-rt" CACHE STRING "" FORCE)
 else()
   set(LLVM_ENABLE_RUNTIMES "libunwind;libcxxabi;libcxx" CACHE STRING "" FORCE)
 endif()
