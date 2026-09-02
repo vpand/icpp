@@ -1253,18 +1253,18 @@ void ExecEngine::interpretCondMovRegMem(const InsnInfo *&inst, uint64_t &pc) {
     <MCOperand Imm>
   >
   */
+  constexpr int resultreg_op_idx = 0;
+  constexpr int cmpreg_op_idx = resultreg_op_idx + 1;
+  constexpr int basereg_op_idx = cmpreg_op_idx + 1;
+  constexpr int expimm_op_idx = basereg_op_idx + 1;
+  constexpr int expreg_op_idx = expimm_op_idx + 4;
+  constexpr int offimm_op_idx = expreg_op_idx + 1;
+  constexpr int segreg_op_idx = offimm_op_idx + 4;
+  constexpr int condimm_op_idx = segreg_op_idx + 1;
+  const uint16_t *ops;
+  auto target = interpretCalcMemX64(inst, pc, basereg_op_idx, &ops);
   auto found = dyn_codes.find(pc);
   if (found == dyn_codes.end()) {
-    constexpr int resultreg_op_idx = 0;
-    constexpr int cmpreg_op_idx = resultreg_op_idx + 1;
-    constexpr int basereg_op_idx = cmpreg_op_idx + 1;
-    constexpr int expimm_op_idx = basereg_op_idx + 1;
-    constexpr int expreg_op_idx = expimm_op_idx + 4;
-    constexpr int offimm_op_idx = expreg_op_idx + 1;
-    constexpr int segreg_op_idx = offimm_op_idx + 4;
-    constexpr int condimm_op_idx = segreg_op_idx + 1;
-    const uint16_t *ops;
-    auto target = interpretCalcMemX64(inst, pc, basereg_op_idx, &ops);
     char dyncode[64];
     char *ptr = &dyncode[0];
     // set the content of the target pointer
@@ -1278,6 +1278,9 @@ void ExecEngine::interpretCondMovRegMem(const InsnInfo *&inst, uint64_t &pc) {
     *(int32_t *)ptr = -8 - inst->len;
     // cache the dynamically generated instruction
     found = dyn_codes.insert({pc, {&dyncode[0], ptr + 4}}).first;
+  } else {
+    // set the content of the target pointer
+    *(uint64_t *)found->second.data() = *(uint64_t *)target;
   }
   // execute the dynamically generated instruction
   auto opcode = found->second.data() + 8;
@@ -1292,12 +1295,11 @@ void ExecEngine::interpretCondMovRegMem(const InsnInfo *&inst, uint64_t &pc) {
 }
 
 void ExecEngine::interpretSSERegMem(const InsnInfo *&inst, uint64_t &pc) {
+  auto target = reinterpret_cast<uint64_t>(robject_->relocTarget(inst->reloc));
   auto found = dyn_codes.find(pc);
   if (found == dyn_codes.end()) {
     // SSE_INSN xmmN, [TARGET]
-    auto target =
-        reinterpret_cast<uint64_t>(robject_->relocTarget(inst->reloc));
-    alignas(0x10) uint8_t dyncode[64]; // xmm buffer needs to be 0x10 alignment
+    uint8_t dyncode[64]; // xmm buffer needs to be 0x10 alignment
     auto ptr = &dyncode[0];
     // copy the buffer of target with the size of xmm register
     std::memcpy(ptr, (void *)target, 0x10);
@@ -1312,6 +1314,9 @@ void ExecEngine::interpretSSERegMem(const InsnInfo *&inst, uint64_t &pc) {
     *(int32_t *)ptr = -0x10 - inst->len;
     // cache the dynamically generated instruction
     found = dyn_codes.insert({pc, {&dyncode[0], ptr + 4}}).first;
+  } else {
+    // copy the buffer of target with the size of xmm register
+    std::memcpy((void *)found->second.data(), (void *)target, 0x10);
   }
   // execute the dynamically generated instruction
   auto opcode = found->second.data() + 0x10;
