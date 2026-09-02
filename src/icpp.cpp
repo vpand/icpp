@@ -5,6 +5,7 @@
 */
 
 #include "icpp.h"
+#include "platform.h"
 #include <format>
 
 namespace icpp {
@@ -153,6 +154,15 @@ bool regex::search(std::string_view str) const {
 void print(std::uint64_t val) { std::cout << val << std::endl; }
 
 void print_hex(std::uint64_t val) { std::cout << std::format("0x{:x}\n", val); }
+
+void set_env(std::string_view key, std::string_view value, bool overwrite) {
+#if ON_WINDOWS
+  if (overwrite || getenv(key.data()) == nullptr)
+    _putenv_s(key.data(), value.data());
+#else
+  setenv(key.data(), value.data(), overwrite);
+#endif
+}
 
 } // namespace icpp
 

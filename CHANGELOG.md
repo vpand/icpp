@@ -13,6 +13,7 @@ Improvements:
  * icpp: add icpp.hpp in REPL by default;
  * icpp: add qemu code page mmu patch to return address directly;
  * icpp: add llvm-link to final product icpp package;
+ * icpp: add api 'set_env' for script runtime;
 
 ## v0.2.0
 Bug fixes:
