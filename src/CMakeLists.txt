@@ -299,6 +299,9 @@ if(MSVC)
   # 1.the executable directory is the dll loading directory;
   # 2.only this way can have a better debugging experience in vscode;
   target_link_libraries(icppcli PRIVATE icpp)
+  # the MSVC default value (1 MB) which is not enough for clang in tasks such as 
+  # parsing recursive C++ templates in Clang.
+  target_link_options(icppcli PRIVATE "/STACK:10000000")
 else()
   # on macOS/Linux, use dlopen to load icpp.so/dylib, the reason is as follows:
   # we don't need to set any extra runtime path to make dyld/linker working correctly,
