@@ -5,6 +5,7 @@ Bug fixes:
  * icpp: fix windows coff weak undefined symbol parse;
 
 Improvements:
+ * icpp: make clone and build icpp repo easier;
  * icpp: update LLVM to the version 22.1.8 as be synchronized with AetherVM;
  * icpp: use LLVM's libc++ as icpp's C++ runtime on Windows as the same as Linux;
  * icpp: add new repl implementation based on LLVM LineEdit;

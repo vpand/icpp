@@ -7,11 +7,11 @@ cmake_minimum_required(VERSION 3.20)
 project(icpp)
 
 # build the host architecture target only
-if (${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "x86_64" OR
-    ${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "AMD64")
-    set(LLVM_TARGETS_TO_BUILD "X86" CACHE STRING "" FORCE)
+if(${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "x86_64" OR
+  ${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "AMD64")
+  set(LLVM_TARGETS_TO_BUILD "X86" CACHE STRING "" FORCE)
 else()
-    set(LLVM_TARGETS_TO_BUILD "AArch64" CACHE STRING "" FORCE)
+  set(LLVM_TARGETS_TO_BUILD "AArch64" CACHE STRING "" FORCE)
 endif()
 
 # enable clang
@@ -21,7 +21,11 @@ set(LLVM_ENABLE_PROJECTS "clang" CACHE STRING "" FORCE)
 if(MSVC)
   add_library(cxxabi_msvc STATIC 
     ${CMAKE_CURRENT_SOURCE_DIR}/../cxxconf/cxxabi/cxxabi.cpp)
-  set(LLVM_ENABLE_RUNTIMES "libcxx;compiler-rt" CACHE STRING "" FORCE)
+  if(${LLVM_TARGETS_TO_BUILD} STREQUAL "X86")
+    set(LLVM_ENABLE_RUNTIMES "libcxx;compiler-rt" CACHE STRING "" FORCE)
+  else()
+    set(LLVM_ENABLE_RUNTIMES "libcxx" CACHE STRING "" FORCE)
+  endif()
 else()
   set(LLVM_ENABLE_RUNTIMES "libunwind;libcxxabi;libcxx" CACHE STRING "" FORCE)
 endif()
