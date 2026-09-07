@@ -106,7 +106,7 @@ private:
   Thread *curthread_ = nullptr;
 
   // debugger server
-  asio::io_service ios_;
+  asio::io_context ios_;
   std::unique_ptr<ip::tcp::acceptor> acceptor_;
   std::unique_ptr<std::thread> listen_;
   std::vector<std::unique_ptr<ip::tcp::socket>> clients_;

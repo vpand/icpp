@@ -31,6 +31,9 @@ constexpr __ph<10> _10;
 } // namespace placeholders
 } // namespace std
 
+#if __arm64__ || __aarch64__
+#undef BOOST_ASIO_NO_DEPRECATED
+#endif
 #endif // end of ON_WINDOWS
 
 #include <boost/asio.hpp>

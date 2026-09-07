@@ -97,8 +97,26 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
 # boost
 message(STATUS "Configuring boost...")
-if (MSVC)
-  set(BOOST_CONTEXT_IMPLEMENTATION winfib)
+if(MSVC)
+  if(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64|aarch64")
+    set(MSVC_ARM64 TRUE)
+    # exclude both context and coroutine from Boost CMake build
+    set(BOOST_EXCLUDE_LIBRARIES "context;coroutine;fiber" CACHE STRING "" FORCE)
+    set(BOOST_CONTEXT_ENABLE_CMAKE OFF CACHE BOOL "" FORCE)
+    # tell Asio not to look for boost::coroutine / boost::context
+    add_compile_definitions(BOOST_ASIO_DISABLE_BOOST_COROUTINE)
+    add_compile_definitions(BOOST_ASIO_NO_DEPRECATED)
+    # tell Boost.Asio to avoid standalone coroutine/context binaries
+    set(BOOST_ASIO_NO_DEPRECATED ON CACHE BOOL "" FORCE)
+    set(BOOST_ASIO_HAS_BOOST_CONTEXT OFF CACHE BOOL "" FORCE)
+    # force Boost.Context to use C++11 std::thread implementation instead of assembly
+    set(BOOST_CONTEXT_IMPLEMENTATION "std" CACHE STRING "" FORCE)
+    # create dummy interface targets so Boost's CMake dependency checks pass
+    add_library(Boost::context INTERFACE IMPORTED GLOBAL)
+    add_library(Boost::coroutine INTERFACE IMPORTED GLOBAL)
+  else()
+    set(BOOST_CONTEXT_IMPLEMENTATION winfib)
+  endif()
 endif()
 add_subdirectory(third/boost)
 

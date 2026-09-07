@@ -53,7 +53,7 @@ private:
   void process(const ProtocolHdr *hdr, const void *body, size_t size);
   void procRun(std::string_view name, const std::string &obuff);
 
-  asio::io_service ios_;
+  asio::io_context ios_;
   std::unique_ptr<ip::tcp::acceptor> acceptor_;
   std::vector<std::unique_ptr<ip::tcp::socket>> clients_;
   std::mutex mutex_;

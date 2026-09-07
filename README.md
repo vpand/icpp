@@ -241,30 +241,23 @@ cmake -G Ninja -B clangconf -DCMAKE_BUILD_TYPE=Release ../cmake/clangconf
 # x64
 cmake --build clangconf -- clang runtimes compiler-rt cxxabi_msvc
 # arm64
-# patch third\llvm-project\libcxx\include\__locale_dir\num.h before building as __int128
-# is not supported on arm64-windows-msvc environment:
+# patch before building as __int128 is not supported on arm64-windows-msvc environment:
+# 1. third\llvm-project\libcxx\include\__locale_dir\num.h
 #   iter_type __do_get_integral(
 #     ...
 #     abort();
 #     __overflowed |= __builtin_mul_overflow(__val, __base, std::addressof(__val)) ||
+# 2. third\boost\libs\json\include\boost\json\detail\charconv\detail\fast_float\digit_comparison.hpp
+#   void parse_mantissa(bigint& result, ...
+#     abort();
+# 3. third\protobuf\upb\wire\encode.c
+#      if UPB_ARM64_ASM && 0
 cmake --build clangconf -- clang cxx cxxabi_msvc
 ```
 
-#### Windows X86_64
+#### Windows ARM64/X86_64
 ```sh
 cmake -G Ninja -DCMAKE_C_COMPILER=%CD%\llvm\bin\clang-cl.exe -DCMAKE_CXX_COMPILER=%CD%\llvm\bin\clang-cl.exe -DCMAKE_BUILD_TYPE=Release ..
-```
-
-#### Windows ARM64
-```sh
-# Because the cmake script of boost and unicorn has kind of hardcode snippet for 
-# some paths, like the path of lib.exe, assembler search directory, so we have some 
-# extra steps to make this cmake command working:
-# 1.copy llvm-lib.exe as lib.exe in LLVM_ROOT/bin;
-# 2.copy VC_ROOT/bin/armasm64.exe to LLVM_ROOT/bin/armasm64.exe.exe;
-# 3.build cmake/boost/armasm64 and copy it to LLVM_ROOT/bin/armasm64.exe;
-#
-cmake -G Ninja -DCMAKE_C_COMPILER=%CD%\llvm\bin\clang-cl.exe -DCMAKE_CXX_COMPILER=%CD%\llvm\bin\clang-cl.exe -DCMAKE_MT=llvm-mt -DCMAKE_ASM_MASM_COMPILE_OBJECT=armasm64 -DCMAKE_BUILD_TYPE=Release ..
 ```
 
 #### Linux AArch64/X86_64

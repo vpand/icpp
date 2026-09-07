@@ -15,6 +15,9 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SystemUtils.h"
 #include "llvm/Support/ToolOutputFile.h"
+
+#include "asio-workaround.h"
+
 #ifdef ON_WINDOWS
 #include <boost/process.hpp>
 #else
@@ -27,8 +30,6 @@
 #include <fstream>
 #include <icpppad.pb.h>
 #include <set>
-
-#include "asio-workaround.h"
 
 namespace proc = boost::process;
 namespace cl = llvm::cl;
@@ -79,7 +80,7 @@ struct LaunchPad {
   icpp::CondMutex itc_;
   icpp::ArchType remote_arch_ = icpp::Unsupported;
   icpp::SystemType remote_system_;
-  asio::io_service ios_;
+  asio::io_context ios_;
   ip::tcp::socket socket_;
   std::string ndk_;
   bool running_ = false;
