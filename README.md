@@ -106,10 +106,6 @@ OPTIONS:
   -f: format the input source file as LLVM code style.
   -O0, -O1, -O2, -O3, -Os, -Oz: optimization level passed to clang, default to -O2.
   -I/path/to/include: header include directory passed to clang.
-  -L/path/to/library: library search directory passed to icpp interpreter.
-  -lname: full name of the dependent library file passed to icpp interpreter, e.g.: liba.dylib, liba.so, a.dll.
-  -F/path/to/framework: framework search directory passed to icpp interpreter.
-  -fname: framework name of the dependent library file passed to icpp interpreter.
   -p/path/to/json: professional json configuration file for trace/profile/plugin/etc..
 FILES: input file can be C++ source code(.c/.cc/.cpp/.cxx), MachO/ELF/PE executable.
 ARGS: arguments passed to the main entry function of the input files.
@@ -119,13 +115,6 @@ Run a C++ source file, e.g.:
   icpp helloworld.cc -- Hello World (i.e.: argc=3, argv[]={"helloworld.cc", "Hello", "World"})
   icpp -O3 helloworld.cc
   icpp -O0 -p/path/to/profile.json helloworld.cc
-  icpp -I/qt/include -L/qt/lib -llibQtCore.so hellowrold.cc
-  icpp -I/qt/include -L/qt/lib -lQtCore.dll hellowrold.cc
-  icpp -I/qt/include -F/qt/framework -fQtCore hellowrold.cc
-
-Run an executable, e.g.:
-  icpp -p/path/to/trace.json helloworld.exe
-  icpp -p/path/to/profile.json helloworld
 
 Run an installed module, e.g.:
   icpp helloworld
@@ -223,18 +212,16 @@ ICPP Remote Gadget Server Options:
 
 ## Build
 To build your own version of icpp, make sure all of the **prerequisites** are in your system PATH environment:
- * **CMake** (version >= 3.20);
- * **Python** (Windows), Python3 (macOS/Linux);
- * **Ninja** (Windows), **Make** (macOS/Linux);
- * Visual Studio with **LLVM Toolchain** (Windows);
+ * **CMake** (version >= 3.20) and **Ninja**;
+ * **Python** (python on Windows and python3 on macOS/Linux);
+ * **ICPP** (prebuilt package from Release page) to run build.cc;
+ * Visual Studio C++ Build Tools (Windows);
 
 ### Clone
 ```sh
-# clone icpp
-git clone --depth=1 https://github.com/vpand/icpp.git
+# recursively clone icpp
+git clone --recursive https://github.com/vpand/icpp
 cd icpp
-# clone llvm, unicorn engine, boost, etc.
-git submodule update --init --recursive --depth=1
 mkdir build
 cd build
 ```
@@ -249,11 +236,18 @@ To make the Windows version of ICPP runtime have the same C++ symbols as macOS a
 # run VS_ROOT/.../VC/Auxiliary/Build/vcvarsall.bat to initialize for 'x64'
 # replace it to arm64 if you're on a Windows-ARM64 device.
 vcvarsall x64
-# we use clang-cl as our compiler, to make it working, you should:
-# have installed the Visual Studio with LLVM Toolchain support.
-cmake -G Ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -B clangconf -DCMAKE_BUILD_TYPE=Release ../cmake/clangconf
+cmake -G Ninja -B clangconf -DCMAKE_BUILD_TYPE=Release ../cmake/clangconf
 # build our clang compiler with itself's libc++ support
+# x64
 cmake --build clangconf -- clang runtimes compiler-rt cxxabi_msvc
+# arm64
+# patch third\llvm-project\libcxx\include\__locale_dir\num.h before building as __int128
+# is not supported on arm64-windows-msvc environment:
+#   iter_type __do_get_integral(
+#     ...
+#     abort();
+#     __overflowed |= __builtin_mul_overflow(__val, __base, std::addressof(__val)) ||
+cmake --build clangconf -- clang cxx cxxabi_msvc
 ```
 
 #### Windows X86_64
@@ -263,10 +257,7 @@ cmake -G Ninja -DCMAKE_C_COMPILER=%CD%\llvm\bin\clang-cl.exe -DCMAKE_CXX_COMPILE
 
 #### Windows ARM64
 ```sh
-# we use clang-cl as our compiler, to make it working, you should:
-# have installed the Visual Studio with LLVM Toolchain support.
-#
-# Because of the cmake script of boost and unicorn has kind of hardcode snippet for 
+# Because the cmake script of boost and unicorn has kind of hardcode snippet for 
 # some paths, like the path of lib.exe, assembler search directory, so we have some 
 # extra steps to make this cmake command working:
 # 1.copy llvm-lib.exe as lib.exe in LLVM_ROOT/bin;
@@ -361,9 +352,8 @@ log_writer_func_t icpp_logger(log_writer_func_t writer);
 If you encounter any problems when using icpp, before opening an issue, please check the [Bug Report](https://github.com/vpand/icpp/blob/main/.github/ISSUE_TEMPLATE/bug_report.md) template, and provide as many details as you can. Only if we can reproduce the problem, we can then solve it.
 
 ## Contact
-You can visit [vpand.com](https://vpand.com/) for more information on **VM, VMProtect, Clang/LLVM and Reverse Engineering** products.
-
-Or if you have any questions, just feel free to email to me:
+If you have any questions or thoughts, just feel free to email to me:
 ```
 neoliu2011@gmail.com
 ```
+Any feedback is welcome.
