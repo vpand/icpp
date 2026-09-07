@@ -266,11 +266,8 @@ target_include_directories(icpp PRIVATE
   ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/tools/clang/include
   ${CMAKE_CURRENT_BINARY_DIR}
   ${THIRD_ROOT}/brotli/c/include
+  ${THIRD_ROOT}/protobuf/third_party/utf8_range
 )
-if(MSVC_ARM64)
-  target_include_directories(icpp PRIVATE 
-    ${THIRD_ROOT}/protobuf/third_party/utf8_range)
-endif()
 
 if(APPLE)
 # from v0.3.0, we export ICPP APIs through ICPP_API
@@ -350,11 +347,8 @@ target_include_directories(imod PRIVATE
   ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include
   ${THIRD_ROOT}/brotli/c/include
   ${CMAKE_CURRENT_BINARY_DIR}
+  ${THIRD_ROOT}/protobuf/third_party/utf8_range
 )
-if(MSVC_ARM64)
-  target_include_directories(imod PRIVATE 
-    ${THIRD_ROOT}/protobuf/third_party/utf8_range)
-endif()
 target_link_libraries(imod PRIVATE
   ${LLVM_MINIMAL_LIBS}
 
@@ -396,11 +390,8 @@ target_include_directories(iopad PRIVATE
   ${LLVM_INCLUDE_ROOT}
   ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include
   ${CMAKE_CURRENT_BINARY_DIR}
+  ${THIRD_ROOT}/protobuf/third_party/utf8_range
 )
-if(MSVC_ARM64)
-  target_include_directories(iopad PRIVATE 
-    ${THIRD_ROOT}/protobuf/third_party/utf8_range)
-endif()
 target_link_libraries(iopad PRIVATE 
   ${LLVM_MINIMAL_LIBS}
 
@@ -450,11 +441,8 @@ target_include_directories(icpp-gadget PRIVATE
   ${THIRD_ROOT}/unicorn/include
   ${CMAKE_CURRENT_BINARY_DIR}
   ${LLVM_OBJDUMP_ROOT}
+  ${THIRD_ROOT}/protobuf/third_party/utf8_range
 )
-if(MSVC_ARM64)
-  target_include_directories(icpp-gadget PRIVATE 
-    ${THIRD_ROOT}/protobuf/third_party/utf8_range)
-endif()
 target_link_libraries(icpp-gadget PRIVATE 
   ${LLVM_MINIMAL_LIBS}
 
