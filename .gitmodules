@@ -10,9 +10,9 @@
 [submodule "third/llvm-project"]
 	path = third/llvm-project
 	url = https://github.com/GeekNeo/llvm-project.git
-[submodule "third/protobuf"]
-	path = third/protobuf
-	url = https://github.com/GeekNeo/protobuf.git
 [submodule "third/boost"]
 	path = third/boost
 	url = https://github.com/GeekNeo/boost.git
+[submodule "third/protobuf"]
+	path = third/protobuf
+	url = https://github.com/GeekNeo/protobuf.git
