@@ -252,6 +252,9 @@ cmake --build clangconf -- clang runtimes compiler-rt cxxabi_msvc
 #     abort();
 # 3. third\protobuf\upb\wire\encode.c
 #      if UPB_ARM64_ASM && 0
+# 4. apply the following unicorn as the default newer version has bug on arm64-windows,
+#     we're gonna replace unicorn with AetherVM from icpp-v0.4.0
+#    https://github.com/unicorn-engine/unicorn/tree/d4b92485b1a228fb003e1218e42f6c778c655809
 cmake --build clangconf -- clang cxx cxxabi_msvc
 ```
 
