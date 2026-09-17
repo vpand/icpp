@@ -182,9 +182,4 @@ add_subdirectory(third/brotli)
 # icpp projects
 #
 
-# use AetherDbg instead, cutter++ has halted
-#add_subdirectory(cutter++)
-# use cutter++ instead, vmpstudio has halted
-#add_subdirectory(vmpstudio)
-
 add_subdirectory(src)

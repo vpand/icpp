@@ -98,9 +98,26 @@ void check_patch(std::string_view infile, std::string_view patch_flag,
   }
 }
 
+std::string aethervm_installdir() {
+  constexpr const char *env = "AetherVM_InstallDir";
+  auto var = std::getenv(env);
+  if (var)
+    return var;
+
+  std::println("Please set the {} environment variable. You can build it from "
+               "the source code https://github.com/AetherVM/AetherVM, or "
+               "download the prebuilt package from its Release page.",
+               env);
+  return "";
+}
+
 } // namespace
 
 int main(int argc, const char *argv[]) {
+  auto aethervm_dir = aethervm_installdir();
+  if (!aethervm_dir.size())
+    return -1;
+
   std::string_view build_dir = argc == 2 ? argv[1] : "build";
   std::string_view build_type =
       build_dir.contains("debug") || build_dir.contains("Debug") ||
@@ -135,23 +152,21 @@ int main(int argc, const char *argv[]) {
   // stage 1: check whether need to initialize ninja build
   auto ninja_build = build_root / "build.ninja";
   if (!fs::exists(ninja_build)) {
+    auto comm = std::format("cmake -G Ninja -S {} -B {} -DCMAKE_BUILD_TYPE={} "
+                            "-DCMAKE_PREFIX_PATH=\"{};{}/aebi\"",
+                            proj_root.string(), build_root.string(), build_type,
+                            aethervm_dir, aethervm_dir);
 #if __APPLE__
-    auto cmake =
-        std::format("cmake -G Ninja -S {} -B {} -DCMAKE_BUILD_TYPE={}",
-                    proj_root.string(), build_root.string(), build_type);
+    auto cmake = comm;
 #elif __LINUX__
-    auto cmake =
-        std::format("cmake -G Ninja -S {} -B {} -DCMAKE_BUILD_TYPE={} "
-                    "-DCMAKE_C_COMPILER={}/clang -DCMAKE_CXX_COMPILER={}/clang",
-                    proj_root.string(), build_root.string(), build_type,
-                    prebuilt_llvm_bin, prebuilt_llvm_bin);
+    auto cmake = std::format(
+        "{} -DCMAKE_C_COMPILER={}/clang -DCMAKE_CXX_COMPILER={}/clang", comm,
+        prebuilt_llvm_bin, prebuilt_llvm_bin);
 #else
     auto clang_cl =
         std::format("{}/llvm/bin/clang-cl.exe", build_root.string());
-    auto cmake = std::format("cmake -G Ninja -S {} -B {} -DCMAKE_BUILD_TYPE={} "
-                             "-DCMAKE_C_COMPILER={} -DCMAKE_CXX_COMPILER={}",
-                             proj_root.string(), build_root.string(),
-                             build_type, clang_cl, clang_cl);
+    auto cmake = std::format("{} -DCMAKE_C_COMPILER={} -DCMAKE_CXX_COMPILER={}",
+                             comm, clang_cl, clang_cl);
 #endif
     std::system(cmake.c_str());
     if (!fs::exists(ninja_build)) {

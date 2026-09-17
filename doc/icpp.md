@@ -10,7 +10,7 @@ Secondly, it loads this object file into memory and does the following tasks:
  * 2.Relocate data sections and allocate dynamic bss sections memory;
  * 3.Disassemble the text section and encode all the instructions into icpp interpreter's vm instruction metadata.
 
-Thirdly, it enters into icpp's interpreter execution loop, interpreting relocated instructions one by one or emulating an instruction block using the unicorn engine until finishing the logic of this object file's main function.
+Thirdly, it enters into icpp's interpreter execution loop, interpreting relocated instructions one by one or emulating an instruction block using the AetherVM binary engine until finishing the logic of this object file's main function.
 
 Lastly, if everything of this execution goes well, it generates a .io cache file which includes the compiled object file, all the encoded instructions, and referenced runtime modules. This kind of cache file makes the next time running much faster.
 ```mermaid
@@ -28,10 +28,10 @@ graph LR
 ## Usage
 ```sh
 vpand@MacBook-Pro icpp % icpp -h              
-OVERVIEW: ICPP v0.1.0.255 based on Unicorn and Clang/LLVM.
-  Interpreting C++, running C++ in anywhere like a script.
+OVERVIEW: ICPP v0.4.0.255 based on AetherVM and Clang/LLVM.
+  Interpreting C++, running C++ anywhere like a script.
 
-USAGE: icpp [options] exec0 [exec1 ...] [[--] args]
+USAGE: icpp [options] src.cc [src.cc ...] [[--] args]
 OPTIONS:
   -v, -version: print icpp version.
   --version: print icpp and clang version.

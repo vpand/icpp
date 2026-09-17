@@ -1,5 +1,9 @@
 message(STATUS "Configuring ICPP [Interpreting C++]...")
 
+# prebuilt binary engine
+find_package(AetherBinary CONFIG REQUIRED)
+find_package(AetherVM CONFIG REQUIRED)
+
 # c++
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED)
@@ -109,16 +113,13 @@ file(GLOB ICPP_LLVM_SOURCES
 
 file(GLOB ICPP_CORE_SOURCES
   arch.cpp
-  debugger.cpp
   exec.cpp
   icpp.cpp
   loader.cpp
   log.cpp
   platform.cpp
-  profile.cpp
   runcfg.cpp
   runtime.cpp
-  trace.cpp
   utils.cpp
 )
 
@@ -253,6 +254,9 @@ target_link_libraries(icpp
   libprotobuf
   brotlienc
   brotlidec
+
+  AetherBinary::AetherBinary
+  AetherVM::AetherVM
 )
 
 target_include_directories(icpp PRIVATE
@@ -447,6 +451,9 @@ target_link_libraries(icpp-gadget PRIVATE
   boost_beast
   boost_json
   libprotobuf
+
+  AetherBinary::AetherBinary
+  AetherVM::AetherVM
 )
 if(APPLE)
   target_link_options(icpp-gadget PRIVATE -Wl,-exported_symbol -Wl,_icpp_gadget)

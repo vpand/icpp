@@ -31,7 +31,7 @@ static void print_help() {
       << " based on Unicorn and Clang/LLVM." << std::endl
       << "  Interpreting C++, running C++ anywhere like a script." << std::endl
       << std::endl
-      << "USAGE: icpp [options] exec0 [exec1 ...] [[--] args]" << std::endl
+      << "USAGE: icpp [options] src.cc [src.cc ...] [[--] args]" << std::endl
       << "OPTIONS:" << std::endl
       << "  -v, -version: print icpp version." << std::endl
       << "  --version: print icpp and clang version." << std::endl

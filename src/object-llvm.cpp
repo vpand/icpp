@@ -75,6 +75,8 @@
 #include <unordered_map>
 #include <utility>
 
+#include <Register.h>
+
 #if ICPP_CROSS_GADGET
 #define ICPP_HAS_AARCH64 ARCH_ARM64
 #define ICPP_HAS_X64 ARCH_X64
@@ -277,6 +279,40 @@ ObjectDisassembler::~ObjectDisassembler() { delete DT; }
 
 static uint16_t llvm2aevmRegisterAArch64(unsigned reg) {
   namespace INSN = llvm::AArch64;
+  using namespace aether;
+
+  // x
+  if (INSN::X0 <= reg && reg <= INSN::X28)
+    return (uint16_t)Register::X0 + reg - INSN::X0;
+  if (INSN::FP == reg)
+    return (uint16_t)Register::FP;
+  if (INSN::LR == reg)
+    return (uint16_t)Register::LR;
+  if (INSN::SP == reg)
+    return (uint16_t)Register::SP;
+  // w
+  if (INSN::W0 <= reg && reg <= INSN::W30)
+    return (uint16_t)Register::X0 + reg - INSN::W0;
+  // s
+  if (INSN::S0 <= reg && reg <= INSN::S31)
+    return (uint16_t)Register::Q0 + reg - INSN::S0;
+  // d
+  if (INSN::D0 <= reg && reg <= INSN::D31)
+    return (uint16_t)Register::Q0 + reg - INSN::D0;
+  // b
+  if (INSN::B0 <= reg && reg <= INSN::B31)
+    return (uint16_t)Register::Q0 + reg - INSN::B0;
+  // h
+  if (INSN::H0 <= reg && reg <= INSN::H31)
+    return (uint16_t)Register::Q0 + reg - INSN::H0;
+  // q
+  if (INSN::Q0 <= reg && reg <= INSN::Q31)
+    return (uint16_t)Register::Q0 + reg - INSN::Q0;
+  // zero
+  if (INSN::WZR == reg)
+    return (uint16_t)Register::ZERO;
+  if (INSN::XZR == reg)
+    return (uint16_t)Register::ZERO;
 
   log_print(Runtime, "Unknown llvm instruction register operand type: {}.",
             reg);
@@ -361,6 +397,174 @@ static void parseInstAArch64(const MCInst &inst, uint64_t opcptr,
 
 static uint16_t llvm2aevmRegisterX64(unsigned reg) {
   namespace INSN = llvm::X86;
+  using namespace aether;
+
+  if (INSN::AH == reg)
+    return (uint16_t)Register::RAX;
+  if (INSN::AL == reg)
+    return (uint16_t)Register::RAX;
+  if (INSN::AX == reg)
+    return (uint16_t)Register::RAX;
+  if (INSN::BH == reg)
+    return (uint16_t)Register::RBP;
+  if (INSN::BL == reg)
+    return (uint16_t)Register::RBP;
+  if (INSN::BP == reg)
+    return (uint16_t)Register::RBP;
+  if (INSN::BPL == reg)
+    return (uint16_t)Register::RBP;
+  if (INSN::BX == reg)
+    return (uint16_t)Register::RBX;
+  if (INSN::CH == reg)
+    return (uint16_t)Register::RCX;
+  if (INSN::CL == reg)
+    return (uint16_t)Register::RCX;
+  if (INSN::CS == reg)
+    return (uint16_t)Register::CS;
+  if (INSN::CX == reg)
+    return (uint16_t)Register::RCX;
+  if (INSN::DH == reg)
+    return (uint16_t)Register::RDI;
+  if (INSN::DI == reg)
+    return (uint16_t)Register::RDI;
+  if (INSN::DIL == reg)
+    return (uint16_t)Register::RDI;
+  if (INSN::DL == reg)
+    return (uint16_t)Register::RDI;
+  if (INSN::DS == reg)
+    return (uint16_t)Register::DS;
+  if (INSN::DX == reg)
+    return (uint16_t)Register::RDX;
+  if (INSN::EAX == reg)
+    return (uint16_t)Register::RAX;
+  if (INSN::EBP == reg)
+    return (uint16_t)Register::RBP;
+  if (INSN::EBX == reg)
+    return (uint16_t)Register::RBX;
+  if (INSN::ECX == reg)
+    return (uint16_t)Register::RCX;
+  if (INSN::EDI == reg)
+    return (uint16_t)Register::RDI;
+  if (INSN::EDX == reg)
+    return (uint16_t)Register::RDX;
+  if (INSN::EFLAGS == reg)
+    return (uint16_t)Register::RFLAGS;
+  if (INSN::EIP == reg)
+    return (uint16_t)Register::RIP;
+  if (INSN::ES == reg)
+    return (uint16_t)Register::ES;
+  if (INSN::ESI == reg)
+    return (uint16_t)Register::RSI;
+  if (INSN::ESP == reg)
+    return (uint16_t)Register::RSP;
+  if (INSN::FS == reg)
+    return (uint16_t)Register::FS;
+  if (INSN::GS == reg)
+    return (uint16_t)Register::GS;
+  if (INSN::IP == reg)
+    return (uint16_t)Register::RIP;
+  if (INSN::RAX == reg)
+    return (uint16_t)Register::RAX;
+  if (INSN::RBP == reg)
+    return (uint16_t)Register::RBP;
+  if (INSN::RBX == reg)
+    return (uint16_t)Register::RBX;
+  if (INSN::RCX == reg)
+    return (uint16_t)Register::RCX;
+  if (INSN::RDI == reg)
+    return (uint16_t)Register::RDI;
+  if (INSN::RDX == reg)
+    return (uint16_t)Register::RDX;
+  if (INSN::RIP == reg)
+    return (uint16_t)Register::RIP;
+  if (INSN::RSI == reg)
+    return (uint16_t)Register::RSI;
+  if (INSN::RSP == reg)
+    return (uint16_t)Register::RSP;
+  if (INSN::SI == reg)
+    return (uint16_t)Register::RSI;
+  if (INSN::SIL == reg)
+    return (uint16_t)Register::RSI;
+  if (INSN::SP == reg)
+    return (uint16_t)Register::RSP;
+  if (INSN::SPL == reg)
+    return (uint16_t)Register::RSI;
+  if (INSN::SS == reg)
+    return (uint16_t)Register::SS;
+  if (INSN::MM0 <= reg && reg <= INSN::MM7)
+    return (uint16_t)Register::MM0 + reg - INSN::MM0;
+  if (INSN::R8 <= reg && reg <= INSN::R15)
+    return (uint16_t)Register::R8 + reg - INSN::R8;
+  if (INSN::ST0 <= reg && reg <= INSN::ST7)
+    return (uint16_t)Register::ST0 + reg - INSN::ST0;
+  if (INSN::XMM0 <= reg && reg <= INSN::XMM15)
+    return (uint16_t)Register::XMM0 + reg - INSN::XMM0;
+  if (INSN::XMM16 <= reg && reg <= INSN::XMM31)
+    return (uint16_t)Register::XMM16 + reg - INSN::XMM16;
+  if (INSN::YMM0 <= reg && reg <= INSN::YMM15)
+    return (uint16_t)Register::XMM0 + reg - INSN::YMM0;
+  if (INSN::YMM16 <= reg && reg <= INSN::YMM31)
+    return (uint16_t)Register::XMM16 + reg - INSN::YMM16;
+  if (INSN::ZMM0 <= reg && reg <= INSN::ZMM31)
+    return (uint16_t)Register::XMM0 + reg - INSN::ZMM0;
+  if (INSN::R8B == reg)
+    return (uint16_t)Register::R8;
+  if (INSN::R9B == reg)
+    return (uint16_t)Register::R9;
+  if (INSN::R10B == reg)
+    return (uint16_t)Register::R10;
+  if (INSN::R11B == reg)
+    return (uint16_t)Register::R11;
+  if (INSN::R12B == reg)
+    return (uint16_t)Register::R12;
+  if (INSN::R13B == reg)
+    return (uint16_t)Register::R13;
+  if (INSN::R14B == reg)
+    return (uint16_t)Register::R14;
+  if (INSN::R15B == reg)
+    return (uint16_t)Register::R15;
+  if (INSN::R8D == reg)
+    return (uint16_t)Register::R8;
+  if (INSN::R9D == reg)
+    return (uint16_t)Register::R9;
+  if (INSN::R10D == reg)
+    return (uint16_t)Register::R10;
+  if (INSN::R11D == reg)
+    return (uint16_t)Register::R11;
+  if (INSN::R12D == reg)
+    return (uint16_t)Register::R12;
+  if (INSN::R13D == reg)
+    return (uint16_t)Register::R13;
+  if (INSN::R14D == reg)
+    return (uint16_t)Register::R14;
+  if (INSN::R15D == reg)
+    return (uint16_t)Register::R15;
+  if (INSN::R8W == reg)
+    return (uint16_t)Register::R8;
+  if (INSN::R9W == reg)
+    return (uint16_t)Register::R9;
+  if (INSN::R10W == reg)
+    return (uint16_t)Register::R10;
+  if (INSN::R11W == reg)
+    return (uint16_t)Register::R11;
+  if (INSN::R12W == reg)
+    return (uint16_t)Register::R12;
+  if (INSN::R13W == reg)
+    return (uint16_t)Register::R13;
+  if (INSN::R14W == reg)
+    return (uint16_t)Register::R14;
+  if (INSN::R15W == reg)
+    return (uint16_t)Register::R15;
+  if (INSN::EFLAGS == reg)
+    return (uint16_t)Register::RFLAGS;
+  switch (reg) {
+  case INSN::NoRegister:
+  case INSN::EIZ:
+  case INSN::RIZ:
+    return (uint16_t)Register::ZERO;
+  default:
+    break;
+  }
 
   log_print(Runtime, "Unknown llvm instruction register operand type: {}.",
             reg);

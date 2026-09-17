@@ -4,12 +4,12 @@ ICPP(acronym for Interpreted C++) is a C++ interpreter. You can run C++ code wit
 **Interpreting C++, executing the source and executable like a script.**
  * Writing powerful script using C++ just as easy as Python;
  * Writing hot-loading C++ script code in running process;
- * Based on [Unicorn Engine](https://github.com/unicorn-engine/unicorn.git) qemu virtual cpu and [Clang/LLVM](https://github.com/llvm/llvm-project.git) C++ compiler;
+ * Based on [AetherVM](https://github.com/AetherVM/AetherVM.git) qemu virtual cpu and [Clang/LLVM](https://github.com/llvm/llvm-project.git) C++ compiler;
  * Integrated internally with [Standard C++23](https://en.cppreference.com/w/cpp/23) and [Boost](https://github.com/boostorg/boost.git) libraries;
  * To reuse the existing C/C++ library as an icpp module extension is extremely simple.
 
 ## How it works
-The main mechanism of icpp is compiling the input C++ source to a temporary binary object file, and then interpreting this object file using an interpreter based on a virtual cpu named unicorn which is modified from qemu. The vm-like interpreter of icpp processes the instruction emulation, instruction relocation and register context switching with the native runtime environment.
+The main mechanism of icpp is compiling the input C++ source to a temporary binary object file, and then interpreting this object file using an interpreter based on a virtual cpu from AetherVM which is a binary and opcode emulation engine. The vm-like interpreter of icpp processes the instruction emulation, instruction relocation and register context switching with the native runtime environment.
 
 If you use the old C style #include directive instead of the new C++ module style import directive, compiling the source may cost a lot of time. Consequently, to improve performance, icpp will generate a cache file(extension name is .io) if it succeeds running a C++ source file. The .io file includes compiled object binary file and encoded interpreter vm instructions which make the next executing much faster.
 ### Interpreter
@@ -21,7 +21,7 @@ graph LR
     A(C++ Source) -- Source.io --> H(IObject)
     H(IObject) -- Parser --> C
     E(Executable) -- Loader --> C
-    C -- Unicorn --> D(Output)
+    C -- AetherVM --> D(Output)
     C -- Tracer --> F(Traces)
     C -- Profiler --> G(Profiles)
 ```
@@ -49,7 +49,7 @@ graph LR
 
 ### ICPP vs Cling
 According to its project documentation, cling and icpp are at least very different in the following items:
-1. cling uses JIT just like the llvm-project/LLI, icpp uses self defined vm interpreter depends on unicorn/qemu, so cling's performance is better than icpp;
+1. cling uses JIT just like the llvm-project/LLI, icpp uses self defined vm interpreter depends on AetherVM, so cling's performance is better than icpp;
 2. cling works only in local process/system, icpp works both local and remote process/system, i.e., icpp's interpreter can run in anywhere like Android/iOS with the icpp-server/icpp-gadget tools, so icpp's cross process/platform operation ability is better than cling;
 3. cling is a pure C++ interpreter, icpp is a C++ interpreter and even a reverse engineering platform, plugin extension platform, etc.;
 4. maybe more...

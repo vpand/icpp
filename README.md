@@ -81,7 +81,7 @@ vpand@MacBook-Pro icpp % icpp -h
 OVERVIEW: ICPP v0.4.0.255 based on AetherVM and Clang/LLVM.
   Interpreting C++, running C++ anywhere like a script.
 
-USAGE: icpp [options] exec0 [exec1 ...] [[--] args]
+USAGE: icpp [options] src.cc [src.cc ...] [[--] args]
 OPTIONS:
   -v, -version: print icpp version.
   --version: print icpp and clang version.
@@ -200,6 +200,8 @@ To build your own version of icpp, make sure all of the **prerequisites** are in
  * **Python** (python on Windows and python3 on macOS/Linux);
  * **ICPP** (prebuilt package from the Release page) to run build.cc;
  * Visual Studio C++ Build Tools (Windows);
+
+Set the `AetherVM_InstallDir` environment variable on your current command line prompt. You can build it from the source code [AetherVM](https://github.com/AetherVM/AetherVM), or download the prebuilt package from its [Release](https://github.com/AetherVM/AetherVM/releases) page.
 
 ### Clone
 ```sh
