@@ -1,8 +1,7 @@
-/* Interpreting C++, executing the source and executable like a script */
-/* By Jesse Liu < neoliu2011@gmail.com >, 2024 */
-/* Copyright (c) vpand.com 2024. This file is released under GPLv2.
-   See LICENSE in root directory for more details
-*/
+// Interpreting C++(ICPP) - Run C++ anywhere, just like a script.
+// Copyright (c) 2026 Jesse Liu <neoliu2011@gmail.com>
+// SPDX-License-Identifier: Apache License, Version 2.0
+// See LICENSE file in the root directory for full license text.
 
 #pragma once
 
@@ -16,10 +15,12 @@
 
 #include "asio-workaround.h"
 
-typedef struct uc_struct uc_engine;
-
 namespace asio = boost::asio;
 namespace ip = asio::ip;
+
+namespace aether {
+class BinaryEngine;
+}
 
 namespace icpp {
 
@@ -40,7 +41,7 @@ class Debugger {
 public:
   struct Thread {
     std::thread::id tid;
-    uc_engine *uc;
+    aether::BinaryEngine *engine;
     ArchType arch;
     uint64_t pc;
     const InsnInfo *inst;
@@ -64,12 +65,12 @@ public:
     return &debugger;
   }
 
-  Thread *enter(ArchType arch, uc_engine *uc);
+  Thread *enter(ArchType arch, aether::BinaryEngine *engine);
   void entry(Thread *thread, uint64_t pc, const InsnInfo *inst);
   void leave();
   bool stopped();
 
-  void dump(ArchType arch, uc_engine *uc, uint64_t pc);
+  void dump(ArchType arch, aether::BinaryEngine *engine, uint64_t pc);
 
 private:
   Debugger();

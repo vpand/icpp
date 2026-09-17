@@ -1,13 +1,12 @@
-/* Interpreting C++, executing the source and executable like a script */
-/* By Jesse Liu < neoliu2011@gmail.com >, 2024 */
-/* Copyright (c) vpand.com 2024. This file is released under GPLv2.
-   See LICENSE in root directory for more details
-*/
+// Interpreting C++(ICPP) - Run C++ anywhere, just like a script.
+// Copyright (c) 2026 Jesse Liu <neoliu2011@gmail.com>
+// SPDX-License-Identifier: Apache License, Version 2.0
+// See LICENSE file in the root directory for full license text.
 
 #include "debugger.h"
 #include "object.h"
+#include <AetherVM.h>
 #include <icppdbg.pb.h>
-#include <unicorn/unicorn.h>
 
 namespace icppdbg = com::vpand::icppdbg;
 
@@ -40,23 +39,23 @@ static void send_respose(ip::tcp::socket *s, icppdbg::CommandID id,
 }
 
 std::string Debugger::Thread::registers() {
+  using namespace aether;
   const int colcount = 3;
   std::string strs;
   if (arch == AArch64) {
-    uc_arm64_reg regs[] = {
-        UC_ARM64_REG_X0,  UC_ARM64_REG_X1,  UC_ARM64_REG_X2,  UC_ARM64_REG_X3,
-        UC_ARM64_REG_X4,  UC_ARM64_REG_X5,  UC_ARM64_REG_X6,  UC_ARM64_REG_X7,
-        UC_ARM64_REG_X8,  UC_ARM64_REG_X9,  UC_ARM64_REG_X10, UC_ARM64_REG_X11,
-        UC_ARM64_REG_X12, UC_ARM64_REG_X13, UC_ARM64_REG_X14, UC_ARM64_REG_X15,
-        UC_ARM64_REG_X16, UC_ARM64_REG_X17, UC_ARM64_REG_X18, UC_ARM64_REG_X19,
-        UC_ARM64_REG_X20, UC_ARM64_REG_X21, UC_ARM64_REG_X22, UC_ARM64_REG_X23,
-        UC_ARM64_REG_X24, UC_ARM64_REG_X25, UC_ARM64_REG_X26, UC_ARM64_REG_X27,
-        UC_ARM64_REG_X28, UC_ARM64_REG_FP,  UC_ARM64_REG_LR,  UC_ARM64_REG_SP,
-        UC_ARM64_REG_PC,
+    auto regs[] = {
+        Register::X0,  Register::X1,  Register::X2,  Register::X3,
+        Register::X4,  Register::X5,  Register::X6,  Register::X7,
+        Register::X8,  Register::X9,  Register::X10, Register::X11,
+        Register::X12, Register::X13, Register::X14, Register::X15,
+        Register::X16, Register::X17, Register::X18, Register::X19,
+        Register::X20, Register::X21, Register::X22, Register::X23,
+        Register::X24, Register::X25, Register::X26, Register::X27,
+        Register::X28, Register::FP,  Register::LR,  Register::SP,
+        Register::PC,
     };
     for (size_t i = 0, col = 1; i < std::size(regs); i++) {
-      uint64_t val;
-      uc_reg_read(uc, regs[i], reinterpret_cast<void *>(&val));
+      uint64_t val = engine->getRegister(regs[i])->u8;
       if (i <= 28)
         strs += std::format("x{:<2} = {:016x} ", i, val);
       else if (i == 29)
@@ -76,12 +75,12 @@ std::string Debugger::Thread::registers() {
       }
     }
   } else if (arch == X86_64) {
-    uc_x86_reg regs[] = {
-        UC_X86_REG_RAX, UC_X86_REG_RBP, UC_X86_REG_RBX, UC_X86_REG_RCX,
-        UC_X86_REG_RDI, UC_X86_REG_RDX, UC_X86_REG_RSI, UC_X86_REG_RSP,
-        UC_X86_REG_RIP, UC_X86_REG_R8,  UC_X86_REG_R9,  UC_X86_REG_R10,
-        UC_X86_REG_R11, UC_X86_REG_R12, UC_X86_REG_R13, UC_X86_REG_R14,
-        UC_X86_REG_R15,
+    auto regs[] = {
+        Register::RAX, Register::RBP, Register::RBX, Register::RCX,
+        Register::RDI, Register::RDX, Register::RSI, Register::RSP,
+        Register::RIP, Register::R8,  Register::R9,  Register::R10,
+        Register::R11, Register::R12, Register::R13, Register::R14,
+        Register::R15,
     };
     static const char *names[] = {
         "rax", "rbp", "rbx", "rcx", "rdi", "rdx", "rsi", "rsp", "rip",
@@ -89,10 +88,10 @@ std::string Debugger::Thread::registers() {
     };
     for (size_t i = 0, col = 1; i < std::size(regs); i++) {
       uint64_t val;
-      if (regs[i] == UC_X86_REG_RIP)
+      if (regs[i] == Register::RIP)
         val = pc;
       else
-        uc_reg_read(uc, regs[i], reinterpret_cast<void *>(&val));
+        value = engine->getRegister(regs[i])->u8;
       strs += std::format("{} = {:016x} ", names[i], val);
 
       if (col % colcount == 0) {
@@ -105,8 +104,8 @@ std::string Debugger::Thread::registers() {
     if (*strs.rbegin() != '\n')
       strs += "\n";
     for (auto i = 0; i < 8; i++) {
-      uint64_t xmm[2];
-      uc_reg_read(uc, UC_X86_REG_XMM0 + i, reinterpret_cast<void *>(&xmm[0]));
+      auto xmm = (aether::RegisterValueSIMD *)engine->getRegister(
+          (Register)((int)Register::XMM0 + i));
       strs += std::format("xmm{} = [{:016x}, {:016x}]\n", i, xmm[0], xmm[1]);
     }
     strs.pop_back();
@@ -144,13 +143,13 @@ Debugger::~Debugger() {
   }
 }
 
-Debugger::Thread *Debugger::enter(ArchType arch, uc_engine *uc) {
+Debugger::Thread *Debugger::enter(ArchType arch, aether::BinaryEngine *engine) {
   std::lock_guard lock(mutex_);
   auto curth = std::this_thread::get_id();
   auto found = threads_.find({.tid = curth});
   if (found == threads_.end()) {
     // add a new thread
-    found = threads_.insert({std::move(curth), uc, arch, 0, nullptr}).first;
+    found = threads_.insert({std::move(curth), engine, arch, 0, nullptr}).first;
     // init mutex/cond facilities
     const_cast<Thread *>(&*found)->init();
   }
@@ -161,8 +160,8 @@ Debugger::Thread *Debugger::enter(ArchType arch, uc_engine *uc) {
   return const_cast<Thread *>(&*found);
 }
 
-void Debugger::dump(ArchType arch, uc_engine *uc, uint64_t pc) {
-  Thread curth{std::this_thread::get_id(), uc, arch, pc};
+void Debugger::dump(ArchType arch, aether::BinaryEngine *engine, uint64_t pc) {
+  Thread curth{std::this_thread::get_id(), engine, arch, pc};
   log_print(Raw, "Register Context:\n{}", curth.registers());
 }
 

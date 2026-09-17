@@ -1,3 +1,11 @@
+## v0.4.0
+Bug fixes:
+ * 
+
+Improvements:
+ * icpp: replace Unicorn with AetherVM;
+ * icpp: replace GPLv2 license with Apache 2.0;
+
 ## v0.3.0
 Bug fixes:
  * icpp: fix a crash when getting icpp parent path with bare command line name;

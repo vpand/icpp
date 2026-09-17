@@ -1,8 +1,7 @@
-/* Interpreting C++, executing the source and executable like a script */
-/* By Jesse Liu < neoliu2011@gmail.com >, 2024 */
-/* Copyright (c) vpand.com 2024. This file is released under GPLv2.
-   See LICENSE in root directory for more details
-*/
+// Interpreting C++(ICPP) - Run C++ anywhere, just like a script.
+// Copyright (c) 2026 Jesse Liu <neoliu2011@gmail.com>
+// SPDX-License-Identifier: Apache License, Version 2.0
+// See LICENSE file in the root directory for full license text.
 
 #include "platform.h"
 #include "arch.h"
@@ -15,54 +14,6 @@
 #define symbol_name(raw) (raw.data() + 1)
 
 #if ICPP_IOS
-// special implementations for unicorn engine on iphone os
-extern "C" {
-
-void *icpp_gadget_mmap(void *start, size_t length, int prot, int flags, int fd,
-                       off_t offset) {
-  void *result;
-  vm_allocate(mach_task_self(), (vm_address_t *)&result, length,
-              VM_FLAGS_ANYWHERE);
-  mprotect(result, length, prot);
-  return result;
-}
-
-int icpp_gadget_munmap(void *addr, size_t sz) {
-  vm_deallocate(mach_thread_self(), (vm_address_t)addr, sz);
-  return 0;
-}
-
-void pthread_jit_write_protect_np(int enable) {
-  static bool tried = false;
-  static void (*fnptr)(int) = nullptr;
-  if (tried) {
-    if (fnptr)
-      fnptr(enable);
-    return;
-  }
-  tried = true;
-  fnptr = (void (*)(int))icpp::find_symbol(nullptr,
-                                           "_pthread_jit_write_protect_np");
-  if (fnptr)
-    fnptr(enable);
-}
-
-static void icpp_uc_trace(void *buff, size_t size, bool start) {
-  // iOS doesn't support executable and writable page at the same time,
-  // so we have to set it executable before executing this tb buffer,
-  // and reset it writable after executing this tb which let qemu can
-  // generate new tb code for the future emulated instructions.
-  mprotect(buff, size, PROT_READ | (start ? PROT_EXEC : PROT_WRITE));
-}
-
-void icpp_trace_start(void *buff, size_t size) {
-  icpp_uc_trace(buff, size, true);
-}
-
-void icpp_trace_end(void *buff, size_t size, const char *fmt, ...) {
-  icpp_uc_trace(buff, size, false);
-}
-}
 #else
 #ifndef __MAC_11_3
 // qemu's tcg engine references this api, but:

@@ -2,11 +2,11 @@
 **Interpreting C++, executing the source and executable like a script.**
  * Writing powerful script using C++ just as easy as Python;
  * Writing hot-loading C++ script code in running process;
- * Based on [Unicorn Engine](https://github.com/unicorn-engine/unicorn.git) qemu virtual cpu and [Clang/LLVM](https://github.com/llvm/llvm-project.git) C++ compiler;
+ * Based on [AetherVM](https://github.com/AetherVM/AetherVM.git) binary engine and [Clang/LLVM](https://github.com/llvm/llvm-project.git) C++ compiler;
  * Integrated internally with [Standard C++23](https://en.cppreference.com/w/cpp/23) and [Boost](https://github.com/boostorg/boost.git) libraries;
  * To reuse the existing C/C++ library as an icpp module extension is extremely simple.
 
-Copyright (c) vpand.com 2024.
+Copyright (c) vpand.com 2026.
 
 ## AetherVM
 Ongoing support for binary file execution within `ICPP` has moved to the [AetherVM](https://github.com/AetherVM) project.
@@ -39,9 +39,7 @@ No matter if you're a beginner or an expert with C++, ICPP is suitable for you. 
 
 ## How it works
 ### Interpreter
-Local interpreter mode lets you run C++ directly in your local system.
-#### Version >= 0.3.0
-Incremental compilation mode:
+Local interpreter mode lets you run C++ directly in your local system using incremental compilation:
 ```mermaid
 graph LR
     A(C++ Source) -- Clang Interpreter --> C(LLVM IR Module)
@@ -49,23 +47,9 @@ graph LR
     C -- LLVM LLC --> E(Object)
     D -- Loader --> F(ICPP)
     E -- Loader --> F
-    F -- vCPU --> G(Running output)
+    F -- AetherVM --> G(Running output)
     G -- Cache.io --> D(IObject)
     G -- Incremental Input --> B
-```
-
-#### Version < 0.3.0
-Cold compilation mode: 
-```mermaid
-graph LR
-    A(C++ Source) -- Clang --> B(Object)
-    B -- Loader --> C(ICPP Interpreter)
-    A(C++ Source) -- Source.io --> H(IObject)
-    H(IObject) -- Parser --> C
-    E(Executable) -- Loader --> C
-    C -- Unicorn --> D(Output)
-    C -- Tracer --> F(Traces)
-    C -- Profiler --> G(Profiles)
 ```
 
 ### Hot-loading
@@ -94,7 +78,7 @@ Within an IDE frontend should be easier and more convenient to use the icpp pack
 ### ICPP CLI
 ```sh
 vpand@MacBook-Pro icpp % icpp -h              
-OVERVIEW: ICPP v0.1.0.255 based on Unicorn and Clang/LLVM.
+OVERVIEW: ICPP v0.4.0.255 based on AetherVM and Clang/LLVM.
   Interpreting C++, running C++ anywhere like a script.
 
 USAGE: icpp [options] exec0 [exec1 ...] [[--] args]
@@ -214,7 +198,7 @@ ICPP Remote Gadget Server Options:
 To build your own version of icpp, make sure all of the **prerequisites** are in your system PATH environment:
  * **CMake** (version >= 3.20) and **Ninja**;
  * **Python** (python on Windows and python3 on macOS/Linux);
- * **ICPP** (prebuilt package from Release page) to run build.cc;
+ * **ICPP** (prebuilt package from the Release page) to run build.cc;
  * Visual Studio C++ Build Tools (Windows);
 
 ### Clone
@@ -252,9 +236,6 @@ cmake --build clangconf -- clang runtimes compiler-rt cxxabi_msvc
 #     abort();
 # 3. third\protobuf\upb\wire\encode.c
 #      if UPB_ARM64_ASM && 0
-# 4. apply the following unicorn as the default newer version has bug on arm64-windows,
-#     we're gonna replace unicorn with AetherVM from icpp-v0.4.0
-#    https://github.com/unicorn-engine/unicorn/tree/d4b92485b1a228fb003e1218e42f6c778c655809
 cmake --build clangconf -- clang cxx cxxabi_msvc
 ```
 

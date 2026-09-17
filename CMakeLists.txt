@@ -178,58 +178,13 @@ add_subdirectory(third/protobuf)
 message(STATUS "Configuring brotli...")
 add_subdirectory(third/brotli)
 
-# unicorn
-message(STATUS "Configuring unicorn...")
-# patch qemu mmu to enable the emulated code to access memory directly
-execute_process(COMMAND ${PYTHON}
-  ${CMAKE_CURRENT_SOURCE_DIR}/tool/qemu_mmu_patcher.py
-  ${CMAKE_CURRENT_SOURCE_DIR}/third/unicorn/qemu/accel/tcg/cputlb.c)
-# patch qemu tbgen buffer size to 128MB
-execute_process(COMMAND ${PYTHON}
-  ${CMAKE_CURRENT_SOURCE_DIR}/tool/qemu_tbgen_patcher.py
-  ${CMAKE_CURRENT_SOURCE_DIR}/third/unicorn/qemu/softmmu/vl.c 128)
-if(MSVC)
-  # patch unicorn cmake to cmake correctly on Windows, otherwise it fails to cmake or run
-  if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "ARM64")
-    execute_process(COMMAND ${PYTHON}
-      ${CMAKE_CURRENT_SOURCE_DIR}/tool/qemu_tcgop_patcher_arm64.py
-      ${CMAKE_CURRENT_SOURCE_DIR}/third/unicorn/qemu/include/tcg/tcg-opc.h)
-    execute_process(COMMAND ${PYTHON}
-      ${CMAKE_CURRENT_SOURCE_DIR}/tool/qemu_tcgul_patcher_arm64.py
-      ${CMAKE_CURRENT_SOURCE_DIR}/third/unicorn/qemu/tcg/aarch64/tcg-target.inc.c)
-    execute_process(COMMAND ${PYTHON}
-      ${CMAKE_CURRENT_SOURCE_DIR}/tool/unicorn_cmake_patcher_arm64.py
-      ${CMAKE_CURRENT_SOURCE_DIR}/third/unicorn/CMakeLists.txt)
-  else()
-    execute_process(COMMAND ${PYTHON}
-      ${CMAKE_CURRENT_SOURCE_DIR}/tool/unicorn_cmake_patcher.py
-      ${CMAKE_CURRENT_SOURCE_DIR}/third/unicorn/CMakeLists.txt)
-  endif()
-endif()
-if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "ARM64" OR
-   ${CMAKE_SYSTEM_PROCESSOR} STREQUAL "arm64" OR
-   ${CMAKE_SYSTEM_PROCESSOR} STREQUAL "AARCH64" OR
-   ${CMAKE_SYSTEM_PROCESSOR} STREQUAL "aarch64")
-  # the newer version of unicorn has fixed it, so no need to patch anymore
-  #
-  # patch to use the right tb_ret_addr
-  # execute_process(COMMAND ${PYTHON}
-  #  ${CMAKE_CURRENT_SOURCE_DIR}/tool/qemu_tbret_patcher.py
-  #  ${CMAKE_CURRENT_SOURCE_DIR}/third/unicorn/qemu/tcg/aarch64/tcg-target.inc.c)
-endif()
-# icpp only supports x86_64/arm64 currently
-set(UNICORN_ARCH "x86;aarch64" CACHE STRING "" FORCE)
-# unicorn likes to check it from CFLAGS
-set(CMAKE_MSVC_RUNTIME_LIBRARY_backup ${CMAKE_MSVC_RUNTIME_LIBRARY})
-unset(CMAKE_MSVC_RUNTIME_LIBRARY)
-add_subdirectory(third/unicorn)
-set(CMAKE_MSVC_RUNTIME_LIBRARY ${CMAKE_MSVC_RUNTIME_LIBRARY_backup})
-
 #
 # icpp projects
 #
 
-add_subdirectory(cutter++)
+# use AetherDbg instead, cutter++ has halted
+#add_subdirectory(cutter++)
 # use cutter++ instead, vmpstudio has halted
 #add_subdirectory(vmpstudio)
+
 add_subdirectory(src)

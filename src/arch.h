@@ -1,8 +1,7 @@
-/* Interpreting C++, executing the source and executable like a script */
-/* By Jesse Liu < neoliu2011@gmail.com >, 2024 */
-/* Copyright (c) vpand.com 2024. This file is released under GPLv2.
-   See LICENSE in root directory for more details
-*/
+// Interpreting C++(ICPP) - Run C++ anywhere, just like a script.
+// Copyright (c) 2026 Jesse Liu <neoliu2011@gmail.com>
+// SPDX-License-Identifier: Apache License, Version 2.0
+// See LICENSE file in the root directory for full license text.
 
 #pragma once
 
@@ -45,7 +44,7 @@ enum SystemType {
 enum InsnType {
   // common instruction
   INSN_ABORT = 0, // invalid opcode
-  INSN_HARDWARE,  // will be emulated by unicorn engine
+  INSN_HARDWARE,  // will be emulated by AetherVM
   // conditional jump instruction, e.g.:
   // b.ne, tbz, cbz in arm64
   // jnz, jgl, je in x86_64

@@ -1,8 +1,7 @@
-/* Interpreting C++, executing the source and executable like a script */
-/* By Jesse Liu < neoliu2011@gmail.com >, 2024 */
-/* Copyright (c) vpand.com 2024. This file is released under GPLv2.
-   See LICENSE in root directory for more details
-*/
+// Interpreting C++(ICPP) - Run C++ anywhere, just like a script.
+// Copyright (c) 2026 Jesse Liu <neoliu2011@gmail.com>
+// SPDX-License-Identifier: Apache License, Version 2.0
+// See LICENSE file in the root directory for full license text.
 
 #include "arch.h"
 #include "platform.h"
@@ -818,16 +817,5 @@ const void *host_callback_stub(const StubContext &ctx, char *&codeptr) {
 }
 
 #endif // end of ARCH_ARM64
-
-#if ON_WINDOWS
-// re-implement the symbols on Windows ARM64 which are dependent by unicorn/qemu
-#if ARCH_ARM64
-extern "C" {
-void __cpuidex(int vec[4], int, int) { vec[0] = vec[1] = vec[2] = vec[3] = 0; }
-void __cpuid(int vec[4], int) { __cpuidex(vec, 0, 0); }
-void _setjmp_wrapper(jmp_buf jbuf) { ::setjmp(jbuf); }
-}
-#endif
-#endif
 
 } // namespace icpp

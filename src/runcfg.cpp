@@ -1,8 +1,7 @@
-/* Interpreting C++, executing the source and executable like a script */
-/* By Jesse Liu < neoliu2011@gmail.com >, 2024 */
-/* Copyright (c) vpand.com 2024. This file is released under GPLv2.
-   See LICENSE in root directory for more details
-*/
+// Interpreting C++(ICPP) - Run C++ anywhere, just like a script.
+// Copyright (c) 2026 Jesse Liu <neoliu2011@gmail.com>
+// SPDX-License-Identifier: Apache License, Version 2.0
+// See LICENSE file in the root directory for full license text.
 
 #include "runcfg.h"
 #include "utils.h"
@@ -18,7 +17,7 @@ namespace icpp {
 
 constexpr std::string_view key_debugger = "vm_debugger";
 constexpr std::string_view key_stacksize = "vm_stack_size";
-constexpr std::string_view key_stepsize = "uc_step_size";
+constexpr std::string_view key_stepsize = "vm_step_size";
 
 bool RunConfig::repl = false;
 bool RunConfig::gadget = false;

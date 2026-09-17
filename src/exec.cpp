@@ -1,8 +1,7 @@
-/* Interpreting C++, executing the source and executable like a script */
-/* By Jesse Liu < neoliu2011@gmail.com >, 2024 */
-/* Copyright (c) vpand.com 2024. This file is released under GPLv2.
-   See LICENSE in root directory for more details
-*/
+// Interpreting C++(ICPP) - Run C++ anywhere, just like a script.
+// Copyright (c) 2026 Jesse Liu <neoliu2011@gmail.com>
+// SPDX-License-Identifier: Apache License, Version 2.0
+// See LICENSE file in the root directory for full license text.
 
 #include "exec.h"
 #include "arch.h"
@@ -13,12 +12,12 @@
 #include "runcfg.h"
 #include "utils.h"
 
+#include <AetherVM.h>
 #include <csetjmp>
 #include <llvm/ADT/Twine.h>
 #include <llvm/BinaryFormat/Magic.h>
 #include <llvm/Support/Signals.h>
 #include <mutex>
-#include <unicorn/unicorn.h>
 
 #define LOG_EXECUTION 0
 
@@ -27,138 +26,6 @@
 #endif
 
 namespace icpp {
-
-// uc instance cache
-struct UnicornEngine {
-  uc_engine *acquire(Object *object) {
-    std::lock_guard lock(mutex);
-    uc_engine *uc;
-    if (free.size()) {
-      // get a free cache uc
-      uc = *free.begin();
-      free.erase(free.begin());
-    } else {
-      // there's no available cache uc, create a new one
-      auto err = uc_open(arch(object), mode(object), &uc);
-      if (err != UC_ERR_OK) {
-        std::cout << "Failed to create unicorn engine instance: "
-                  << uc_strerror(err) << std::endl;
-        std::exit(-1);
-      }
-#if __x86_64__
-      // make sure the dr7 contains 0, as we'll reuse it as a zero register,
-      // this situation will occur when the llvm MCInst contains an EIZ/RIZ
-      // register
-      uint64_t zero = 0;
-      uc_reg_write(uc, UC_X86_REG_DR7, &zero);
-#else
-      // use the max version of arm64 cpu
-      uc_ctl_set_cpu_model(uc, UC_CPU_ARM64_MAX);
-#endif
-    }
-    busy.insert(uc);
-    return uc;
-  }
-
-  void release(uc_engine *uc) {
-    std::lock_guard lock(mutex);
-    // save to free list
-    free.insert(uc);
-    // remove from busy list
-    busy.erase(busy.find(uc));
-  }
-
-  static uc_arch arch(Object *object) {
-    switch (object->arch()) {
-    case AArch64:
-      return UC_ARCH_ARM64;
-    case X86_64:
-      return UC_ARCH_X86;
-    default:
-      return UC_ARCH_MAX; // unsupported
-    }
-  }
-
-  static uc_mode mode(Object *object) {
-    switch (object->arch()) {
-    case X86_64:
-      return UC_MODE_64;
-    default:
-      return UC_MODE_LITTLE_ENDIAN;
-    }
-  }
-
-  ~UnicornEngine() {
-    // release all cached uc instance
-    for (auto uc : free)
-      uc_close(uc);
-    for (auto uc : busy)
-      log_print(
-          Develop,
-          "Virtual CPU instance {} is still running while exiting program.",
-          reinterpret_cast<void *>(uc));
-  }
-
-  int parentRegisterAArch64(int reg) {
-    if (UC_ARM64_REG_W0 <= reg && reg <= UC_ARM64_REG_W30)
-      return UC_ARM64_REG_X0 + reg - UC_ARM64_REG_W0;
-    return reg;
-  }
-
-  int parentRegisterX64(int reg) {
-    if (UC_X86_REG_AH == reg || UC_X86_REG_AL == reg || UC_X86_REG_AX == reg ||
-        UC_X86_REG_EAX == reg)
-      return UC_X86_REG_RAX;
-    if (UC_X86_REG_BH == reg || UC_X86_REG_BL == reg || UC_X86_REG_BX == reg ||
-        UC_X86_REG_EBX == reg)
-      return UC_X86_REG_RBX;
-    if (UC_X86_REG_CH == reg || UC_X86_REG_CL == reg || UC_X86_REG_CX == reg ||
-        UC_X86_REG_ECX == reg)
-      return UC_X86_REG_RCX;
-    if (UC_X86_REG_DH == reg || UC_X86_REG_DL == reg || UC_X86_REG_DX == reg ||
-        UC_X86_REG_EDX == reg)
-      return UC_X86_REG_RDX;
-    if (UC_X86_REG_BP == reg || UC_X86_REG_BPL == reg || UC_X86_REG_EBP == reg)
-      return UC_X86_REG_RBP;
-    if (UC_X86_REG_DI == reg || UC_X86_REG_DIL == reg || UC_X86_REG_EDI == reg)
-      return UC_X86_REG_RDI;
-    if (UC_X86_REG_SI == reg || UC_X86_REG_SIL == reg || UC_X86_REG_ESI == reg)
-      return UC_X86_REG_RSI;
-    if (UC_X86_REG_SP == reg || UC_X86_REG_SPL == reg || UC_X86_REG_ESP == reg)
-      return UC_X86_REG_RSP;
-    if (UC_X86_REG_R8B == reg || UC_X86_REG_R8W == reg || UC_X86_REG_R8D == reg)
-      return UC_X86_REG_R8;
-    if (UC_X86_REG_R9B == reg || UC_X86_REG_R9W == reg || UC_X86_REG_R9D == reg)
-      return UC_X86_REG_R9;
-    if (UC_X86_REG_R10B == reg || UC_X86_REG_R10W == reg ||
-        UC_X86_REG_R10D == reg)
-      return UC_X86_REG_R10;
-    if (UC_X86_REG_R11B == reg || UC_X86_REG_R11W == reg ||
-        UC_X86_REG_R11D == reg)
-      return UC_X86_REG_R11;
-    if (UC_X86_REG_R12B == reg || UC_X86_REG_R12W == reg ||
-        UC_X86_REG_R12D == reg)
-      return UC_X86_REG_R12;
-    if (UC_X86_REG_R13B == reg || UC_X86_REG_R13W == reg ||
-        UC_X86_REG_R13D == reg)
-      return UC_X86_REG_R13;
-    if (UC_X86_REG_R14B == reg || UC_X86_REG_R14W == reg ||
-        UC_X86_REG_R14D == reg)
-      return UC_X86_REG_R14;
-    if (UC_X86_REG_R15B == reg || UC_X86_REG_R15W == reg ||
-        UC_X86_REG_R15D == reg)
-      return UC_X86_REG_R15;
-    return reg;
-  }
-
-private:
-  // available uc instance
-  std::set<uc_engine *> free;
-  // uc instance used by some thread
-  std::set<uc_engine *> busy;
-
-  std::mutex mutex;
-} ue;
 
 struct ExecEngine {
   // clone a new execute engine for thread function
@@ -177,15 +44,11 @@ struct ExecEngine {
   }
 
   ~ExecEngine() {
-    if (clone_) {
-      ue.release(uc_);
+    if (clone_)
       return;
-    }
 
     // execute destructor in iobject file
     execDtor();
-    // give back the borrowed uc instance
-    ue.release(uc_);
 
     auto rets = host_insn_rets();
     for (auto page : stubpages_) {
@@ -275,7 +138,7 @@ private:
   void initMainRegisterCommonX64();
 
   /*
-  helper routines for unicorn and host register context switch
+  helper routines for AetherVM and host register context switch
   */
   ContextA64 loadRegisterAArch64();
   void saveRegisterAArch64(const ContextA64 &ctx);
@@ -301,19 +164,7 @@ private:
     return found != stubvms_.end() ? found->second : target;
   }
 
-  /*
-  unicorn only writes exactly register size bytes to the destination register,
-  clear away the high bit fields before committing the real writing.
-  */
-  void writeRegister(int reg, const void *pvalue) {
-    auto parent = robject_->arch() == AArch64 ? ue.parentRegisterAArch64(reg)
-                                              : ue.parentRegisterX64(reg);
-    if (parent != reg) {
-      uint64_t zero = 0;
-      uc_reg_write(uc_, parent, &zero);
-    }
-    uc_reg_write(uc_, reg, pvalue);
-  }
+  void writeRegister(int reg, const void *pvalue) { abort(); }
 
 private:
   // this is a cloned instance
@@ -329,8 +180,8 @@ private:
   // the initial object instance
   std::shared_ptr<Object> iobject_;
 
-  // virtual qemu processor from unicorn engine
-  uc_engine *uc_ = nullptr;
+  // virtual processor from AetherVM
+  aether::BinaryEngine engine_ = nullptr;
   // virtual processor debugger working with vmpstudio plugin
   // see ICPP_SRC/vmpstudio for more information
   Debugger *debugger_ = nullptr;
@@ -374,10 +225,11 @@ static thread_local std::map<uint64_t, std::vector<uint8_t>> dyn_codes;
 
 void ExecEngine::run(uint64_t pc, ContextICPP *regs) {
   constexpr int stack_switch_size = 128;
+  using namespace aether;
 
   // backup the old context and set a new one
 #if ARCH_ARM64
-  auto pcrid = UC_ARM64_REG_PC;
+  auto pcrid = Register::PC;
   auto backup = loadRegisterAArch64();
   char *vmstack =
       reinterpret_cast<char *>(backup.r[A64_SP]) - stack_switch_size;
@@ -387,7 +239,7 @@ void ExecEngine::run(uint64_t pc, ContextICPP *regs) {
   regs->r[A64_SP] = reinterpret_cast<uint64_t>(vmstack);
   saveRegisterAArch64(*regs);
 #else
-  auto pcrid = UC_X86_REG_RIP;
+  auto pcrid = Register::RIP;
   auto backup = loadRegisterX64();
   char *vmstack = reinterpret_cast<char *>(backup.rsp) - stack_switch_size;
   char *hoststack = reinterpret_cast<char *>(regs->rsp);
@@ -397,8 +249,7 @@ void ExecEngine::run(uint64_t pc, ContextICPP *regs) {
   saveRegisterX64(*regs);
 #endif
   // backup old pc
-  uint64_t pcbackup;
-  uc_reg_read(uc_, pcrid, &pcbackup);
+  uint64_t pcbackup = engine.getRegister(pcrid)->u8;
 
   // load host stack
   std::memcpy(vmstack, hoststack, stack_switch_size);
@@ -420,7 +271,7 @@ void ExecEngine::run(uint64_t pc, ContextICPP *regs) {
   regs->rsp = reinterpret_cast<uint64_t>(hoststack);
 #endif
   // restore old pc
-  uc_reg_write(uc_, pcrid, &pcbackup);
+  engine.setRegister(pcrid, {.u8 = pcbackup});
 }
 
 extern "C" void exec_engine_main(StubContext *ctx, ContextICPP *regs) {
@@ -437,8 +288,6 @@ void ExecEngine::init() {
   exec_engine = this;
 
   robject_ = iobject_.get();
-  // get a unicorn instruction emulation instance
-  uc_ = ue.acquire(robject_);
 
   // set the initial register context copied from host
   ContextICPP initctx;
@@ -557,17 +406,15 @@ uint64_t ExecEngine::returnValue() {
   int regid;
   switch (robject_->arch()) {
   case AArch64:
-    regid = UC_ARM64_REG_X0;
+    regid = Register::X0;
     break;
   case X86_64:
-    regid = UC_X86_REG_RAX;
+    regid = Register::RAX;
     break;
   default:
     return 0;
   }
-  uint64_t value;
-  uc_reg_read(uc_, regid, &value);
-  return value;
+  return engine.getRegister(regid)->u8;
 }
 
 bool ExecEngine::execMain() {
@@ -600,80 +447,90 @@ bool ExecEngine::run(uint64_t vm, uint64_t arg0, uint64_t arg1) {
 }
 
 ContextA64 ExecEngine::loadRegisterAArch64() {
+  using namespace aether;
   ContextA64 ctx;
   for (int i = 0; i <= 28; i++) {
-    uc_reg_read(uc_, UC_ARM64_REG_X0 + i, &ctx.r[i]);
+    ctx.r[i] = engine.getRegister((Register)((int)Register::X0 + i))->u8;
   }
-  uc_reg_read(uc_, UC_ARM64_REG_X29, &ctx.r[A64_FP]);
-  uc_reg_read(uc_, UC_ARM64_REG_X30, &ctx.r[A64_LR]);
-  uc_reg_read(uc_, UC_ARM64_REG_SP, &ctx.r[A64_SP]);
+  ctx.r[A64_FP] = engine.getRegister(Register::X29);
+  ctx.r[A64_LR] = engine.getRegister(Register::X30);
+  ctx.r[A64_SP] = engine.getRegister(Register::SP);
   for (int i = 0; i < 32; i++) {
-    uc_reg_read(uc_, UC_ARM64_REG_V0 + i, &ctx.v[i]);
+    std::memcpy(&ctx.v[i], engine.getRegister((Register)(int)Register::V0 + i),
+                sizeof(ctx.v[i]));
   }
   return ctx;
 }
 
 void ExecEngine::saveRegisterAArch64(const ContextA64 &ctx) {
   for (int i = 0; i <= 28; i++) {
-    uc_reg_write(uc_, UC_ARM64_REG_X0 + i, &ctx.r[i]);
+    engine.setRegister((Register)((int)Register::X0 + i), {.u8 = ctx.r[i]});
   }
-  uc_reg_write(uc_, UC_ARM64_REG_X29, &ctx.r[A64_FP]);
-  uc_reg_write(uc_, UC_ARM64_REG_X30, &ctx.r[A64_LR]);
-  uc_reg_write(uc_, UC_ARM64_REG_SP, &ctx.r[A64_SP]);
+  engine.setRegister(Register::X29, {.u8 = ctx.r[A64_FP]});
+  engine.setRegister(Register::X30, {.u8 = ctx.r[A64_LR]});
+  engine.setRegister(Register::SP, {.u8 = ctx.r[A64_SP]});
   for (int i = 0; i < 32; i++) {
-    uc_reg_write(uc_, UC_ARM64_REG_V0 + i, &ctx.v[i]);
+    engine.setRegister((Register)((int)Register::V0 + i), {.u8 = &ctx.v[i]});
   }
 }
 
 ContextX64 ExecEngine::loadRegisterX64() {
   ContextX64 ctx;
-  uc_reg_read(uc_, UC_X86_REG_RSP, &ctx.rsp);
-  uc_reg_read(uc_, UC_X86_REG_RBP, &ctx.rbp);
-  uc_reg_read(uc_, UC_X86_REG_RAX, &ctx.rax);
-  uc_reg_read(uc_, UC_X86_REG_RBX, &ctx.rbx);
-  uc_reg_read(uc_, UC_X86_REG_RCX, &ctx.rcx);
-  uc_reg_read(uc_, UC_X86_REG_RDX, &ctx.rdx);
-  uc_reg_read(uc_, UC_X86_REG_RSI, &ctx.rsi);
-  uc_reg_read(uc_, UC_X86_REG_RDI, &ctx.rdi);
-  uc_reg_read(uc_, UC_X86_REG_R8, &ctx.r8);
-  uc_reg_read(uc_, UC_X86_REG_R9, &ctx.r9);
-  uc_reg_read(uc_, UC_X86_REG_R10, &ctx.r10);
-  uc_reg_read(uc_, UC_X86_REG_R11, &ctx.r11);
-  uc_reg_read(uc_, UC_X86_REG_R12, &ctx.r12);
-  uc_reg_read(uc_, UC_X86_REG_R13, &ctx.r13);
-  uc_reg_read(uc_, UC_X86_REG_R14, &ctx.r14);
-  uc_reg_read(uc_, UC_X86_REG_R15, &ctx.r15);
+  ctx.rsp = engine.getRegister(Register::RSP)->u8;
+  ctx.rbp = engine.getRegister(Register::RBP)->u8;
+  ctx.rax = engine.getRegister(Register::RAX)->u8;
+  ctx.rbx = engine.getRegister(Register::RBX)->u8;
+  ctx.rcx = engine.getRegister(Register::RCX)->u8;
+  ctx.rdx = engine.getRegister(Register::RDX)->u8;
+  ctx.rsi = engine.getRegister(Register::RSI)->u8;
+  ctx.rdi = engine.getRegister(Register::RDI)->u8;
+  ctx.r8 = engine.getRegister(Register::R8)->u8;
+  ctx.r9 = engine.getRegister(Register::R9)->u8;
+  ctx.r10 = engine.getRegister(Register::R10)->u8;
+  ctx.r11 = engine.getRegister(Register::R11)->u8;
+  ctx.r12 = engine.getRegister(Register::R12)->u8;
+  ctx.r13 = engine.getRegister(Register::R13)->u8;
+  ctx.r14 = engine.getRegister(Register::R14)->u8;
+  ctx.r15 = engine.getRegister(Register::R15)->u8;
   for (int i = 0; i < 8; i++) {
-    uc_reg_read(uc_, UC_X86_REG_ST0 + i, &ctx.stmmx[i]);
+    std::memcpy(&ctx.stmmx[i],
+                engine.getRegister((Register)(int)Register::ST0 + i),
+                sizeof(ctx.stmmx[i]));
   }
   for (int i = 0; i < 32; i++) {
-    uc_reg_read(uc_, UC_X86_REG_XMM0, &ctx.xmm[i]);
+    std::memcpy(&ctx.xmm[i],
+                engine.getRegister((Register)(int)Register::XMM0 + i),
+                sizeof(ctx.xmm[i]));
   }
   return ctx;
 }
 
 void ExecEngine::saveRegisterX64(const ContextX64 &ctx) {
-  uc_reg_write(uc_, UC_X86_REG_RSP, &ctx.rsp);
-  uc_reg_write(uc_, UC_X86_REG_RBP, &ctx.rbp);
-  uc_reg_write(uc_, UC_X86_REG_RAX, &ctx.rax);
-  uc_reg_write(uc_, UC_X86_REG_RBX, &ctx.rbx);
-  uc_reg_write(uc_, UC_X86_REG_RCX, &ctx.rcx);
-  uc_reg_write(uc_, UC_X86_REG_RDX, &ctx.rdx);
-  uc_reg_write(uc_, UC_X86_REG_RSI, &ctx.rsi);
-  uc_reg_write(uc_, UC_X86_REG_RDI, &ctx.rdi);
-  uc_reg_write(uc_, UC_X86_REG_R8, &ctx.r8);
-  uc_reg_write(uc_, UC_X86_REG_R9, &ctx.r9);
-  uc_reg_write(uc_, UC_X86_REG_R10, &ctx.r10);
-  uc_reg_write(uc_, UC_X86_REG_R11, &ctx.r11);
-  uc_reg_write(uc_, UC_X86_REG_R12, &ctx.r12);
-  uc_reg_write(uc_, UC_X86_REG_R13, &ctx.r13);
-  uc_reg_write(uc_, UC_X86_REG_R14, &ctx.r14);
-  uc_reg_write(uc_, UC_X86_REG_R15, &ctx.r15);
+  engine.setRegister(Register::RSP, {.u8 = ctx.rsp});
+  engine.setRegister(Register::RBP, {.u8 = ctx.rbp});
+  engine.setRegister(Register::RAX, {.u8 = ctx.rax});
+  engine.setRegister(Register::RBX, {.u8 = ctx.rbx});
+  engine.setRegister(Register::RCX, {.u8 = ctx.rcx});
+  engine.setRegister(Register::RDX, {.u8 = ctx.rdx});
+  engine.setRegister(Register::RSI, {.u8 = ctx.rsi});
+  engine.setRegister(Register::RDI, {.u8 = ctx.rdi});
+  engine.setRegister(Register::R8, {.u8 = ctx.r8});
+  engine.setRegister(Register::R9, {.u8 = ctx.r9});
+  engine.setRegister(Register::R10, {.u8 = ctx.r10});
+  engine.setRegister(Register::R11, {.u8 = ctx.r11});
+  engine.setRegister(Register::R12, {.u8 = ctx.r12});
+  engine.setRegister(Register::R13, {.u8 = ctx.r13});
+  engine.setRegister(Register::R14, {.u8 = ctx.r14});
+  engine.setRegister(Register::R15, {.u8 = ctx.r15});
   for (int i = 0; i < 8; i++) {
-    uc_reg_write(uc_, UC_X86_REG_ST0 + i, &ctx.stmmx[i]);
+    std::memcpy((void *)engine.setRegister((Register)(int)Register::ST0 + i),
+                &ctx.stmmx[i], sizeof(ctx.stmmx[i]));
+    std::memcpy((void *)engine.setRegister((Register)(int)Register::MM0 + i),
+                &ctx.stmmx[i], sizeof(ctx.stmmx[i]));
   }
   for (int i = 0; i < 32; i++) {
-    uc_reg_write(uc_, UC_X86_REG_XMM0, &ctx.xmm[i]);
+    std::memcpy((void *)engine.getRegister((Register)((int)Register::XMM0 + i)),
+                &ctx.xmm[i], sizeof(ctx.xmm[i]));
   }
 }
 
@@ -726,31 +583,31 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
   int rids[4], retrid; // register id
   switch (robject_->arch()) {
   case AArch64:
-    rids[0] = UC_ARM64_REG_X0;
-    rids[1] = UC_ARM64_REG_X1;
-    rids[2] = UC_ARM64_REG_X2;
-    rids[3] = UC_ARM64_REG_X3;
-    retrid = UC_ARM64_REG_X0;
+    rids[0] = Register::X0;
+    rids[1] = Register::X1;
+    rids[2] = Register::X2;
+    rids[3] = Register::X3;
+    retrid = Register::X0;
     break;
   case X86_64:
     switch (robject_->type()) {
     case COFF_Exe:
     case COFF_Reloc:
       // windows abi: rcx, rdx, r8, r9
-      rids[0] = UC_X86_REG_RCX;
-      rids[1] = UC_X86_REG_RDX;
-      rids[2] = UC_X86_REG_R8;
-      rids[3] = UC_X86_REG_R9;
+      rids[0] = Register::RCX;
+      rids[1] = Register::RDX;
+      rids[2] = Register::R8;
+      rids[3] = Register::R9;
       break;
     default:
       // system v abi: rdi, rsi, rdx, rcx, r8, r9
-      rids[0] = UC_X86_REG_RDI;
-      rids[1] = UC_X86_REG_RSI;
-      rids[2] = UC_X86_REG_RDX;
-      rids[3] = UC_X86_REG_RCX;
+      rids[0] = Register::RDI;
+      rids[1] = Register::RSI;
+      rids[2] = Register::RDX;
+      rids[3] = Register::RCX;
       break;
     }
-    retrid = UC_X86_REG_RAX;
+    retrid = Register::RAX;
     break;
   default:
     UNIMPL_ABORT();
@@ -758,7 +615,7 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
   }
   // read current arugments
   for (size_t i = 0; i < std::size(args); i++)
-    uc_reg_read(uc_, rids[i], &args[i]);
+    engine.getRegister(rids[i], &args[i]);
   std::memcpy(backups, args, sizeof(args));
 
   if (reinterpret_cast<uint64_t>(thread_create) == target ||
@@ -842,7 +699,7 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
 
     auto pid = fork();
     log_print(Develop, "PID {}, fork result {}.", getpid(), pid);
-    uc_reg_write(uc_, retrid, &pid);
+    engine.setRegister(retrid, &pid);
   }
 #endif
   else {
@@ -874,7 +731,7 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
   for (size_t i = 0; i < std::size(args); i++) {
     if (backups[i] != args[i]) {
       update = true;
-      uc_reg_write(uc_, rids[i], &args[i]);
+      engine.setRegister(rids[i], &args[i]);
     }
   }
   return update;
@@ -904,7 +761,7 @@ bool ExecEngine::interpretCallAArch64(const InsnInfo *&inst, uint64_t &pc,
   if (executable(target)) {
     // call internal function
     // set return address
-    uc_reg_write(uc_, UC_ARM64_REG_LR, &retaddr);
+    engine.setRegister(Register::LR, &retaddr);
     pc = target;
     inst = robject_->insnInfo(pc); // update current inst
     return true;
@@ -987,11 +844,11 @@ bool ExecEngine::interpretCallX64(const InsnInfo *&inst, uint64_t &pc,
 
   if (executable(target)) {
     uint64_t rsp;
-    uc_reg_read(uc_, UC_X86_REG_RSP, &rsp);
+    engine.getRegister(Register::RSP, &rsp);
     // push return address
     rsp -= 8;
     *reinterpret_cast<uint64_t *>(rsp) = retaddr;
-    uc_reg_write(uc_, UC_X86_REG_RSP, &rsp);
+    engine.setRegister(Register::RSP, &rsp);
     // call internal function
     pc = target;
     inst = robject_->insnInfo(pc); // update current inst
@@ -1026,7 +883,7 @@ bool ExecEngine::interpretJumpX64(const InsnInfo *&inst, uint64_t &pc,
   } else {
     // jump to external function
     uint64_t rsp, retaddr;
-    uc_reg_read(uc_, UC_X86_REG_RSP, &rsp);
+    engine.getRegister(Register::RSP, &rsp);
     retaddr = *reinterpret_cast<uint64_t *>(rsp);
     auto context = loadRegisterX64();
     if (executable(retaddr) ||
@@ -1045,7 +902,7 @@ bool ExecEngine::interpretJumpX64(const InsnInfo *&inst, uint64_t &pc,
       pc = retaddr;
       // pop return address
       rsp += 8;
-      uc_reg_write(uc_, UC_X86_REG_RSP, &rsp);
+      engine.setRegister(Register::RSP, &rsp);
       if (retaddr != reinterpret_cast<uint64_t>(topReturn())) {
         // update current inst
         inst = robject_->insnInfo(pc);
@@ -1073,17 +930,17 @@ uint64_t ExecEngine::interpretCalcMemX64(const InsnInfo *&inst, uint64_t &pc,
   int segreg_op_idx = offimm_op_idx + 4;
   uint64_t basereg = 0, expreg = 0;
   // read base and exponent register value
-  if (ops[basereg_op_idx] == UC_X86_REG_RIP)
+  if (ops[basereg_op_idx] == Register::RIP)
     basereg = pc;
   else
-    uc_reg_read(uc_, ops[basereg_op_idx], &basereg);
-  uc_reg_read(uc_, ops[expreg_op_idx], &expreg);
+    engine.getRegister(ops[basereg_op_idx], &basereg);
+  engine.getRegister(ops[expreg_op_idx], &expreg);
   // pickup exponent and offset value
   auto expimm = *reinterpret_cast<const int64_t *>(&ops[expimm_op_idx]);
   auto offimm = *reinterpret_cast<const int64_t *>(&ops[offimm_op_idx]);
   // calculate the final memory address from raw instruction
   uint64_t memaddr = (uint64_t)(basereg + expimm * expreg + offimm);
-  if (ops[basereg_op_idx] == UC_X86_REG_RIP) {
+  if (ops[basereg_op_idx] == Register::RIP) {
     // rip related memory reference
     if (inst->rflag) {
       // FIXME:: should dynamically calculate this offimm with relocation ?
@@ -1100,7 +957,7 @@ uint64_t ExecEngine::interpretCalcMemX64(const InsnInfo *&inst, uint64_t &pc,
   } else if (inst->segflag) {
     // process segment register value
     switch (ops[segreg_op_idx]) {
-    case UC_X86_REG_GS:
+    case Register::GS:
 #if ON_WINDOWS
       switch (offimm) {
       case 0x58: {
@@ -1120,9 +977,9 @@ uint64_t ExecEngine::interpretCalcMemX64(const InsnInfo *&inst, uint64_t &pc,
       }
       break;
 #endif
-    case UC_X86_REG_DS:
-    case UC_X86_REG_FS:
-    case UC_X86_REG_SS:
+    case Register::DS:
+    case Register::FS:
+    case Register::SS:
       UNIMPL_ABORT();
       break;
     default:
@@ -1144,11 +1001,11 @@ void ExecEngine::interpretMovX64(const InsnInfo *&inst, uint64_t &pc, int regop,
     // mov mem, reg
     uint64_t value[4];
     auto regid = ops[regop];
-    uc_reg_read(uc_, ops[regop], value);
-    if (UC_X86_REG_YMM0 <= regid && regid <= UC_X86_REG_ZMM31) {
+    engine.getRegister(ops[regop], value);
+    if (Register::YMM0 <= regid && regid <= Register::ZMM31) {
       log_print(Runtime, "YMM/ZMM register moving isn't supported now.");
       abort();
-    } else if (UC_X86_REG_XMM0 <= regid && regid <= UC_X86_REG_XMM31) {
+    } else if (Register::XMM0 <= regid && regid <= Register::XMM31) {
       memcpy(reinterpret_cast<void *>(target), value, 16);
     } else {
       *reinterpret_cast<T *>(target) = static_cast<T>(value[0]);
@@ -1162,7 +1019,7 @@ void ExecEngine::interpretMovMRX64(const InsnInfo *&inst, uint64_t &pc,
   auto target = interpretCalcMemX64(inst, pc, 0, &ops);
 
   uint64_t value[4];
-  uc_reg_read(uc_, ops[11], value);
+  engine.getRegister(ops[11], value);
   // mov mem, gpr/mmx/xmm
   std::memcpy(reinterpret_cast<void *>(target), value, bytes);
 }
@@ -1188,7 +1045,7 @@ void ExecEngine::interpretFlagsMemImm(const InsnInfo *&inst, uint64_t &pc,
       updator(*reinterpret_cast<const TSRC *>(target),
               static_cast<TSRC>(*reinterpret_cast<const TDES *>(&ops[11])));
   // update rflags
-  uc_reg_write(uc_, UC_X86_REG_RFLAGS, &rflags);
+  engine.setRegister(Register::RFLAGS, &rflags);
 }
 
 template <typename T>
@@ -1199,12 +1056,12 @@ void ExecEngine::interpretFlagsRegMem(const InsnInfo *&inst, uint64_t &pc,
   // cmp/test instruction
   auto updator = cmp ? host_compare<T> : host_test<T>;
   uint64_t value;
-  uc_reg_read(uc_, ops[0], &value);
+  engine.getRegister(ops[0], &value);
   // calculate the new rflags
   auto rflags =
       updator(static_cast<T>(value), *reinterpret_cast<const T *>(target));
   // update rflags
-  uc_reg_write(uc_, UC_X86_REG_RFLAGS, &rflags);
+  engine.setRegister(Register::RFLAGS, &rflags);
 }
 
 template <typename T>
@@ -1215,12 +1072,12 @@ void ExecEngine::interpretFlagsMemReg(const InsnInfo *&inst, uint64_t &pc,
   // cmp/test instruction
   auto updator = cmp ? host_compare<T> : host_test<T>;
   uint64_t value;
-  uc_reg_read(uc_, ops[11], &value);
+  engine.getRegister(ops[11], &value);
   // calculate the new rflags
   auto rflags =
       updator(*reinterpret_cast<const T *>(target), static_cast<T>(value));
   // update rflags
-  uc_reg_write(uc_, UC_X86_REG_RFLAGS, &rflags);
+  engine.setRegister(Register::RFLAGS, &rflags);
 }
 
 template <typename TSRC, typename TDES>
@@ -1284,11 +1141,9 @@ void ExecEngine::interpretCondMovRegMem(const InsnInfo *&inst, uint64_t &pc) {
   }
   // execute the dynamically generated instruction
   auto opcode = found->second.data() + 8;
-  auto err = uc_emu_start(uc_, reinterpret_cast<uint64_t>(opcode), -1, 0, 1);
-  if (err != UC_ERR_OK) {
-    log_print(Runtime,
-              "Fatal error occurred when simuating cmov instruction: {}.",
-              uc_strerror(err));
+  auto result = engine.emulate({(uint8_t *)opcode, inst->len});
+  if (!result) {
+    log_print(Runtime, "Fatal error occurred when simuating cmov instruction.");
     dump();
     std::exit(-1);
   }
@@ -1320,11 +1175,10 @@ void ExecEngine::interpretSSERegMem(const InsnInfo *&inst, uint64_t &pc) {
   }
   // execute the dynamically generated instruction
   auto opcode = found->second.data() + 0x10;
-  auto err = uc_emu_start(uc_, reinterpret_cast<uint64_t>(opcode), -1, 0, 1);
-  if (err != UC_ERR_OK) {
+  auto result = engine.emulate({(uint8_t *)opcode, inst->len});
+  if (!result) {
     log_print(Runtime,
-              "Fatal error occurred when simuating cmov instruction: {}.",
-              uc_strerror(err));
+              "Fatal error occurred when simuating SSE/AVX instruction.");
     dump();
     std::exit(-1);
   }
@@ -1397,13 +1251,13 @@ static bool can_emulate(const InsnInfo *inst) {
 
 bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
   // we should interpret the relocation, branch, jump, call and syscall
-  // instructions manually, the unicorn engine can just execute those simple
+  // instructions manually, the AetherVM engine can just execute those simple
   // instructions (i.e., instruction without relocation and jump operation) in
   // our case
   unsigned origstep = step;
   auto curi = inst;
   if (step <= 0) {
-    // calculate the maximized steps that can be passed to uc_emu_start
+    // calculate the maximized steps that can be passed to AetherVM
     for (step = 0; can_emulate(curi); curi++, step++)
       ;
   } else {
@@ -1416,7 +1270,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
   }
   if (step) {
     // indicates the current instruction hasn't been processed and should let
-    // uc_emu_start continue to execute it
+    // AetherVM continue to execute it
     return false;
   }
   // interpret the pre-decoded instructions
@@ -1438,13 +1292,13 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       break;
     // conditional jump instruction
     case INSN_CONDJUMP:
-      // only let unicorn engine consumed 1 instruction in this situation
+      // only let AetherVM engine consumed 1 instruction in this situation
       step = 1;
       return false;
     // arm64 instruction
     case INSN_ARM64_RETURN: {
       uint64_t retaddr;
-      uc_reg_read(uc_, UC_ARM64_REG_LR, &retaddr);
+      engine.getRegister(Register::LR, &retaddr);
       if (executable(retaddr)) {
         pc = retaddr;
         inst = robject_->insnInfo(pc);
@@ -1477,7 +1331,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     case INSN_ARM64_CALLREG: {
       auto metaptr = robject_->metaInfo<uint16_t>(inst, pc);
       uint64_t target;
-      uc_reg_read(uc_, metaptr[0], &target);
+      engine.getRegister(metaptr[0], &target);
       target = checkStub(target);
       jump = interpretCallAArch64(inst, pc, target);
       break;
@@ -1498,7 +1352,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     case INSN_ARM64_JUMPREG: {
       auto metaptr = robject_->metaInfo<uint16_t>(inst, pc);
       uint64_t target;
-      uc_reg_read(uc_, metaptr[0], &target);
+      engine.getRegister(metaptr[0], &target);
       target = checkStub(target);
       jump = interpretJumpAArch64(inst, pc, target);
       break;
@@ -1517,7 +1371,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
         else
           target = pc + imm;
       }
-      uc_reg_write(uc_, metaptr[0], &target);
+      engine.setRegister(metaptr[0], &target);
       break;
     }
     case INSN_ARM64_LDRSWL:
@@ -1532,13 +1386,13 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     // encoded meta data layout:[uint64_t]
     case INSN_X64_RETURN: {
       uint64_t retaddr, rsp;
-      uc_reg_read(uc_, UC_X86_REG_RSP, &rsp);
+      engine.getRegister(Register::RSP, &rsp);
       retaddr = *reinterpret_cast<uint64_t *>(rsp);
       // pop return address
       rsp += 8;
       // instruction: retn bytes
       rsp += *robject_->metaInfo<uint64_t>(inst, pc);
-      uc_reg_write(uc_, UC_X86_REG_RSP, &rsp);
+      engine.setRegister(Register::RSP, &rsp);
       pc = retaddr;
       if (executable(retaddr)) {
         inst = robject_->insnInfo(pc);
@@ -1571,7 +1425,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     case INSN_X64_CALLREG: {
       auto metaptr = robject_->metaInfo<uint16_t>(inst, pc);
       uint64_t target;
-      uc_reg_read(uc_, metaptr[0], &target);
+      engine.getRegister(metaptr[0], &target);
       target = checkStub(target);
       jump = interpretCallX64(inst, pc, target);
       break;
@@ -1599,7 +1453,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     // encoded meta data layout:[uint64_t, uint64_t]
     case INSN_X64_JUMPCOND: {
       if (!inst->rflag) {
-        // only let unicorn engine consumed 1 instruction in this situation
+        // only let AetherVM engine consumed 1 instruction in this situation
         step = 1;
         return false;
       }
@@ -1608,8 +1462,8 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
           reinterpret_cast<uint64_t>(robject_->relocTarget(inst->reloc));
       auto metaptr = robject_->metaInfo<uint16_t>(inst, pc);
       ContextX64 context{0};
-      uc_reg_read(uc_, UC_X86_REG_RCX, &context.rcx);
-      uc_reg_read(uc_, UC_X86_REG_RFLAGS, &context.rflags);
+      engine.getRegister(Register::RCX, &context.rcx);
+      engine.getRegister(Register::RFLAGS, &context.rflags);
       if (hitCondX64(&context, metaptr[4]))
         jump = interpretJumpX64(inst, pc, target);
       break;
@@ -1618,7 +1472,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     case INSN_X64_JUMPREG: {
       auto metaptr = robject_->metaInfo<uint16_t>(inst, pc);
       uint64_t target;
-      uc_reg_read(uc_, metaptr[0], &target);
+      engine.getRegister(metaptr[0], &target);
       target = checkStub(target);
       jump = interpretJumpX64(inst, pc, target);
       break;
@@ -1859,16 +1713,16 @@ bool ExecEngine::execLoop(uint64_t pc) {
   // debugger internal thread
   Debugger::Thread *dbgthread = nullptr;
   if (debugger_)
-    dbgthread = debugger_->enter(robject_->arch(), uc_);
+    dbgthread = debugger_->enter(robject_->arch(), &engine);
 
   // pc register id for different architecture
   int pcreg;
   switch (robject_->arch()) {
   case AArch64:
-    pcreg = UC_ARM64_REG_PC;
+    pcreg = Register::PC;
     break;
   case X86_64:
-    pcreg = UC_X86_REG_RIP;
+    pcreg = Register::RIP;
     break;
   default:
     UNIMPL_ABORT();
@@ -1909,24 +1763,17 @@ bool ExecEngine::execLoop(uint64_t pc) {
     *tlsepoch = reinterpret_cast<uint64_t>(&epochptr);
 #endif
 
-    // running instructions by unicorn engine
-    auto err = uc_emu_start(uc_, pc, -1, 0, step);
+    // running instructions by AetherVM engine
+    for (auto i = 0; i < step; i++, inst++)
+      engine_.emulate({(uint8_t *)pc, inst->len});
 
 #if WIN_ARM64
     // restore the original epoch pointer
     *tlsepoch = oldepochptr;
 #endif
 
-    if (err != UC_ERR_OK) {
-      log_print(Runtime, "Fatal error occurred: {}.", uc_strerror(err));
-      dump();
-      std::exit(-1);
-    }
-
     // update current pc
-    uc_reg_read(uc_, pcreg, &pc);
-    // update inst with step
-    inst += step;
+    pc = engine_.readRegister(aether::Register::PC)->u8;
     // check whether the last instruction is jump type
     if (inst->rva != robject_->vm2rvaSimple(pc)) {
       if (pc == lastjpc) {
@@ -1949,16 +1796,16 @@ bool ExecEngine::execLoop(uint64_t pc) {
 #define reg_write(reg, val)                                                    \
   {                                                                            \
     auto u64 = reinterpret_cast<uint64_t>(val);                                \
-    uc_reg_write(uc_, reg, &u64);                                              \
+    engine.setRegister(reg, &u64);                                             \
   }
 
 void ExecEngine::initMainRegisterAArch64(const void *argc, const void *argv) {
   // x0: argc
   // x1: argv
-  reg_write(UC_ARM64_REG_X0, argc);
-  reg_write(UC_ARM64_REG_X1, argv);
-  reg_write(UC_ARM64_REG_SP, topStack());
-  reg_write(UC_ARM64_REG_LR, topReturn());
+  reg_write(Register::X0, argc);
+  reg_write(Register::X1, argv);
+  reg_write(Register::SP, topStack());
+  reg_write(Register::LR, topReturn());
 }
 
 void ExecEngine::initMainRegisterCommonX64() {
@@ -1966,15 +1813,15 @@ void ExecEngine::initMainRegisterCommonX64() {
   // push topReturn()
   rsp--;
   rsp[0] = topReturn();
-  reg_write(UC_X86_REG_RSP, reinterpret_cast<const void *>(rsp));
+  reg_write(Register::RSP, reinterpret_cast<const void *>(rsp));
 }
 
 void ExecEngine::initMainRegisterSysVX64(const void *argc, const void *argv) {
   // System V AMD64 ABI
   // rdi: argc
   // rsi: argv
-  reg_write(UC_X86_REG_RDI, argc);
-  reg_write(UC_X86_REG_RSI, argv);
+  reg_write(Register::RDI, argc);
+  reg_write(Register::RSI, argv);
   initMainRegisterCommonX64();
 }
 
@@ -1982,8 +1829,8 @@ void ExecEngine::initMainRegisterWinX64(const void *argc, const void *argv) {
   // Microsoft Windows X64 ABI
   // rcx: argc
   // rdx: argv
-  reg_write(UC_X86_REG_RCX, argc);
-  reg_write(UC_X86_REG_RDX, argv);
+  reg_write(Register::RCX, argc);
+  reg_write(Register::RDX, argv);
   initMainRegisterCommonX64();
 }
 
@@ -1994,14 +1841,14 @@ void ExecEngine::dump() {
   case AArch64: {
     auto ctx = loadRegisterAArch64();
     regsz = 31;
-    uc_reg_read(uc_, UC_ARM64_REG_PC, &pc);
+    engine.getRegister(Register::PC, &pc);
     std::memcpy(regs, &ctx, sizeof(regs[0]) * regsz);
     break;
   }
   case X86_64: {
     auto ctx = loadRegisterX64();
     regsz = 15;
-    uc_reg_read(uc_, UC_X86_REG_RIP, &pc);
+    engine.getRegister(Register::RIP, &pc);
     std::memcpy(regs, &ctx, sizeof(regs[0]) * regsz);
     break;
   }
@@ -2019,7 +1866,7 @@ void ExecEngine::dump() {
   robject_->dump();
 
   Debugger debugger(Stopped);
-  debugger.dump(robject_->arch(), uc_, robject_->vm2vrva(pc));
+  debugger.dump(robject_->arch(), &engine, robject_->vm2vrva(pc));
 
   log_print(Raw, "\n");
   std::longjmp(jmpbuf_, true);
@@ -2033,7 +1880,7 @@ static void llvm_signal_handler(void *) {
 }
 
 int ExecEngine::run(bool lib) {
-  if (!uc_ || !loader_.valid()) {
+  if (!loader_.valid()) {
     return -1;
   }
 

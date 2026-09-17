@@ -1,8 +1,7 @@
-/* Interpreting C++, executing the source and executable like a script */
-/* By Jesse Liu < neoliu2011@gmail.com >, 2024 */
-/* Copyright (c) vpand.com 2024. This file is released under GPLv2.
-   See LICENSE in root directory for more details
-*/
+// Interpreting C++(ICPP) - Run C++ anywhere, just like a script.
+// Copyright (c) 2026 Jesse Liu <neoliu2011@gmail.com>
+// SPDX-License-Identifier: Apache License, Version 2.0
+// See LICENSE file in the root directory for full license text.
 
 #if _WIN32
 #include "llvm/Support/Compiler.h"
@@ -73,7 +72,6 @@
 #include <optional>
 #include <set>
 #include <system_error>
-#include <unicorn/unicorn.h>
 #include <unordered_map>
 #include <utility>
 
@@ -277,41 +275,8 @@ ObjectDisassembler::~ObjectDisassembler() { delete DT; }
 #include "llvm/../../lib/Target/AArch64/AArch64GenInstrInfo.inc"
 #include "llvm/../../lib/Target/AArch64/AArch64GenRegisterInfo.inc"
 
-static uint16_t llvm2ucRegisterAArch64(unsigned reg) {
+static uint16_t llvm2aevmRegisterAArch64(unsigned reg) {
   namespace INSN = llvm::AArch64;
-
-  // x
-  if (INSN::X0 <= reg && reg <= INSN::X28)
-    return UC_ARM64_REG_X0 + reg - INSN::X0;
-  if (INSN::FP == reg)
-    return UC_ARM64_REG_FP;
-  if (INSN::LR == reg)
-    return UC_ARM64_REG_LR;
-  if (INSN::SP == reg)
-    return UC_ARM64_REG_SP;
-  // w
-  if (INSN::W0 <= reg && reg <= INSN::W30)
-    return UC_ARM64_REG_W0 + reg - INSN::W0;
-  // s
-  if (INSN::S0 <= reg && reg <= INSN::S31)
-    return UC_ARM64_REG_S0 + reg - INSN::S0;
-  // d
-  if (INSN::D0 <= reg && reg <= INSN::D31)
-    return UC_ARM64_REG_D0 + reg - INSN::D0;
-  // b
-  if (INSN::B0 <= reg && reg <= INSN::B31)
-    return UC_ARM64_REG_B0 + reg - INSN::B0;
-  // h
-  if (INSN::H0 <= reg && reg <= INSN::H31)
-    return UC_ARM64_REG_H0 + reg - INSN::H0;
-  // q
-  if (INSN::Q0 <= reg && reg <= INSN::Q31)
-    return UC_ARM64_REG_Q0 + reg - INSN::Q0;
-  // zero
-  if (INSN::WZR == reg)
-    return UC_ARM64_REG_WZR;
-  if (INSN::XZR == reg)
-    return UC_ARM64_REG_XZR;
 
   log_print(Runtime, "Unknown llvm instruction register operand type: {}.",
             reg);
@@ -394,178 +359,8 @@ static void parseInstAArch64(const MCInst &inst, uint64_t opcptr,
 #include "llvm/../../lib/Target/X86/X86GenInstrInfo.inc"
 #include "llvm/../../lib/Target/X86/X86GenRegisterInfo.inc"
 
-static uint16_t llvm2ucRegisterX64(unsigned reg) {
+static uint16_t llvm2aevmRegisterX64(unsigned reg) {
   namespace INSN = llvm::X86;
-
-  if (INSN::AH == reg)
-    return UC_X86_REG_AH;
-  if (INSN::AL == reg)
-    return UC_X86_REG_AL;
-  if (INSN::AX == reg)
-    return UC_X86_REG_AX;
-  if (INSN::BH == reg)
-    return UC_X86_REG_BH;
-  if (INSN::BL == reg)
-    return UC_X86_REG_BL;
-  if (INSN::BP == reg)
-    return UC_X86_REG_BP;
-  if (INSN::BPL == reg)
-    return UC_X86_REG_BPL;
-  if (INSN::BX == reg)
-    return UC_X86_REG_BX;
-  if (INSN::CH == reg)
-    return UC_X86_REG_CH;
-  if (INSN::CL == reg)
-    return UC_X86_REG_CL;
-  if (INSN::CS == reg)
-    return UC_X86_REG_CS;
-  if (INSN::CX == reg)
-    return UC_X86_REG_CX;
-  if (INSN::DH == reg)
-    return UC_X86_REG_DH;
-  if (INSN::DI == reg)
-    return UC_X86_REG_DI;
-  if (INSN::DIL == reg)
-    return UC_X86_REG_DIL;
-  if (INSN::DL == reg)
-    return UC_X86_REG_DL;
-  if (INSN::DS == reg)
-    return UC_X86_REG_DS;
-  if (INSN::DX == reg)
-    return UC_X86_REG_DX;
-  if (INSN::EAX == reg)
-    return UC_X86_REG_EAX;
-  if (INSN::EBP == reg)
-    return UC_X86_REG_EBP;
-  if (INSN::EBX == reg)
-    return UC_X86_REG_EBX;
-  if (INSN::ECX == reg)
-    return UC_X86_REG_ECX;
-  if (INSN::EDI == reg)
-    return UC_X86_REG_EDI;
-  if (INSN::EDX == reg)
-    return UC_X86_REG_EDX;
-  if (INSN::EFLAGS == reg)
-    return UC_X86_REG_EFLAGS;
-  if (INSN::EIP == reg)
-    return UC_X86_REG_EIP;
-  if (INSN::ES == reg)
-    return UC_X86_REG_ES;
-  if (INSN::ESI == reg)
-    return UC_X86_REG_ESI;
-  if (INSN::ESP == reg)
-    return UC_X86_REG_ESP;
-  if (INSN::FPSW == reg)
-    return UC_X86_REG_FPSW;
-  if (INSN::FS == reg)
-    return UC_X86_REG_FS;
-  if (INSN::GS == reg)
-    return UC_X86_REG_GS;
-  if (INSN::IP == reg)
-    return UC_X86_REG_IP;
-  if (INSN::RAX == reg)
-    return UC_X86_REG_RAX;
-  if (INSN::RBP == reg)
-    return UC_X86_REG_RBP;
-  if (INSN::RBX == reg)
-    return UC_X86_REG_RBX;
-  if (INSN::RCX == reg)
-    return UC_X86_REG_RCX;
-  if (INSN::RDI == reg)
-    return UC_X86_REG_RDI;
-  if (INSN::RDX == reg)
-    return UC_X86_REG_RDX;
-  if (INSN::RIP == reg)
-    return UC_X86_REG_RIP;
-  if (INSN::RSI == reg)
-    return UC_X86_REG_RSI;
-  if (INSN::RSP == reg)
-    return UC_X86_REG_RSP;
-  if (INSN::SI == reg)
-    return UC_X86_REG_SI;
-  if (INSN::SIL == reg)
-    return UC_X86_REG_SIL;
-  if (INSN::SP == reg)
-    return UC_X86_REG_SP;
-  if (INSN::SPL == reg)
-    return UC_X86_REG_SPL;
-  if (INSN::SS == reg)
-    return UC_X86_REG_SS;
-  if (INSN::MM0 <= reg && reg <= INSN::MM7)
-    return UC_X86_REG_MM0 + reg - INSN::MM0;
-  if (INSN::R8 <= reg && reg <= INSN::R15)
-    return UC_X86_REG_R8 + reg - INSN::R8;
-  if (INSN::ST0 <= reg && reg <= INSN::ST7)
-    return UC_X86_REG_ST0 + reg - INSN::ST0;
-  if (INSN::XMM0 <= reg && reg <= INSN::XMM15)
-    return UC_X86_REG_XMM0 + reg - INSN::XMM0;
-  if (INSN::XMM16 <= reg && reg <= INSN::XMM31)
-    return UC_X86_REG_XMM16 + reg - INSN::XMM16;
-  if (INSN::YMM0 <= reg && reg <= INSN::YMM15)
-    return UC_X86_REG_YMM0 + reg - INSN::YMM0;
-  if (INSN::YMM16 <= reg && reg <= INSN::YMM31)
-    return UC_X86_REG_YMM16 + reg - INSN::YMM16;
-  if (INSN::ZMM0 <= reg && reg <= INSN::ZMM31)
-    return UC_X86_REG_ZMM0 + reg - INSN::ZMM0;
-  if (INSN::R8B == reg)
-    return UC_X86_REG_R8B;
-  if (INSN::R9B == reg)
-    return UC_X86_REG_R9B;
-  if (INSN::R10B == reg)
-    return UC_X86_REG_R10B;
-  if (INSN::R11B == reg)
-    return UC_X86_REG_R11B;
-  if (INSN::R12B == reg)
-    return UC_X86_REG_R12B;
-  if (INSN::R13B == reg)
-    return UC_X86_REG_R13B;
-  if (INSN::R14B == reg)
-    return UC_X86_REG_R14B;
-  if (INSN::R15B == reg)
-    return UC_X86_REG_R15B;
-  if (INSN::R8D == reg)
-    return UC_X86_REG_R8D;
-  if (INSN::R9D == reg)
-    return UC_X86_REG_R9D;
-  if (INSN::R10D == reg)
-    return UC_X86_REG_R10D;
-  if (INSN::R11D == reg)
-    return UC_X86_REG_R11D;
-  if (INSN::R12D == reg)
-    return UC_X86_REG_R12D;
-  if (INSN::R13D == reg)
-    return UC_X86_REG_R13D;
-  if (INSN::R14D == reg)
-    return UC_X86_REG_R14D;
-  if (INSN::R15D == reg)
-    return UC_X86_REG_R15D;
-  if (INSN::R8W == reg)
-    return UC_X86_REG_R8W;
-  if (INSN::R9W == reg)
-    return UC_X86_REG_R9W;
-  if (INSN::R10W == reg)
-    return UC_X86_REG_R10W;
-  if (INSN::R11W == reg)
-    return UC_X86_REG_R11W;
-  if (INSN::R12W == reg)
-    return UC_X86_REG_R12W;
-  if (INSN::R13W == reg)
-    return UC_X86_REG_R13W;
-  if (INSN::R14W == reg)
-    return UC_X86_REG_R14W;
-  if (INSN::R15W == reg)
-    return UC_X86_REG_R15W;
-  if (INSN::EFLAGS == reg)
-    return UC_X86_REG_RFLAGS;
-  switch (reg) {
-  case INSN::NoRegister:
-  case INSN::EIZ:
-  case INSN::RIZ:
-    // reuse dr7 as a zero register converted from llvm register
-    return UC_X86_REG_DR7;
-  default:
-    break;
-  }
 
   log_print(Runtime, "Unknown llvm instruction register operand type: {}.",
             reg);
@@ -1268,15 +1063,15 @@ void Object::decodeInsns(TextSection &text) {
     default: {
       iinfo.len = static_cast<uint32_t>(size);
       // convert llvm opcode to icpp InsnType
-      std::function<uint16_t(unsigned)> llvm2uc_register;
+      std::function<uint16_t(unsigned)> llvm2aevmregister;
       if (arch() == AArch64) {
 #if ICPP_HAS_AARCH64
-        llvm2uc_register = llvm2ucRegisterAArch64;
+        llvm2aevmregister = llvm2aevmRegisterAArch64;
         parseInstAArch64(inst, opc, idecinfs_, iinfo);
 #endif
       } else {
 #if ICPP_HAS_X64
-        llvm2uc_register = llvm2ucRegisterX64;
+        llvm2aevmregister = llvm2aevmRegisterX64;
         parseInstX64(inst, opc, idecinfs_, iinfo);
 #endif
       }
@@ -1405,7 +1200,7 @@ void Object::decodeInsns(TextSection &text) {
                 .first;
         auto optr = const_cast<std::string *>(&newi->second);
         // we encode the instruction operands as follows:
-        // if it's a register, then encode it to uc register index as uint16_t
+        // if it's a register, then encode it to vm register index as uint16_t
         // if it's an immediate, then encode it as uint64_t
         for (unsigned i = 0; i < inst.getNumOperands(); i++) {
           auto opr = inst.getOperand(i);
@@ -1414,7 +1209,7 @@ void Object::decodeInsns(TextSection &text) {
             optr->append(
                 std::string(reinterpret_cast<char *>(&imm), sizeof(imm)));
           } else if (opr.isReg()) {
-            auto reg = llvm2uc_register(opr.getReg());
+            auto reg = llvm2aevmregister(opr.getReg());
             optr->append(
                 std::string(reinterpret_cast<char *>(&reg), sizeof(reg)));
           } else {

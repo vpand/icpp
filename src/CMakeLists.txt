@@ -245,7 +245,6 @@ target_link_libraries(icpp
   ${CLANG_DRIVER_OBJS}
   ${CLANG_LIBS}
 
-  unicorn
   boost_algorithm
   boost_asio
   boost_beast
@@ -260,7 +259,6 @@ target_include_directories(icpp PRIVATE
   ${LLVM_INCLUDE_ROOT}
   ${THIRD_ROOT}/llvm-project/clang/include
   ${LLVM_OBJDUMP_ROOT}
-  ${THIRD_ROOT}/unicorn/include
   ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include
   ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/tools/clang/include
@@ -438,7 +436,6 @@ set_source_files_properties(${IGADGET_LLVM_SOURCES} PROPERTIES COMPILE_FLAGS ${D
 target_include_directories(icpp-gadget PRIVATE 
   ${LLVM_INCLUDE_ROOT}
   ${CMAKE_BINARY_DIR}/third/llvm-project/llvm/include
-  ${THIRD_ROOT}/unicorn/include
   ${CMAKE_CURRENT_BINARY_DIR}
   ${LLVM_OBJDUMP_ROOT}
   ${THIRD_ROOT}/protobuf/third_party/utf8_range
@@ -450,7 +447,6 @@ target_link_libraries(icpp-gadget PRIVATE
   boost_beast
   boost_json
   libprotobuf
-  unicorn
 )
 if(APPLE)
   target_link_options(icpp-gadget PRIVATE -Wl,-exported_symbol -Wl,_icpp_gadget)
