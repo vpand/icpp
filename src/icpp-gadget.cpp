@@ -11,13 +11,17 @@
 #include "platform.h"
 #include "runcfg.h"
 #include "utils.h"
+
 #include <cstdarg>
 #include <icppdbg.pb.h>
 #include <icpppad.pb.h>
+
 #include <llvm/Object/ObjectFile.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/InitLLVM.h>
+
 #include <mutex>
+
 #include <AetherVM.h>
 
 #include "asio-workaround.h"
@@ -305,9 +309,8 @@ int gadget_printf(const char *format, ...) {
 int gadget_puts(const char *text) { return icppsvr.print("{}\n", text); }
 
 static void print_version(llvm::raw_ostream &os) {
-  os << "ICPP (https://vpand.com/):\n  Remote icpp-gadget server built with "
-        "ICPP "
-     << icpp::version_string() << "\n";
+  os << "Remote icpp-gadget server built with ICPP " << icpp::version_string()
+     << "\n";
 }
 
 } // namespace icpp

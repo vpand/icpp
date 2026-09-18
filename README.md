@@ -6,8 +6,6 @@
  * Integrated internally with [Standard C++23](https://en.cppreference.com/w/cpp/23) and [Boost](https://github.com/boostorg/boost.git) libraries;
  * To reuse the existing C/C++ library as an icpp module extension is extremely simple.
 
-Copyright (c) vpand.com 2026.
-
 ## AetherVM
 Ongoing support for binary file execution within `ICPP` has moved to the [AetherVM](https://github.com/AetherVM) project.
 

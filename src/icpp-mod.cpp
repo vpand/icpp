@@ -11,14 +11,16 @@
 #include "runcfg.h"
 #include "runtime.h"
 #include "utils.h"
+
+#include "llvm/Config/config.h"
+#include "llvm/Config/llvm-config.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SystemUtils.h"
 #include "llvm/Support/ToolOutputFile.h"
-#include <llvm/Config/config.h>
-#include <llvm/Config/llvm-config.h>
+
 #ifdef ON_WINDOWS
 #include <boost/process.hpp>
 #else
@@ -31,6 +33,7 @@
 #include <brotli/encode.h>
 #include <filesystem>
 #include <fstream>
+
 #include <icppmod.pb.h>
 #include <isymhash.pb.h>
 
@@ -64,9 +67,8 @@ static cl::opt<bool> ListModule("list",
                                 cl::init(false), cl::cat(IModCat));
 
 static void print_version(llvm::raw_ostream &os) {
-  os << "ICPP (https://vpand.com/):\n  IObject Module Manager Tool built with "
-        "ICPP "
-     << icpp::version_string() << "\n";
+  os << "IObject Module Manager Tool built with ICPP " << icpp::version_string()
+     << "\n";
 }
 
 // Don't need these implementations at all in imod tool
@@ -505,7 +507,7 @@ static void install_package(const char *program, std::string_view pkgpath) {
     icpp::log_print(prefix_error, "Failed to create {}.", hashfile);
     return;
   }
-  symhash.SerializePartialToOstream(&outf);
+  (void)symhash.SerializePartialToOstream(&outf);
   icpp::log_print(prefix_prog, "Created {}.\n + Successfully installed {}.",
                   hashfile, pkg.name());
 }

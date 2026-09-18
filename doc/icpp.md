@@ -132,8 +132,6 @@ If you specify nothing on command line when executing icpp, it'll enter REPL she
 Here's a simple demonstration.
 ```cpp
 vpand@MacBook-Pro icpp % icpp
-ICPP v0.1.0.255. Copyright (c) vpand.com.
-Running C++ in anywhere like a script.
 >>> import std
 >>> std::puts("Hello icpp.")
 Hello icpp.

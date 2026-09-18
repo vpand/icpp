@@ -23,8 +23,6 @@ argc=1, argv={ "printargv.cc", }
 ```
 ```cpp
 vpand@MacBook-Pro icpp % iopad --ip=192.168.31.103 --repl                      
-ICPP v0.1.0.255 IOPAD mode. Copyright (c) vpand.com.
-Running C++ in anywhere like a script.
 >>> import std
 >>> std::puts("Hello icpp.")
 Hello icpp.

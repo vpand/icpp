@@ -8,6 +8,7 @@
 #include "platform.h"
 #include "runcfg.h"
 #include "utils.h"
+
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
@@ -65,9 +66,8 @@ static cl::opt<std::string>
         cl::cat(IOPad));
 
 static void print_version(llvm::raw_ostream &os) {
-  os << "ICPP (https://vpand.com/):\n  IObject Launch Pad Tool built with "
-        "ICPP "
-     << icpp::version_string() << "\n";
+  os << "IObject Launch Pad Tool built with ICPP " << icpp::version_string()
+     << "\n";
 }
 
 // Don't need these implementations at all in iopad tool
