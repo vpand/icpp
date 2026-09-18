@@ -175,7 +175,7 @@ private:
   std::shared_ptr<Object> iobject_;
 
   // virtual processor from AetherVM
-  aether::BinaryEngine *engine_ = nullptr;
+  std::unique_ptr<aether::BinaryEngine> engine_;
 
   // used to resume some fatal error, e.g.: segfault
   std::jmp_buf jmpbuf_;
@@ -278,6 +278,12 @@ void ExecEngine::init() {
 
   robject_ = iobject_.get();
 
+  aether::EventConfig conf;
+  auto port = RunConfig::inst()->debugPort();
+  conf.debug = RunConfig::inst()->hasDebugger();
+  conf.dbgport = port ? port : conf.dbgport;
+  engine_ = std::make_unique<aether::BinaryEngine>(robject_->machine(), conf);
+
   // set the initial register context copied from host
   ContextICPP initctx;
   host_context(&initctx);
@@ -365,10 +371,10 @@ bool ExecEngine::execDtor() {
 
 void ExecEngine::initMainRegister(const void *argc, const void *argv) {
   switch (robject_->arch()) {
-  case AArch64:
+  case aether::ARM64:
     initMainRegisterAArch64(argc, argv);
     break;
-  case X86_64:
+  case aether::X86_64:
     switch (robject_->type()) {
     case COFF_Exe:
     case COFF_Reloc:
@@ -389,7 +395,7 @@ uint64_t ExecEngine::returnValue() {
 
   Register regid;
   switch (robject_->arch()) {
-  case AArch64:
+  case ARM64:
     regid = Register::X0;
     break;
   case X86_64:
@@ -581,7 +587,7 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
   uint64_t args[4], backups[4];
   Register rids[4], retrid; // register id
   switch (robject_->arch()) {
-  case AArch64:
+  case ARM64:
     rids[0] = Register::X0;
     rids[1] = Register::X1;
     rids[2] = Register::X2;
@@ -1705,19 +1711,16 @@ bool ExecEngine::execLoop(uint64_t pc) {
   auto tlsepoch = reinterpret_cast<uint64_t *>(wintls_ + 0x58);
 #endif
 
-  // pc register id for different architecture
-  Register pcreg;
-  switch (robject_->arch()) {
-  case AArch64:
-    pcreg = Register::PC;
-    break;
-  case X86_64:
-    pcreg = Register::RIP;
-    break;
-  default:
-    UNIMPL_ABORT();
-    return false;
+  // debug preparation
+  bool debug = RunConfig::inst()->hasDebugger();
+  if (debug) {
+    for (auto &s : robject_->textSects()) {
+      engine_->prefetch({(uint8_t *)s.vm, s.size});
+    }
+    engine_->setOpcodeBinary(robject_->binary());
+    engine_->setRegister(Register::PC, {.u8 = pc});
   }
+
   // instruction information related to pc
   auto inst = robject_->insnInfo(pc);
   auto defstep = RunConfig::inst()->stepSize();
@@ -1727,6 +1730,11 @@ bool ExecEngine::execLoop(uint64_t pc) {
   auto lastjinst = inst;
   // executing loop, break when hitting the initialized return address
   while (pc != reinterpret_cast<uint64_t>(topReturn())) {
+    // enter debugger if necessary
+    if (debug) {
+      engine_->watchDog({.u8 = pc});
+    }
+
     // interpret relocation, branch, call, jump and syscall etc.
     auto step = defstep;
     if (interpret(inst, pc, step)) {
@@ -1821,7 +1829,7 @@ void ExecEngine::dump() {
   // load registers
   uint64_t regs[32], regsz, pc;
   switch (robject_->arch()) {
-  case AArch64: {
+  case ARM64: {
     auto ctx = loadRegisterAArch64();
     regsz = 31;
     pc = engine_->getRegister(Register::PC)->u8;

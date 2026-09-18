@@ -28,18 +28,7 @@
 #include "llvm/BinaryFormat/COFF.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/BinaryFormat/MachO.h"
-#include "llvm/MC/MCAsmInfo.h"
-#include "llvm/MC/MCContext.h"
-#include "llvm/MC/MCDisassembler/MCDisassembler.h"
-#include "llvm/MC/MCDisassembler/MCRelocationInfo.h"
 #include "llvm/MC/MCInst.h"
-#include "llvm/MC/MCInstPrinter.h"
-#include "llvm/MC/MCInstrAnalysis.h"
-#include "llvm/MC/MCInstrInfo.h"
-#include "llvm/MC/MCObjectFileInfo.h"
-#include "llvm/MC/MCRegisterInfo.h"
-#include "llvm/MC/MCTargetOptions.h"
-#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/BuildID.h"
 #include "llvm/Object/COFF.h"
@@ -75,6 +64,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include <Disassembler.h>
 #include <Register.h>
 
 #if ICPP_CROSS_GADGET
@@ -89,186 +79,6 @@ using namespace llvm;
 using namespace llvm::object;
 
 namespace icpp {
-
-// internal disassembler's error, it's very unlikely to happen...
-
-[[noreturn]] void reportError(StringRef File, const Twine &Message) {
-  std::cerr << "'" << File.data() << "': " << Message.str() << "\n";
-  exit(-1);
-}
-
-[[noreturn]] void reportError(Error E, StringRef FileName) {
-  reportError(FileName, llvm::toString(std::move(E)));
-}
-
-static const char *archName(const ObjectFile *Obj) {
-  switch (Obj->getArch()) {
-  case Triple::aarch64:
-    return "aarch64";
-  case Triple::x86_64:
-    return "x86-64";
-  default:
-    return "";
-  }
-}
-
-const Target *getTarget(const ObjectFile *Obj, std::string &TripleName) {
-  static bool init_llvm = false;
-  if (!init_llvm) {
-    init_llvm = true;
-    // Initialize All target infos
-#define init_target(name)                                                      \
-  LLVMInitialize##name##Target();                                              \
-  LLVMInitialize##name##TargetMC();                                            \
-  LLVMInitialize##name##TargetInfo();                                          \
-  LLVMInitialize##name##AsmPrinter();                                          \
-  LLVMInitialize##name##AsmParser();                                           \
-  LLVMInitialize##name##Disassembler();
-#if ICPP_HAS_AARCH64
-    init_target(AArch64);
-#endif
-#if ICPP_HAS_X64
-    init_target(X86);
-#endif
-  }
-  if (!Obj)
-    return nullptr;
-
-  // Figure out the target triple.
-  Triple TheTriple("unknown-unknown-unknown");
-  if (TripleName.empty()) {
-    TheTriple = Obj->makeTriple();
-  } else {
-    TheTriple.setTriple(Triple::normalize(TripleName));
-    auto Arch = Obj->getArch();
-    if (Arch == Triple::arm || Arch == Triple::armeb)
-      Obj->setARMSubArch(TheTriple);
-  }
-
-  // Get the target specific parser.
-  std::string Error;
-  const Target *TheTarget =
-      TargetRegistry::lookupTarget(archName(Obj), TheTriple, Error);
-  if (!TheTarget)
-    reportError(Obj->getFileName(), "can't find target: " + Error);
-
-  // Update the triple name and return the found target.
-  TripleName = TheTriple.getTriple();
-  return TheTarget;
-}
-
-class DisassemblerTarget {
-public:
-  const Target *TheTarget;
-  std::unique_ptr<const MCSubtargetInfo> SubtargetInfo;
-  std::shared_ptr<MCContext> Context;
-  std::unique_ptr<MCDisassembler> DisAsm;
-  std::shared_ptr<MCInstrAnalysis> InstrAnalysis;
-  std::shared_ptr<MCInstPrinter> InstPrinter;
-
-  DisassemblerTarget(const Target *TheTarget, ObjectFile &Obj,
-                     StringRef TripleName, StringRef MCPU,
-                     SubtargetFeatures &Features);
-  DisassemblerTarget(DisassemblerTarget &Other, StringRef TripleName,
-                     StringRef MCPU, SubtargetFeatures &Features);
-
-private:
-  MCTargetOptions Options;
-  std::shared_ptr<const MCRegisterInfo> RegisterInfo;
-  std::shared_ptr<const MCAsmInfo> AsmInfo;
-  std::shared_ptr<const MCInstrInfo> InstrInfo;
-  std::shared_ptr<MCObjectFileInfo> ObjectFileInfo;
-};
-
-DisassemblerTarget::DisassemblerTarget(const Target *TheTarget, ObjectFile &Obj,
-                                       StringRef TripleName, StringRef MCPU,
-                                       SubtargetFeatures &Features)
-    : TheTarget(TheTarget),
-      RegisterInfo(TheTarget->createMCRegInfo(TripleName)) {
-  if (!RegisterInfo)
-    reportError(Obj.getFileName(), "no register info for target " + TripleName);
-
-  // Set up disassembler.
-  AsmInfo.reset(TheTarget->createMCAsmInfo(*RegisterInfo, TripleName, Options));
-  if (!AsmInfo)
-    reportError(Obj.getFileName(), "no assembly info for target " + TripleName);
-
-  SubtargetInfo.reset(
-      TheTarget->createMCSubtargetInfo(TripleName, MCPU, Features.getString()));
-  if (!SubtargetInfo)
-    reportError(Obj.getFileName(),
-                "no subtarget info for target " + TripleName);
-  InstrInfo.reset(TheTarget->createMCInstrInfo());
-  if (!InstrInfo)
-    reportError(Obj.getFileName(),
-                "no instruction info for target " + TripleName);
-  Context =
-      std::make_shared<MCContext>(Triple(TripleName), AsmInfo.get(),
-                                  RegisterInfo.get(), SubtargetInfo.get());
-
-  // FIXME: for now initialize MCObjectFileInfo with default values
-  ObjectFileInfo.reset(
-      TheTarget->createMCObjectFileInfo(*Context, /*PIC=*/false));
-  Context->setObjectFileInfo(ObjectFileInfo.get());
-
-  DisAsm.reset(TheTarget->createMCDisassembler(*SubtargetInfo, *Context));
-  if (!DisAsm)
-    reportError(Obj.getFileName(), "no disassembler for target " + TripleName);
-
-  if (auto *ELFObj = dyn_cast<ELFObjectFileBase>(&Obj))
-    DisAsm->setABIVersion(ELFObj->getEIdentABIVersion());
-
-  InstrAnalysis.reset(TheTarget->createMCInstrAnalysis(InstrInfo.get()));
-
-  int AsmPrinterVariant = AsmInfo->getAssemblerDialect();
-  InstPrinter.reset(TheTarget->createMCInstPrinter(Triple(TripleName),
-                                                   AsmPrinterVariant, *AsmInfo,
-                                                   *InstrInfo, *RegisterInfo));
-  if (!InstPrinter)
-    reportError(Obj.getFileName(),
-                "no instruction printer for target " + TripleName);
-  InstPrinter->setPrintImmHex(true);
-  InstPrinter->setPrintBranchImmAsAddress(true);
-  InstPrinter->setMCInstrAnalysis(InstrAnalysis.get());
-}
-
-DisassemblerTarget::DisassemblerTarget(DisassemblerTarget &Other,
-                                       StringRef TripleName, StringRef MCPU,
-                                       SubtargetFeatures &Features)
-    : TheTarget(Other.TheTarget),
-      SubtargetInfo(TheTarget->createMCSubtargetInfo(TripleName, MCPU,
-                                                     Features.getString())),
-      Context(Other.Context),
-      DisAsm(TheTarget->createMCDisassembler(*SubtargetInfo, *Context)),
-      InstrAnalysis(Other.InstrAnalysis), InstPrinter(Other.InstPrinter),
-      RegisterInfo(Other.RegisterInfo), AsmInfo(Other.AsmInfo),
-      InstrInfo(Other.InstrInfo), ObjectFileInfo(Other.ObjectFileInfo) {}
-
-void ObjectDisassembler::init(CObjectFile *Obj, std::string_view Triple) {
-  std::string TripleName(Triple);
-  const Target *TheTarget = getTarget(Obj, TripleName);
-  std::string MCPU;
-  std::vector<std::string> MAttrs;
-
-  // Package up features to be passed to target/subtarget
-  Expected<SubtargetFeatures> FeaturesValue = Obj->getFeatures();
-  if (!FeaturesValue)
-    reportError(FeaturesValue.takeError(), Obj->getFileName());
-  SubtargetFeatures Features = *FeaturesValue;
-  if (!MAttrs.empty()) {
-    for (unsigned I = 0; I != MAttrs.size(); ++I)
-      Features.AddFeature(MAttrs[I]);
-  } else if (MCPU.empty() && Obj->getArch() == llvm::Triple::aarch64) {
-    Features.AddFeature("+all");
-  }
-
-  if (MCPU.empty())
-    MCPU = Obj->tryGetCPUName().value_or("").str();
-
-  DT = new DisassemblerTarget(TheTarget, *Obj, TripleName, MCPU, Features);
-}
-
-ObjectDisassembler::~ObjectDisassembler() { delete DT; }
 
 #if ICPP_HAS_AARCH64
 
@@ -926,8 +736,8 @@ struct RelocSymbol {
   int addend = 0;
 };
 
-static SymbolRef::Type reloc_symtype(const InsnInfo &inst, ArchType arch,
-                                     ObjectType otype,
+static SymbolRef::Type reloc_symtype(const InsnInfo &inst,
+                                     aether::ArchType arch, ObjectType otype,
                                      const RelocSymbol &rsym) {
   auto rtype = rsym.rtype;
   switch (otype) {
@@ -943,7 +753,7 @@ static SymbolRef::Type reloc_symtype(const InsnInfo &inst, ArchType arch,
   }
 
   switch (arch) {
-  case AArch64: {
+  case aether::ARM64: {
     switch (rtype) {
     case MachO::ARM64_RELOC_GOT_LOAD_PAGE21 | MACHO_MAGIC_BIT:
     case ELF::R_AARCH64_GOTREL64 | ELF_MAGIC_BIT:
@@ -955,7 +765,7 @@ static SymbolRef::Type reloc_symtype(const InsnInfo &inst, ArchType arch,
     }
     break;
   }
-  case X86_64: {
+  case aether::X86_64: {
     switch (rtype) {
     case MachO::X86_64_RELOC_GOT | MACHO_MAGIC_BIT:
     case MachO::X86_64_RELOC_GOT_LOAD | MACHO_MAGIC_BIT:
@@ -1101,7 +911,8 @@ static RelocSymbol get_symbol(uint64_t addr, const SymbolRef &sym,
   return rsym;
 }
 
-static void reloc_symbols(ObjectFile *ofile, ArchType arch, TextSection &text,
+static void reloc_symbols(ObjectFile *ofile, aether::ArchType arch,
+                          TextSection &text,
                           std::map<uint64_t, RelocSymbol> &rsyms) {
   for (auto &texts : ofile->sections()) {
     if (texts.getIndex() != text.index) {
@@ -1157,7 +968,7 @@ static void reloc_symbols(ObjectFile *ofile, ArchType arch, TextSection &text,
             and it doesn't make any sense in icpp, so restore it to 0.
             */
             // FIXME:: calculate the real addend with relocation ?
-            if (arch == X86_64) {
+            if (arch == aether::X86_64) {
               if (rsym.addend < -4)
                 rsym.addend = 0;
               else
@@ -1185,7 +996,7 @@ static void reloc_symbols(ObjectFile *ofile, ArchType arch, TextSection &text,
           rsym.addend = reloc_addend(ofile, r);
         }
         rsyms.insert({addr, rsym});
-      } else if (arch == AArch64) {
+      } else if (arch == aether::ARM64) {
         // arm64 addend relocation is separated with the main relocation,
         // usually it's in this sequence:
         // 0 - ARM64_RELOC_ADDEND
@@ -1229,14 +1040,12 @@ void Object::decodeInsns(TextSection &text) {
   std::map<uint64_t, RelocSymbol> rsyms;
   reloc_symbols(ofile_.get(), arch(), text, rsyms);
 
-  int skipsz = arch_ == AArch64 ? 4 : 1;
+  int skipsz = arch() == aether::ARM64 ? 4 : 1;
   // decode instructions in text section
   MCInst inst;
   for (auto opc = text.vm, opcend = text.vm + text.size; opc < opcend;) {
-    uint64_t size = 0;
-    auto status = odiser_.DT->DisAsm->getInstruction(
-        inst, size, BuildIDRef(reinterpret_cast<const uint8_t *>(opc), 16), opc,
-        outs());
+    uint64_t size =
+        diser_->disassemble(reinterpret_cast<const uint8_t *>(opc), 16, inst);
     InsnInfo iinfo{};
     iinfo.rva = text.frva + opc - text.vm;
 
@@ -1245,30 +1054,21 @@ void Object::decodeInsns(TextSection &text) {
       uint64_t size2 = 0;
       auto opc2 = opc + size;
       // reset inst to the real instruction informtion
-      status = odiser_.DT->DisAsm->getInstruction(
-          inst, size2, BuildIDRef(reinterpret_cast<const uint8_t *>(opc2), 16),
-          opc2, outs());
+      size = diser_->disassemble(reinterpret_cast<const uint8_t *>(opc2), 16,
+                                 inst);
       // the composite opcode size = prefix + inst
       size += size2;
     }
 #endif
 
-    switch (status) {
-    case MCDisassembler::Fail: {
+    if (size == 0) {
       iinfo.type = INSN_ABORT;
       iinfo.len = skipsz;
-      break;
-    }
-    case MCDisassembler::SoftFail: {
-      iinfo.type = INSN_ABORT;
-      iinfo.len = size ? static_cast<uint32_t>(size) : skipsz;
-      break;
-    }
-    default: {
+    } else {
       iinfo.len = static_cast<uint32_t>(size);
       // convert llvm opcode to icpp InsnType
       std::function<uint16_t(unsigned)> llvm2aevmregister;
-      if (arch() == AArch64) {
+      if (arch() == aether::ARM64) {
 #if ICPP_HAS_AARCH64
         llvm2aevmregister = llvm2aevmRegisterAArch64;
         parseInstAArch64(inst, opc, idecinfs_, iinfo);
@@ -1359,7 +1159,7 @@ void Object::decodeInsns(TextSection &text) {
           if (rtaddr == it->target && symtype == it->type) {
             rit = it;
             // fix it as a data relocation for coff object
-            if (arch_ == AArch64 && ofile_->isCOFF() &&
+            if (arch() == aether::ARM64 && ofile_->isCOFF() &&
                 (rsym.sflags & SymbolRef::SF_Undefined)) {
 #undef IMAGE_REL_ARM64_PAGEOFFSET_12L
               if (rsym.rtype ==
@@ -1424,9 +1224,7 @@ void Object::decodeInsns(TextSection &text) {
           }
         }
       }
-      break;
     }
-    } // end of switch
     text.iinfs.push_back(iinfo);
     opc += iinfo.len;
   }
@@ -1435,7 +1233,7 @@ void Object::decodeInsns(TextSection &text) {
 static uint64_t relocate_data(StringRef content, uint64_t offset,
                               const RelocSymbol &rsym,
                               const std::vector<DynSection> &dynsects,
-                              ObjectType otype, ArchType arch,
+                              ObjectType otype, aether::ArchType arch,
                               CObjectFile *ofile) {
   uint64_t target = 0;
   bool istext = false;
@@ -1528,7 +1326,7 @@ static uint64_t relocate_data(StringRef content, uint64_t offset,
     break;
   }
   switch (arch) {
-  case X86_64: {
+  case aether::X86_64: {
     switch (rtype) {
     case ELF::R_X86_64_PC32 | ELF_MAGIC_BIT: {
       /*
@@ -1598,7 +1396,7 @@ static uint64_t relocate_data(StringRef content, uint64_t offset,
     }
     break;
   }
-  case AArch64: {
+  case aether::ARM64: {
     switch (rtype) {
 #undef IMAGE_REL_ARM64_ADDR32NB
     case COFF::RelocationTypesARM64::IMAGE_REL_ARM64_ADDR32NB | COFF_MAGIC_BIT:

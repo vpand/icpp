@@ -54,9 +54,6 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext);
 
 namespace icpp {
 
-// used to initialize LLVM targets
-const Target *getTarget(const object::ObjectFile *Obj, std::string &TripleName);
-
 struct IncrementalCompilation : public clang::DiagnosticConsumer {
   clang::IncrementalCompilerBuilder CB;
   std::unique_ptr<clang::CompilerInstance> DeviceCI;
@@ -96,10 +93,6 @@ struct IncrementalCompilation : public clang::DiagnosticConsumer {
       return;
     CB.SetCompilerArgs(ClangArgv);
 
-    // initialize LLVM targets
-    std::string targetTriple = llvm::sys::getDefaultTargetTriple();
-    getTarget(nullptr, targetTriple);
-
     CodeGenOptLevel OLvl;
     if (auto Level = CodeGenOpt::parseLevel(OptLevel[2])) {
       OLvl = *Level;
@@ -118,6 +111,7 @@ struct IncrementalCompilation : public clang::DiagnosticConsumer {
         ExitOnErr(clang::Interpreter::create(std::move(CI), std::move(IEB)));
 
     std::string error;
+    std::string targetTriple = llvm::sys::getDefaultTargetTriple();
     const llvm::Target *target =
         llvm::TargetRegistry::lookupTarget(targetTriple, error);
     std::string cpu = "generic";

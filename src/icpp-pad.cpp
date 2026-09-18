@@ -77,7 +77,7 @@ extern "C" void exec_engine_main(StubContext *ctx, ContextICPP *regs) {}
 
 struct LaunchPad {
   icpp::CondMutex itc_;
-  icpp::ArchType remote_arch_ = icpp::Unsupported;
+  aether::ArchType remote_arch_ = aether::UnsupportArch;
   icpp::SystemType remote_system_;
   asio::io_context ios_;
   ip::tcp::socket socket_;
@@ -119,7 +119,7 @@ struct LaunchPad {
     // architecture, vender and environment of the remote running icpp-gadget
     std::string_view arch, vender, env;
     switch (remote_arch_) {
-    case icpp::X86_64:
+    case aether::X86_64:
       arch = "x86_64";
       break;
     default:
@@ -169,7 +169,7 @@ struct LaunchPad {
           break;
         }
         switch (icpp::host_arch()) {
-        case icpp::X86_64:
+        case aether::X86_64:
           osarch = "x86_64";
           break;
         default:
@@ -265,7 +265,7 @@ struct LaunchPad {
         continue;
       }
 
-      bool syncing = remote_arch_ == icpp::Unsupported;
+      bool syncing = remote_arch_ == aether::UnsupportArch;
       process(hdr, asio::buffer_cast<const void *>(probuffer.data()),
               probuffer.size());
       if (syncing)
@@ -297,7 +297,7 @@ struct LaunchPad {
                         hdr->cmd, size);
         break;
       }
-      remote_arch_ = static_cast<icpp::ArchType>(resp.arch());
+      remote_arch_ = static_cast<aether::ArchType>(resp.arch());
       remote_system_ = static_cast<icpp::SystemType>(resp.ostype());
       break;
     }

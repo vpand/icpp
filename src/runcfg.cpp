@@ -4,19 +4,25 @@
 // See LICENSE file in the root directory for full license text.
 
 #include "runcfg.h"
+#include "arch.h"
 #include "utils.h"
+
 #include <boost/json.hpp>
+
 #include <cstdio>
 #include <fstream>
 #include <memory>
 #include <string_view>
+
+#include <AetherBinary.h>
+#include <Disassembler.h>
 
 namespace json = boost::json;
 
 namespace icpp {
 
 constexpr std::string_view key_debugger = "vm_debugger";
-constexpr std::string_view key_stacksize = "vm_stack_size";
+constexpr std::string_view key_dbgport = "vm_debug_port";
 constexpr std::string_view key_stepsize = "vm_step_size";
 
 bool RunConfig::repl = false;
@@ -28,6 +34,9 @@ RunConfig *RunConfig::inst(const char *argv0, const char *cfg) {
   static std::unique_ptr<RunConfig> runcfg;
   if (runcfg)
     return runcfg.get();
+
+  // trigger the llvm targets initialization
+  aether::Disassembler diser(aether::Binary::arch(host_arch()));
 
   runcfg = std::make_unique<RunConfig>(cfg);
   runcfg->program = argv0;
@@ -54,20 +63,19 @@ RunConfig::RunConfig(const char *cfg) {
         log_print(Runtime, "The value of '{}' must be a bool value.",
                   key_debugger);
     }
-    if (object.contains(key_stacksize)) {
-      auto value = object.at(key_stacksize);
+    if (object.contains(key_dbgport)) {
+      auto value = object.at(key_dbgport);
       if (value.is_int64()) {
         auto ivalue = value.as_int64();
-        if (1 <= ivalue && ivalue <= 64)
-          stack_size_ = ivalue * 1024 * 1024;
+        if (1 <= ivalue && ivalue <= 0xffff)
+          debug_port_ = ivalue;
         else
           log_print(Runtime,
-                    "The value of '{}' must be in the range [1, 32], the "
-                    "internal unit is 1MB.",
-                    key_stacksize);
+                    "The value of '{}' must be in the range [1, 65535].",
+                    key_dbgport);
       } else {
         log_print(Runtime, "The value of '{}' must be an int value.",
-                  key_stacksize);
+                  key_dbgport);
       }
     }
     if (object.contains(key_stepsize)) {
@@ -80,9 +88,9 @@ RunConfig::RunConfig(const char *cfg) {
     }
 
     log_print(Runtime,
-              "Current running configuration = {{\n\tdebugger : {}\n\tstack "
-              "size : {}MB\n\tstep size : {}\n}}",
-              has_debugger_ ? "on" : "off", stack_size_ / 1024 / 1024,
+              "Current running configuration = {{\n\tdebugger : {}\n\t dbgport "
+              ": {}\n\tstep size : {}\n}}",
+              has_debugger_ ? "on" : "off", debug_port_,
               step_size_ <= 0 ? std::string("max")
                               : std::format("{}", step_size_));
   } catch (std::exception &e) {
@@ -94,7 +102,7 @@ RunConfig::RunConfig(const char *cfg) {
 
 RunConfig::~RunConfig() {}
 
-int RunConfig::stackSize() { return stack_size_; }
+int RunConfig::debugPort() { return debug_port_; }
 
 int RunConfig::stepSize() { return step_size_; }
 

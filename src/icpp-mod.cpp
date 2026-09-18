@@ -72,8 +72,6 @@ static void print_version(llvm::raw_ostream &os) {
 // Don't need these implementations at all in imod tool
 namespace icpp {
 void init_library(std::shared_ptr<icpp::Object>) {}
-ObjectDisassembler::~ObjectDisassembler() {}
-void ObjectDisassembler::init(CObjectFile *, std::string_view) {}
 void Object::decodeInsns(TextSection &) {}
 void Object::parseSections(void) {}
 extern "C" void exec_engine_main(StubContext *ctx, ContextICPP *regs) {}

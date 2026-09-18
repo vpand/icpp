@@ -25,6 +25,11 @@ class SourcePrinter;
 }
 } // namespace llvm
 
+namespace aether {
+class Disassembler;
+class Binary;
+} // namespace aether
+
 using CObjectFile = llvm::object::ObjectFile;
 
 namespace icpp {
@@ -86,27 +91,16 @@ struct StubSpot {
   std::string_view name; // symbol name
 };
 
-class DisassemblerTarget;
-
-struct ObjectDisassembler {
-  ObjectDisassembler() {}
-  ~ObjectDisassembler();
-
-  void init(CObjectFile *Obj, std::string_view Triple);
-
-  // these classes' definition are unavailable for std::unique_ptr,
-  // so raw pointer used, we manage them manually
-  DisassemblerTarget *DT = nullptr;
-};
-
 class Object {
 public:
   Object(std::string_view srcpath, std::string_view path);
   virtual ~Object();
 
-  constexpr bool valid() { return ofile_ != nullptr && arch_ != Unsupported; }
+  constexpr bool valid() { return ofile_ != nullptr && machine_ != nullptr; }
   constexpr ObjectType type() { return type_; }
-  constexpr ArchType arch() { return arch_; }
+  constexpr aether::ArchType arch() { return machine_->archType(); }
+  constexpr aether::Machine *machine() { return machine_.get(); }
+  constexpr const std::vector<TextSection> &textSects() { return textsects_; }
 
   constexpr std::string_view path() { return path_; }
   constexpr bool isCache() { return path_.ends_with(iobj_ext); }
@@ -143,6 +137,8 @@ public:
   std::string generateCache();
   void dump();
 
+  aether::Binary *binary();
+
 protected:
   void createFromMemory(ObjectType type);
   void createFromFile(ObjectType type);
@@ -158,13 +154,14 @@ protected:
                     uint64_t offset, const void *rsym);
 
 protected:
-  ObjectDisassembler odiser_;
   ObjectType type_;
-  ArchType arch_;
+  std::unique_ptr<aether::Machine> machine_;
+  std::unique_ptr<aether::Disassembler> diser_;
   std::string srcpath_;
   std::string path_;
   std::unique_ptr<::llvm::MemoryBuffer> fbuf_;
   std::unique_ptr<CObjectFile> ofile_;
+  std::unique_ptr<aether::Binary> binary_;
   // <entry name, opcodes pointer>
   std::unordered_map<std::string, const void *> funcs_;
   // <data name, data pointer>

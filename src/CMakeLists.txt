@@ -242,6 +242,9 @@ set_source_files_properties(${ICPP_LLVM_SOURCES} PROPERTIES COMPILE_FLAGS ${DISA
 target_link_libraries(icpp
   PRIVATE
 
+  AetherBinary::AetherBinary
+  AetherVM::AetherVM
+
   ${LLVM_MINIMAL_LIBS}
   ${CLANG_DRIVER_OBJS}
   ${CLANG_LIBS}
@@ -254,9 +257,6 @@ target_link_libraries(icpp
   libprotobuf
   brotlienc
   brotlidec
-
-  AetherBinary::AetherBinary
-  AetherVM::AetherVM
 )
 
 target_include_directories(icpp PRIVATE
@@ -352,6 +352,8 @@ target_include_directories(imod PRIVATE
   ${THIRD_ROOT}/protobuf/third_party/utf8_range
 )
 target_link_libraries(imod PRIVATE
+  AetherBinary::AetherBinary
+
   ${LLVM_MINIMAL_LIBS}
 
   boost_asio
@@ -395,6 +397,8 @@ target_include_directories(iopad PRIVATE
   ${THIRD_ROOT}/protobuf/third_party/utf8_range
 )
 target_link_libraries(iopad PRIVATE 
+  AetherBinary::AetherBinary
+
   ${LLVM_MINIMAL_LIBS}
 
   boost_asio
@@ -445,15 +449,15 @@ target_include_directories(icpp-gadget PRIVATE
   ${THIRD_ROOT}/protobuf/third_party/utf8_range
 )
 target_link_libraries(icpp-gadget PRIVATE 
+  AetherBinary::AetherBinary
+  AetherVM::AetherVM
+
   ${LLVM_MINIMAL_LIBS}
 
   boost_asio
   boost_beast
   boost_json
   libprotobuf
-
-  AetherBinary::AetherBinary
-  AetherVM::AetherVM
 )
 if(APPLE)
   target_link_options(icpp-gadget PRIVATE -Wl,-exported_symbol -Wl,_icpp_gadget)

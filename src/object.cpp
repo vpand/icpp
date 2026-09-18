@@ -18,6 +18,9 @@
 #include <llvm/Support/MemoryBuffer.h>
 #include <span>
 
+#include <AetherBinary.h>
+#include <Disassembler.h>
+
 using CSymbolRef = llvm::object::SymbolRef;
 
 namespace icpp {
@@ -41,28 +44,30 @@ const char *Object::triple() {
   switch (type_) {
   case ELF_Reloc:
   case ELF_Exe:
-    switch (arch_) {
-    case AArch64:
+    switch (arch()) {
+    case aether::ARM64:
       return "aarch64-none-linux-android";
-    case X86_64:
+    case aether::X86_64:
       return "x86_64-none-linux-android";
     default:
       return "";
     }
   case MachO_Reloc:
   case MachO_Exe:
-    switch (arch_) {
-    case AArch64:
+    switch (arch()) {
+    case aether::ARM64:
       return "arm64-apple-macosx";
-    case X86_64:
+    case aether::X86_64:
       return "x86_64-apple-macosx";
     default:
       return "";
     }
   case COFF_Reloc:
   case COFF_Exe:
-    switch (arch_) {
-    case X86_64:
+    switch (arch()) {
+    case aether::ARM64:
+      return "arm64-pc-windows-msvc";
+    case aether::X86_64:
       return "x86_64-pc-windows-msvc";
     default:
       return "";
@@ -80,16 +85,14 @@ void Object::createFromMemory(ObjectType type) {
     ofile_ = std::move(expObj.get());
     switch (ofile_->getArch()) {
     case llvm::Triple::aarch64:
-      arch_ = AArch64;
-      break;
-    case llvm::Triple::x86_64:
-      arch_ = X86_64;
+      machine_ = std::make_unique<aether::MachineARM64>();
       break;
     default:
-      arch_ = Unsupported;
+      machine_ = std::make_unique<aether::MachineX86>();
       break;
     }
-    odiser_.init(ofile_.get(), triple());
+    diser_ =
+        std::make_unique<aether::Disassembler>(aether::Binary::arch(arch()));
     parseSections();
     parseSymbols();
     decodeInsns();
@@ -370,7 +373,7 @@ std::string Object::generateCache() {
   iobj::InterpObject iobject;
   iobject.set_magic(iobj_magic);
   iobject.set_version(version_value().value);
-  iobject.set_arch(static_cast<iobj::ArchType>(arch_));
+  iobject.set_arch(static_cast<iobj::ArchType>(arch()));
   iobject.set_otype(static_cast<iobj::ObjectType>(type_));
   iobject.set_icpp(main_program());
 
@@ -533,6 +536,12 @@ void Object::dump() {
 #endif
 
   log_print(Raw, "");
+}
+
+aether::Binary *Object::binary() {
+  if (!binary_)
+    binary_.reset(aether::New(fbuf_.get(), ofile_.get()));
+  return binary_.get();
 }
 
 const void *Object::relocTarget(size_t i) {
@@ -713,9 +722,12 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
     return;
   }
   ofile_ = std::move(expObj.get());
-  arch_ = static_cast<ArchType>(iobject.arch());
+  if ((aether::ArchType)iobject.arch() == aether::ARM64)
+    machine_ = std::make_unique<aether::MachineARM64>();
+  else
+    machine_ = std::make_unique<aether::MachineX86>();
   type_ = static_cast<ObjectType>(iobject.otype());
-  odiser_.init(ofile_.get(), triple());
+  diser_ = std::make_unique<aether::Disassembler>(aether::Binary::arch(arch()));
 
   // parse from original object
   parseSections();
@@ -805,19 +817,21 @@ std::vector<uint32_t> SymbolHash::hashes(std::string &message) {
   auto buffRef = llvm::MemoryBufferRef(*errBuff.get());
   auto expObj = CObjectFile::createObjectFile(buffRef);
   if (expObj) {
+    aether::ArchType arch{aether::UnsupportArch};
     ofile_ = std::move(expObj.get());
     switch (ofile_->getArch()) {
     case llvm::Triple::aarch64:
-      arch_ = AArch64;
+      arch = aether::ARM64;
+      machine_ = std::make_unique<aether::MachineARM64>();
       break;
     case llvm::Triple::x86_64:
-      arch_ = X86_64;
+      arch = aether::X86_64;
+      machine_ = std::make_unique<aether::MachineX86>();
       break;
     default:
-      arch_ = Unsupported;
       break;
     }
-    if (host_arch() != arch_) {
+    if (host_arch() != arch) {
       message = std::format("Architecture mismatch, '{}' is expected.",
                             arch_name(host_arch()));
       return result;

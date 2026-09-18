@@ -18,7 +18,7 @@ public:
   RunConfig(const char *cfg);
   ~RunConfig();
 
-  int stackSize();
+  int debugPort();
 
   // how many instructions should be executed each time
   int stepSize();
@@ -39,8 +39,8 @@ public:
   static int (*puts)(const char *);
 
 private:
-  // default stack size 1MB
-  int stack_size_ = 1024 * 1024;
+  // debugger listening port
+  int debug_port_ = 0;
   // default step size -1(the max value as interpreter can)
   int step_size_ = -1;
   // default debugger status off

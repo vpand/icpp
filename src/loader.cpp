@@ -11,15 +11,17 @@
 #include "platform.h"
 #include "runcfg.h"
 #include "runtime.h"
+
 #include <cstdio>
 #include <iostream>
-#include <llvm/Config/config.h>
 #include <locale>
 #include <map>
 #include <mutex>
 #include <stdio.h>
 #include <thread>
 #include <unordered_map>
+
+#include <llvm/Config/config.h>
 
 extern "C" {
 #if __linux__

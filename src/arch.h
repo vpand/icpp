@@ -8,6 +8,8 @@
 #include <cstdint>
 #include <string_view>
 
+#include <AetherArch.h>
+
 #if __arm64__ || __aarch64__
 #define ARCH_ARM64 1
 #elif __x86_64__ || __x64__ || _M_AMD64
@@ -17,12 +19,6 @@
 #endif
 
 namespace icpp {
-
-enum ArchType {
-  Unsupported,
-  X86_64,
-  AArch64,
-};
 
 enum ObjectType {
   MachO_Reloc,
@@ -225,9 +221,9 @@ typedef ContextX64 ContextICPP;
 #define switch_stack_strsize "0x1000"
 constexpr int switch_stack_size = 0x1000;
 
-ArchType host_arch();
+aether::ArchType host_arch();
 SystemType host_system();
-std::string_view arch_name(ArchType arch);
+std::string_view arch_name(aether::ArchType arch);
 std::string_view system_name(SystemType arch);
 
 // load the current host register context to ctx, used to initialize

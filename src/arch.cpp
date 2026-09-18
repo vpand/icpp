@@ -8,6 +8,8 @@
 #include <cstdlib>
 #include <cstring>
 
+#include <AetherBinary.h>
+
 #define __ASM__ __asm__ __volatile__
 #define __NAKED__ __attribute__((naked))
 
@@ -15,11 +17,11 @@
 
 namespace icpp {
 
-ArchType host_arch() {
+aether::ArchType host_arch() {
 #if ARCH_ARM64
-  return AArch64;
+  return aether::ARM64;
 #elif ARCH_X64
-  return X86_64;
+  return aether::X86_64;
 #else
 #error Unsupported host architecture.
 #endif
@@ -43,19 +45,8 @@ SystemType host_system() {
 #endif
 }
 
-std::string_view arch_name(ArchType arch) {
-  switch (arch) {
-  case AArch64:
-#if __linux__
-    return "aarch64";
-#else
-    return "arm64";
-#endif
-  case X86_64:
-    return "x86_64";
-  default:
-    return "unknown";
-  }
+std::string_view arch_name(aether::ArchType arch) {
+  return aether::Binary::arch(arch);
 }
 
 std::string_view system_name(SystemType sys) {
