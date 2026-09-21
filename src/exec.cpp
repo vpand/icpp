@@ -292,15 +292,23 @@ void ExecEngine::init() {
   for (auto &s : robject_->textSects())
     vm_engine->prefetch({(uint8_t *)s.vm, s.size});
 
+  // get the default vm stack initial value
+  auto initsp =
+      vm_engine->getRegister(aether::Register::SP)->u8 - switch_stack_size;
+
   // set the initial register context copied from host
-  ContextICPP initctx;
+  ContextICPP initctx{0};
   host_context(&initctx);
 #if ARCH_ARM64
+  initctx.r[A64_SP] = initsp;
+
   saveRegisterAArch64(initctx);
 #if WIN_ARM64
   wintls_ = reinterpret_cast<char *>(initctx.r[18]);
 #endif
 #else
+  initctx.rsp = initsp;
+
   saveRegisterX64(initctx);
 #endif
 }
@@ -1740,6 +1748,8 @@ bool ExecEngine::execLoop(uint64_t pc) {
     // interpret relocation, branch, call, jump and syscall etc.
     auto step = defstep;
     if (interpret(inst, pc, step)) {
+      // update the current pc for vm
+      vm_engine->setRegister(Register::PC, {.u8 = pc});
       continue;
     }
 
@@ -1755,15 +1765,17 @@ bool ExecEngine::execLoop(uint64_t pc) {
 #endif
 
     // running instructions by AetherVM engine
-    for (auto i = 0; i < step; i++, inst++)
+    for (auto i = 0; i < step; i++, inst++) {
       vm_engine->emulate({(uint8_t *)pc, inst->len});
+      pc += inst->len;
+    }
 
 #if WIN_ARM64
     // restore the original epoch pointer
     *tlsepoch = oldepochptr;
 #endif
 
-    // update current pc
+    // get the current pc from vm
     pc = vm_engine->getRegister(Register::PC, false)->u8;
     // check whether the last instruction is jump type
     if (inst->rva != robject_->vm2rvaSimple(pc)) {
