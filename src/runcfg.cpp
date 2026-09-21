@@ -88,7 +88,7 @@ RunConfig::RunConfig(const char *cfg) {
     }
 
     log_print(Runtime,
-              "Current running configuration = {{\n\tdebugger : {}\n\t dbgport "
+              "Current running configuration = {{\n\tdebugger : {}\n\tdbgport "
               ": {}\n\tstep size : {}\n}}",
               has_debugger_ ? "on" : "off", debug_port_,
               step_size_ <= 0 ? std::string("max")

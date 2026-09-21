@@ -38,6 +38,7 @@ Object::Object(std::string_view srcpath, std::string_view path)
 
   srcpath_ = fs::absolute(srcpath_).string();
   path_ = fs::absolute(path_).string();
+  binary_ = nullptr;
 }
 
 const char *Object::triple() {
@@ -540,8 +541,8 @@ void Object::dump() {
 
 aether::Binary *Object::binary() {
   if (!binary_)
-    binary_.reset(aether::New(fbuf_.get(), ofile_.get()));
-  return binary_.get();
+    binary_ = aether::New(fbuf_.get(), ofile_.get());
+  return binary_;
 }
 
 const void *Object::relocTarget(size_t i) {
@@ -579,7 +580,12 @@ const void *Object::relocTarget(size_t i) {
   return cur->target;
 }
 
-Object::~Object() {}
+Object::~Object() {
+  if (binary_) {
+    aether::Delete(binary_);
+    binary_ = nullptr;
+  }
+}
 
 MachOObject::MachOObject(std::string_view srcpath, std::string_view path)
     : Object(srcpath, path) {}
@@ -594,8 +600,8 @@ MachORelocObject::MachORelocObject(std::string_view srcpath,
 
 MachORelocObject::~MachORelocObject() {}
 
-MachOMemoryObject::MachOMemoryObject(
-    std::string_view name, std::unique_ptr<::llvm::MemoryBuffer> memobj)
+MachOMemoryObject::MachOMemoryObject(std::string_view name,
+                                     std::unique_ptr<llvm::MemoryBuffer> memobj)
     : MachOObject(name, name) {
   fbuf_ = std::move(memobj);
   createFromMemory(MachO_Reloc);
@@ -623,7 +629,7 @@ ELFRelocObject::ELFRelocObject(std::string_view srcpath, std::string_view path)
 ELFRelocObject::~ELFRelocObject() {}
 
 ELFMemoryObject::ELFMemoryObject(std::string_view name,
-                                 std::unique_ptr<::llvm::MemoryBuffer> memobj)
+                                 std::unique_ptr<llvm::MemoryBuffer> memobj)
     : ELFObject(name, name) {
   fbuf_ = std::move(memobj);
   createFromMemory(ELF_Reloc);
@@ -652,7 +658,7 @@ COFFRelocObject::COFFRelocObject(std::string_view srcpath,
 COFFRelocObject::~COFFRelocObject() {}
 
 COFFMemoryObject::COFFMemoryObject(std::string_view name,
-                                   std::unique_ptr<::llvm::MemoryBuffer> memobj)
+                                   std::unique_ptr<llvm::MemoryBuffer> memobj)
     : COFFObject(name, name) {
   fbuf_ = std::move(memobj);
   createFromMemory(COFF_Reloc);
@@ -710,11 +716,11 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
   }
 
   // get the original object buffer
-  ofbuf_ = iobject.objbuf();
-  auto obuffer = llvm::MemoryBuffer::getMemBuffer(
-      llvm::StringRef(ofbuf_.data(), ofbuf_.size()), path, false);
+  auto &ofbuf = iobject.objbuf();
+  fbuf_ = llvm::MemoryBuffer::getMemBufferCopy(
+      llvm::StringRef(ofbuf.data(), ofbuf.size()), path);
 
-  auto buffRef = llvm::MemoryBufferRef(*obuffer);
+  auto buffRef = llvm::MemoryBufferRef(*fbuf_);
   auto expObj = CObjectFile::createObjectFile(buffRef);
   if (!expObj) {
     std::cout << "Failed to create llvm object: "
@@ -785,22 +791,6 @@ InterpObject::InterpObject(std::string_view srcpath, std::string_view path)
 }
 
 InterpObject::~InterpObject() {}
-
-bool InterpObject::belong(uint64_t vm, size_t *di) {
-  auto vmstr = reinterpret_cast<char *>(vm);
-  if (ofbuf_.data() <= vmstr && vmstr < ofbuf_.data() + ofbuf_.length())
-    return true;
-  // in dynamically allocated section, .e.g.: bss
-  for (auto &s : dynsects_) {
-    if (s.buffer.data() <= vmstr && vmstr < s.buffer.data() + s.buffer.size()) {
-      if (di) {
-        di[0] = &s - &dynsects_[0];
-      }
-      return true;
-    }
-  }
-  return false;
-}
 
 SymbolHash::SymbolHash(std::string_view path) : Object("", path) {}
 

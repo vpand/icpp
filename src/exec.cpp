@@ -130,10 +130,10 @@ private:
   /*
   register startup initializer
   */
-  void initMainRegister(const void *argc, const void *argv);
-  void initMainRegisterAArch64(const void *argc, const void *argv);
-  void initMainRegisterSysVX64(const void *argc, const void *argv);
-  void initMainRegisterWinX64(const void *argc, const void *argv);
+  void initMainRegister(uint64_t argc, uint64_t argv);
+  void initMainRegisterAArch64(uint64_t argc, uint64_t argv);
+  void initMainRegisterSysVX64(uint64_t argc, uint64_t argv);
+  void initMainRegisterWinX64(uint64_t argc, uint64_t argv);
   void initMainRegisterCommonX64();
 
   /*
@@ -238,7 +238,7 @@ void ExecEngine::run(uint64_t pc, ContextICPP *regs) {
   saveRegisterX64(*regs);
 #endif
   // backup old pc
-  uint64_t pcbackup = engine_->getRegister(pcrid)->u8;
+  uint64_t pcbackup = engine_->getRegister(pcrid, false)->u8;
 
   // load host stack
   std::memcpy(vmstack, hoststack, stack_switch_size);
@@ -369,7 +369,7 @@ bool ExecEngine::execDtor() {
   return true;
 }
 
-void ExecEngine::initMainRegister(const void *argc, const void *argv) {
+void ExecEngine::initMainRegister(uint64_t argc, uint64_t argv) {
   switch (robject_->arch()) {
   case aether::ARM64:
     initMainRegisterAArch64(argc, argv);
@@ -424,8 +424,7 @@ bool ExecEngine::run(uint64_t vm, uint64_t arg0, uint64_t arg1) {
     return false;
 
   try {
-    initMainRegister(reinterpret_cast<const void *>(arg0),
-                     reinterpret_cast<const void *>(arg1));
+    initMainRegister(arg0, arg1);
     return execLoop(vm);
   } catch (std::exception &e) {
     log_print(Runtime, "Exception ocurred: {}.", e.what());
@@ -1713,13 +1712,14 @@ bool ExecEngine::execLoop(uint64_t pc) {
 
   // debug preparation
   bool debug = RunConfig::inst()->hasDebugger();
-  if (debug) {
-    for (auto &s : robject_->textSects()) {
-      engine_->prefetch({(uint8_t *)s.vm, s.size});
-    }
+  if (debug)
     engine_->setOpcodeBinary(robject_->binary());
-    engine_->setRegister(Register::PC, {.u8 = pc});
+
+  // prefetch all the opcodes
+  for (auto &s : robject_->textSects()) {
+    engine_->prefetch({(uint8_t *)s.vm, s.size});
   }
+  engine_->setRegister(Register::PC, {.u8 = pc});
 
   // instruction information related to pc
   auto inst = robject_->insnInfo(pc);
@@ -1762,7 +1762,7 @@ bool ExecEngine::execLoop(uint64_t pc) {
 #endif
 
     // update current pc
-    pc = engine_->getRegister(Register::PC)->u8;
+    pc = engine_->getRegister(Register::PC, false)->u8;
     // check whether the last instruction is jump type
     if (inst->rva != robject_->vm2rvaSimple(pc)) {
       if (pc == lastjpc) {
@@ -1786,7 +1786,7 @@ bool ExecEngine::execLoop(uint64_t pc) {
     engine_->setRegister(reg, {.u8 = u64});                                    \
   }
 
-void ExecEngine::initMainRegisterAArch64(const void *argc, const void *argv) {
+void ExecEngine::initMainRegisterAArch64(uint64_t argc, uint64_t argv) {
   using namespace aether;
   // x0: argc
   // x1: argv
@@ -1804,7 +1804,7 @@ void ExecEngine::initMainRegisterCommonX64() {
   reg_write(Register::RSP, reinterpret_cast<const void *>(rsp));
 }
 
-void ExecEngine::initMainRegisterSysVX64(const void *argc, const void *argv) {
+void ExecEngine::initMainRegisterSysVX64(uint64_t argc, uint64_t argv) {
   using namespace aether;
   // System V AMD64 ABI
   // rdi: argc
@@ -1814,7 +1814,7 @@ void ExecEngine::initMainRegisterSysVX64(const void *argc, const void *argv) {
   initMainRegisterCommonX64();
 }
 
-void ExecEngine::initMainRegisterWinX64(const void *argc, const void *argv) {
+void ExecEngine::initMainRegisterWinX64(uint64_t argc, uint64_t argv) {
   using namespace aether;
   // Microsoft Windows X64 ABI
   // rcx: argc
@@ -1832,7 +1832,7 @@ void ExecEngine::dump() {
   case ARM64: {
     auto ctx = loadRegisterAArch64();
     regsz = 31;
-    pc = engine_->getRegister(Register::PC)->u8;
+    pc = engine_->getRegister(Register::PC, false)->u8;
     std::memcpy(regs, &ctx, sizeof(regs[0]) * regsz);
     break;
   }

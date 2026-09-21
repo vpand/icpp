@@ -159,9 +159,9 @@ protected:
   std::unique_ptr<aether::Disassembler> diser_;
   std::string srcpath_;
   std::string path_;
-  std::unique_ptr<::llvm::MemoryBuffer> fbuf_;
+  std::unique_ptr<llvm::MemoryBuffer> fbuf_;
   std::unique_ptr<CObjectFile> ofile_;
-  std::unique_ptr<aether::Binary> binary_;
+  aether::Binary *binary_; // for debugger
   // <entry name, opcodes pointer>
   std::unordered_map<std::string, const void *> funcs_;
   // <data name, data pointer>
@@ -195,7 +195,7 @@ public:
 class MachOMemoryObject : public MachOObject {
 public:
   MachOMemoryObject(std::string_view name,
-                    std::unique_ptr<::llvm::MemoryBuffer> memobj);
+                    std::unique_ptr<llvm::MemoryBuffer> memobj);
   virtual ~MachOMemoryObject();
 };
 
@@ -220,7 +220,7 @@ public:
 class ELFMemoryObject : public ELFObject {
 public:
   ELFMemoryObject(std::string_view name,
-                  std::unique_ptr<::llvm::MemoryBuffer> memobj);
+                  std::unique_ptr<llvm::MemoryBuffer> memobj);
   virtual ~ELFMemoryObject();
 };
 
@@ -247,7 +247,7 @@ public:
 class COFFMemoryObject : public COFFObject {
 public:
   COFFMemoryObject(std::string_view name,
-                   std::unique_ptr<::llvm::MemoryBuffer> memobj);
+                   std::unique_ptr<llvm::MemoryBuffer> memobj);
   virtual ~COFFMemoryObject();
 };
 
@@ -262,11 +262,7 @@ public:
   InterpObject(std::string_view srcpath, std::string_view path);
   virtual ~InterpObject();
 
-  bool belong(uint64_t vm, size_t *di) override;
   std::string cachePath() override { return path_; }
-
-private:
-  std::string ofbuf_; // .o file buffer copied from .io file
 };
 
 class SymbolHash : public Object {
