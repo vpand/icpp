@@ -174,9 +174,6 @@ private:
   // the initial object instance
   std::shared_ptr<Object> iobject_;
 
-  // virtual processor from AetherVM
-  std::unique_ptr<aether::BinaryEngine> engine_;
-
   // used to resume some fatal error, e.g.: segfault
   std::jmp_buf jmpbuf_;
 
@@ -212,6 +209,9 @@ static thread_local ExecEngine *exec_engine = nullptr;
 // instruction which has relocation record
 static thread_local std::map<uint64_t, std::vector<uint8_t>> dyn_codes;
 
+// the virtual processor emulation engine from AetherVM
+static std::unique_ptr<aether::BinaryEngine> vm_engine;
+
 void ExecEngine::run(uint64_t pc, ContextICPP *regs) {
   constexpr int stack_switch_size = 128;
   using namespace aether;
@@ -238,7 +238,7 @@ void ExecEngine::run(uint64_t pc, ContextICPP *regs) {
   saveRegisterX64(*regs);
 #endif
   // backup old pc
-  uint64_t pcbackup = engine_->getRegister(pcrid, false)->u8;
+  uint64_t pcbackup = vm_engine->getRegister(pcrid, false)->u8;
 
   // load host stack
   std::memcpy(vmstack, hoststack, stack_switch_size);
@@ -260,7 +260,7 @@ void ExecEngine::run(uint64_t pc, ContextICPP *regs) {
   regs->rsp = reinterpret_cast<uint64_t>(hoststack);
 #endif
   // restore old pc
-  engine_->setRegister(pcrid, {.u8 = pcbackup});
+  vm_engine->setRegister(pcrid, {.u8 = pcbackup});
 }
 
 extern "C" void exec_engine_main(StubContext *ctx, ContextICPP *regs) {
@@ -278,11 +278,19 @@ void ExecEngine::init() {
 
   robject_ = iobject_.get();
 
-  aether::EventConfig conf;
-  auto port = RunConfig::inst()->debugPort();
-  conf.debug = RunConfig::inst()->hasDebugger();
-  conf.dbgport = port ? port : conf.dbgport;
-  engine_ = std::make_unique<aether::BinaryEngine>(robject_->machine(), conf);
+  // lazily instantiate our vm engine
+  if (!vm_engine) {
+    aether::EventConfig conf;
+    auto port = RunConfig::inst()->debugPort();
+    conf.debug = RunConfig::inst()->hasDebugger();
+    conf.dbgport = port ? port : conf.dbgport;
+    vm_engine =
+        std::make_unique<aether::BinaryEngine>(robject_->machine(), conf);
+  }
+
+  // prefetch all the opcodes
+  for (auto &s : robject_->textSects())
+    vm_engine->prefetch({(uint8_t *)s.vm, s.size});
 
   // set the initial register context copied from host
   ContextICPP initctx;
@@ -404,7 +412,7 @@ uint64_t ExecEngine::returnValue() {
   default:
     return 0;
   }
-  return engine_->getRegister(regid)->u8;
+  return vm_engine->getRegister(regid)->u8;
 }
 
 bool ExecEngine::execMain() {
@@ -440,14 +448,14 @@ ContextA64 ExecEngine::loadRegisterAArch64() {
 
   ContextA64 ctx;
   for (int i = 0; i <= 28; i++) {
-    ctx.r[i] = engine_->getRegister((Register)((int)Register::X0 + i))->u8;
+    ctx.r[i] = vm_engine->getRegister((Register)((int)Register::X0 + i))->u8;
   }
-  ctx.r[A64_FP] = engine_->getRegister(Register::X29)->u8;
-  ctx.r[A64_LR] = engine_->getRegister(Register::X30)->u8;
-  ctx.r[A64_SP] = engine_->getRegister(Register::SP)->u8;
+  ctx.r[A64_FP] = vm_engine->getRegister(Register::X29)->u8;
+  ctx.r[A64_LR] = vm_engine->getRegister(Register::X30)->u8;
+  ctx.r[A64_SP] = vm_engine->getRegister(Register::SP)->u8;
   for (int i = 0; i < 32; i++) {
     std::memcpy(&ctx.v[i],
-                engine_->getRegister((Register)((int)Register::Q0 + i)),
+                vm_engine->getRegister((Register)((int)Register::Q0 + i)),
                 sizeof(ctx.v[i]));
   }
   return ctx;
@@ -457,14 +465,14 @@ void ExecEngine::saveRegisterAArch64(const ContextA64 &ctx) {
   using namespace aether;
 
   for (int i = 0; i <= 28; i++) {
-    engine_->setRegister((Register)((int)Register::X0 + i), {.u8 = ctx.r[i]});
+    vm_engine->setRegister((Register)((int)Register::X0 + i), {.u8 = ctx.r[i]});
   }
-  engine_->setRegister(Register::X29, {.u8 = ctx.r[A64_FP]});
-  engine_->setRegister(Register::X30, {.u8 = ctx.r[A64_LR]});
-  engine_->setRegister(Register::SP, {.u8 = ctx.r[A64_SP]});
+  vm_engine->setRegister(Register::X29, {.u8 = ctx.r[A64_FP]});
+  vm_engine->setRegister(Register::X30, {.u8 = ctx.r[A64_LR]});
+  vm_engine->setRegister(Register::SP, {.u8 = ctx.r[A64_SP]});
   for (int i = 0; i < 32; i++) {
     std::memcpy(
-        (void *)engine_->getRegister((Register)(((int)Register::Q0 + i))),
+        (void *)vm_engine->getRegister((Register)(((int)Register::Q0 + i))),
         &ctx.v[i], sizeof(ctx.v[i]));
   }
 }
@@ -473,30 +481,30 @@ ContextX64 ExecEngine::loadRegisterX64() {
   using namespace aether;
 
   ContextX64 ctx;
-  ctx.rsp = engine_->getRegister(Register::RSP)->u8;
-  ctx.rbp = engine_->getRegister(Register::RBP)->u8;
-  ctx.rax = engine_->getRegister(Register::RAX)->u8;
-  ctx.rbx = engine_->getRegister(Register::RBX)->u8;
-  ctx.rcx = engine_->getRegister(Register::RCX)->u8;
-  ctx.rdx = engine_->getRegister(Register::RDX)->u8;
-  ctx.rsi = engine_->getRegister(Register::RSI)->u8;
-  ctx.rdi = engine_->getRegister(Register::RDI)->u8;
-  ctx.r8 = engine_->getRegister(Register::R8)->u8;
-  ctx.r9 = engine_->getRegister(Register::R9)->u8;
-  ctx.r10 = engine_->getRegister(Register::R10)->u8;
-  ctx.r11 = engine_->getRegister(Register::R11)->u8;
-  ctx.r12 = engine_->getRegister(Register::R12)->u8;
-  ctx.r13 = engine_->getRegister(Register::R13)->u8;
-  ctx.r14 = engine_->getRegister(Register::R14)->u8;
-  ctx.r15 = engine_->getRegister(Register::R15)->u8;
+  ctx.rsp = vm_engine->getRegister(Register::RSP)->u8;
+  ctx.rbp = vm_engine->getRegister(Register::RBP)->u8;
+  ctx.rax = vm_engine->getRegister(Register::RAX)->u8;
+  ctx.rbx = vm_engine->getRegister(Register::RBX)->u8;
+  ctx.rcx = vm_engine->getRegister(Register::RCX)->u8;
+  ctx.rdx = vm_engine->getRegister(Register::RDX)->u8;
+  ctx.rsi = vm_engine->getRegister(Register::RSI)->u8;
+  ctx.rdi = vm_engine->getRegister(Register::RDI)->u8;
+  ctx.r8 = vm_engine->getRegister(Register::R8)->u8;
+  ctx.r9 = vm_engine->getRegister(Register::R9)->u8;
+  ctx.r10 = vm_engine->getRegister(Register::R10)->u8;
+  ctx.r11 = vm_engine->getRegister(Register::R11)->u8;
+  ctx.r12 = vm_engine->getRegister(Register::R12)->u8;
+  ctx.r13 = vm_engine->getRegister(Register::R13)->u8;
+  ctx.r14 = vm_engine->getRegister(Register::R14)->u8;
+  ctx.r15 = vm_engine->getRegister(Register::R15)->u8;
   for (int i = 0; i < 8; i++) {
     std::memcpy(&ctx.stmmx[i],
-                engine_->getRegister((Register)((int)Register::ST0 + i)),
+                vm_engine->getRegister((Register)((int)Register::ST0 + i)),
                 sizeof(ctx.stmmx[i]));
   }
   for (int i = 0; i < 32; i++) {
     std::memcpy(&ctx.xmm[i],
-                engine_->getRegister((Register)((int)Register::XMM0 + i)),
+                vm_engine->getRegister((Register)((int)Register::XMM0 + i)),
                 sizeof(ctx.xmm[i]));
   }
   return ctx;
@@ -505,33 +513,33 @@ ContextX64 ExecEngine::loadRegisterX64() {
 void ExecEngine::saveRegisterX64(const ContextX64 &ctx) {
   using namespace aether;
 
-  engine_->setRegister(Register::RSP, {.u8 = ctx.rsp});
-  engine_->setRegister(Register::RBP, {.u8 = ctx.rbp});
-  engine_->setRegister(Register::RAX, {.u8 = ctx.rax});
-  engine_->setRegister(Register::RBX, {.u8 = ctx.rbx});
-  engine_->setRegister(Register::RCX, {.u8 = ctx.rcx});
-  engine_->setRegister(Register::RDX, {.u8 = ctx.rdx});
-  engine_->setRegister(Register::RSI, {.u8 = ctx.rsi});
-  engine_->setRegister(Register::RDI, {.u8 = ctx.rdi});
-  engine_->setRegister(Register::R8, {.u8 = ctx.r8});
-  engine_->setRegister(Register::R9, {.u8 = ctx.r9});
-  engine_->setRegister(Register::R10, {.u8 = ctx.r10});
-  engine_->setRegister(Register::R11, {.u8 = ctx.r11});
-  engine_->setRegister(Register::R12, {.u8 = ctx.r12});
-  engine_->setRegister(Register::R13, {.u8 = ctx.r13});
-  engine_->setRegister(Register::R14, {.u8 = ctx.r14});
-  engine_->setRegister(Register::R15, {.u8 = ctx.r15});
+  vm_engine->setRegister(Register::RSP, {.u8 = ctx.rsp});
+  vm_engine->setRegister(Register::RBP, {.u8 = ctx.rbp});
+  vm_engine->setRegister(Register::RAX, {.u8 = ctx.rax});
+  vm_engine->setRegister(Register::RBX, {.u8 = ctx.rbx});
+  vm_engine->setRegister(Register::RCX, {.u8 = ctx.rcx});
+  vm_engine->setRegister(Register::RDX, {.u8 = ctx.rdx});
+  vm_engine->setRegister(Register::RSI, {.u8 = ctx.rsi});
+  vm_engine->setRegister(Register::RDI, {.u8 = ctx.rdi});
+  vm_engine->setRegister(Register::R8, {.u8 = ctx.r8});
+  vm_engine->setRegister(Register::R9, {.u8 = ctx.r9});
+  vm_engine->setRegister(Register::R10, {.u8 = ctx.r10});
+  vm_engine->setRegister(Register::R11, {.u8 = ctx.r11});
+  vm_engine->setRegister(Register::R12, {.u8 = ctx.r12});
+  vm_engine->setRegister(Register::R13, {.u8 = ctx.r13});
+  vm_engine->setRegister(Register::R14, {.u8 = ctx.r14});
+  vm_engine->setRegister(Register::R15, {.u8 = ctx.r15});
   for (int i = 0; i < 8; i++) {
     std::memcpy(
-        (void *)engine_->getRegister((Register)((int)Register::ST0 + i)),
+        (void *)vm_engine->getRegister((Register)((int)Register::ST0 + i)),
         &ctx.stmmx[i], sizeof(ctx.stmmx[i]));
     std::memcpy(
-        (void *)engine_->getRegister((Register)((int)Register::MM0 + i)),
+        (void *)vm_engine->getRegister((Register)((int)Register::MM0 + i)),
         &ctx.stmmx[i], sizeof(ctx.stmmx[i]));
   }
   for (int i = 0; i < 32; i++) {
     std::memcpy(
-        (void *)engine_->getRegister((Register)((int)Register::XMM0 + i)),
+        (void *)vm_engine->getRegister((Register)((int)Register::XMM0 + i)),
         &ctx.xmm[i], sizeof(ctx.xmm[i]));
   }
 }
@@ -619,7 +627,7 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
   }
   // read current arugments
   for (size_t i = 0; i < std::size(args); i++)
-    args[i] = engine_->getRegister(rids[i])->u8;
+    args[i] = vm_engine->getRegister(rids[i])->u8;
   std::memcpy(backups, args, sizeof(args));
 
   if (reinterpret_cast<uint64_t>(thread_create) == target ||
@@ -703,7 +711,7 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
 
     auto pid = fork();
     log_print(Develop, "PID {}, fork result {}.", getpid(), pid);
-    engine_->setRegister(retrid, {.s4 = pid});
+    vm_engine->setRegister(retrid, {.s4 = pid});
   }
 #endif
   else {
@@ -735,7 +743,7 @@ bool ExecEngine::specialCallProcess(uint64_t &target, uint64_t &retaddr) {
   for (size_t i = 0; i < std::size(args); i++) {
     if (backups[i] != args[i]) {
       update = true;
-      engine_->setRegister((Register)rids[i], {.u8 = args[i]});
+      vm_engine->setRegister((Register)rids[i], {.u8 = args[i]});
     }
   }
   return update;
@@ -766,7 +774,7 @@ bool ExecEngine::interpretCallAArch64(const InsnInfo *&inst, uint64_t &pc,
   if (executable(target)) {
     // call internal function
     // set return address
-    engine_->setRegister(Register::LR, {.u8 = retaddr});
+    vm_engine->setRegister(Register::LR, {.u8 = retaddr});
     pc = target;
     inst = robject_->insnInfo(pc); // update current inst
     return true;
@@ -849,11 +857,11 @@ bool ExecEngine::interpretCallX64(const InsnInfo *&inst, uint64_t &pc,
 #endif
 
   if (executable(target)) {
-    uint64_t rsp = engine_->getRegister(Register::RSP)->u8;
+    uint64_t rsp = vm_engine->getRegister(Register::RSP)->u8;
     // push return address
     rsp -= 8;
     *reinterpret_cast<uint64_t *>(rsp) = retaddr;
-    engine_->setRegister(Register::RSP, {.u8 = rsp});
+    vm_engine->setRegister(Register::RSP, {.u8 = rsp});
     // call internal function
     pc = target;
     inst = robject_->insnInfo(pc); // update current inst
@@ -889,7 +897,7 @@ bool ExecEngine::interpretJumpX64(const InsnInfo *&inst, uint64_t &pc,
   } else {
     // jump to external function
     uint64_t rsp, retaddr;
-    rsp = engine_->getRegister(Register::RSP)->u8;
+    rsp = vm_engine->getRegister(Register::RSP)->u8;
     retaddr = *reinterpret_cast<uint64_t *>(rsp);
     auto context = loadRegisterX64();
     if (executable(retaddr) ||
@@ -908,7 +916,7 @@ bool ExecEngine::interpretJumpX64(const InsnInfo *&inst, uint64_t &pc,
       pc = retaddr;
       // pop return address
       rsp += 8;
-      engine_->setRegister(Register::RSP, {.u8 = rsp});
+      vm_engine->setRegister(Register::RSP, {.u8 = rsp});
       if (retaddr != reinterpret_cast<uint64_t>(topReturn())) {
         // update current inst
         inst = robject_->insnInfo(pc);
@@ -940,8 +948,8 @@ uint64_t ExecEngine::interpretCalcMemX64(const InsnInfo *&inst, uint64_t &pc,
   if (ops[basereg_op_idx] == (uint16_t)Register::RIP)
     basereg = pc;
   else
-    basereg = engine_->getRegister((Register)ops[basereg_op_idx])->u8;
-  expreg = engine_->getRegister((Register)ops[expreg_op_idx])->u8;
+    basereg = vm_engine->getRegister((Register)ops[basereg_op_idx])->u8;
+  expreg = vm_engine->getRegister((Register)ops[expreg_op_idx])->u8;
   // pickup exponent and offset value
   auto expimm = *reinterpret_cast<const int64_t *>(&ops[expimm_op_idx]);
   auto offimm = *reinterpret_cast<const int64_t *>(&ops[offimm_op_idx]);
@@ -1008,7 +1016,7 @@ void ExecEngine::interpretMovX64(const InsnInfo *&inst, uint64_t &pc, int regop,
   } else {
     // mov mem, reg
     auto regid = ops[regop];
-    auto regval = engine_->getRegister((Register)ops[regop]);
+    auto regval = vm_engine->getRegister((Register)ops[regop]);
     if ((uint16_t)Register::XMM0 <= regid &&
         regid <= (uint16_t)Register::XMM31) {
       memcpy(reinterpret_cast<void *>(target), regval, 16);
@@ -1022,7 +1030,7 @@ void ExecEngine::interpretMovMRX64(const InsnInfo *&inst, uint64_t &pc,
                                    int bytes) {
   const uint16_t *ops;
   auto target = interpretCalcMemX64(inst, pc, 0, &ops);
-  auto regval = engine_->getRegister((aether::Register)ops[11]);
+  auto regval = vm_engine->getRegister((aether::Register)ops[11]);
   // mov mem, gpr/mmx/xmm
   std::memcpy(reinterpret_cast<void *>(target), regval, bytes);
 }
@@ -1048,7 +1056,7 @@ void ExecEngine::interpretFlagsMemImm(const InsnInfo *&inst, uint64_t &pc,
       updator(*reinterpret_cast<const TSRC *>(target),
               static_cast<TSRC>(*reinterpret_cast<const TDES *>(&ops[11])));
   // update rflags
-  engine_->setRegister(aether::Register::RFLAGS, {.u8 = rflags});
+  vm_engine->setRegister(aether::Register::RFLAGS, {.u8 = rflags});
 }
 
 template <typename T>
@@ -1059,12 +1067,12 @@ void ExecEngine::interpretFlagsRegMem(const InsnInfo *&inst, uint64_t &pc,
   auto target = interpretCalcMemX64(inst, pc, 1, &ops);
   // cmp/test instruction
   auto updator = cmp ? host_compare<T> : host_test<T>;
-  uint64_t value = engine_->getRegister((Register)ops[0])->u8;
+  uint64_t value = vm_engine->getRegister((Register)ops[0])->u8;
   // calculate the new rflags
   auto rflags =
       updator(static_cast<T>(value), *reinterpret_cast<const T *>(target));
   // update rflags
-  engine_->setRegister(Register::RFLAGS, {.u8 = rflags});
+  vm_engine->setRegister(Register::RFLAGS, {.u8 = rflags});
 }
 
 template <typename T>
@@ -1075,12 +1083,12 @@ void ExecEngine::interpretFlagsMemReg(const InsnInfo *&inst, uint64_t &pc,
   auto target = interpretCalcMemX64(inst, pc, 0, &ops);
   // cmp/test instruction
   auto updator = cmp ? host_compare<T> : host_test<T>;
-  uint64_t value = engine_->getRegister((Register)ops[11])->u8;
+  uint64_t value = vm_engine->getRegister((Register)ops[11])->u8;
   // calculate the new rflags
   auto rflags =
       updator(*reinterpret_cast<const T *>(target), static_cast<T>(value));
   // update rflags
-  engine_->setRegister(Register::RFLAGS, {.u8 = rflags});
+  vm_engine->setRegister(Register::RFLAGS, {.u8 = rflags});
 }
 
 template <typename TSRC, typename TDES>
@@ -1144,7 +1152,7 @@ void ExecEngine::interpretCondMovRegMem(const InsnInfo *&inst, uint64_t &pc) {
   }
   // execute the dynamically generated instruction
   auto opcode = found->second.data() + 8;
-  auto result = engine_->emulate({(uint8_t *)opcode, inst->len});
+  auto result = vm_engine->emulate({(uint8_t *)opcode, inst->len});
   if (!result) {
     log_print(Runtime, "Fatal error occurred when simuating cmov instruction.");
     dump();
@@ -1178,7 +1186,7 @@ void ExecEngine::interpretSSERegMem(const InsnInfo *&inst, uint64_t &pc) {
   }
   // execute the dynamically generated instruction
   auto opcode = found->second.data() + 0x10;
-  auto result = engine_->emulate({(uint8_t *)opcode, inst->len});
+  auto result = vm_engine->emulate({(uint8_t *)opcode, inst->len});
   if (!result) {
     log_print(Runtime,
               "Fatal error occurred when simuating SSE/AVX instruction.");
@@ -1301,7 +1309,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       return false;
     // arm64 instruction
     case INSN_ARM64_RETURN: {
-      uint64_t retaddr = engine_->getRegister(Register::LR)->u8;
+      uint64_t retaddr = vm_engine->getRegister(Register::LR)->u8;
       if (executable(retaddr)) {
         pc = retaddr;
         inst = robject_->insnInfo(pc);
@@ -1333,7 +1341,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     // encoded meta data layout:[uint16_t]
     case INSN_ARM64_CALLREG: {
       auto metaptr = robject_->metaInfo<uint16_t>(inst, pc);
-      uint64_t target = engine_->getRegister((Register)metaptr[0])->u8;
+      uint64_t target = vm_engine->getRegister((Register)metaptr[0])->u8;
       target = checkStub(target);
       jump = interpretCallAArch64(inst, pc, target);
       break;
@@ -1353,7 +1361,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     // encoded meta data layout:[uint16_t]
     case INSN_ARM64_JUMPREG: {
       auto metaptr = robject_->metaInfo<uint16_t>(inst, pc);
-      uint64_t target = engine_->getRegister((Register)metaptr[0])->u8;
+      uint64_t target = vm_engine->getRegister((Register)metaptr[0])->u8;
       target = checkStub(target);
       jump = interpretJumpAArch64(inst, pc, target);
       break;
@@ -1372,7 +1380,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
         else
           target = pc + imm;
       }
-      engine_->setRegister((Register)metaptr[0], {.u8 = target});
+      vm_engine->setRegister((Register)metaptr[0], {.u8 = target});
       break;
     }
     case INSN_ARM64_LDRSWL:
@@ -1387,13 +1395,13 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     // encoded meta data layout:[uint64_t]
     case INSN_X64_RETURN: {
       uint64_t retaddr, rsp;
-      rsp = engine_->getRegister(Register::RSP)->u8;
+      rsp = vm_engine->getRegister(Register::RSP)->u8;
       retaddr = *reinterpret_cast<uint64_t *>(rsp);
       // pop return address
       rsp += 8;
       // instruction: retn bytes
       rsp += *robject_->metaInfo<uint64_t>(inst, pc);
-      engine_->setRegister(Register::RSP, {.u8 = rsp});
+      vm_engine->setRegister(Register::RSP, {.u8 = rsp});
       pc = retaddr;
       if (executable(retaddr)) {
         inst = robject_->insnInfo(pc);
@@ -1425,7 +1433,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     // encoded meta data layout:[uint16_t]
     case INSN_X64_CALLREG: {
       auto metaptr = robject_->metaInfo<uint16_t>(inst, pc);
-      uint64_t target = engine_->getRegister((Register)metaptr[0])->u8;
+      uint64_t target = vm_engine->getRegister((Register)metaptr[0])->u8;
       target = checkStub(target);
       jump = interpretCallX64(inst, pc, target);
       break;
@@ -1462,8 +1470,8 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
           reinterpret_cast<uint64_t>(robject_->relocTarget(inst->reloc));
       auto metaptr = robject_->metaInfo<uint16_t>(inst, pc);
       ContextX64 context{0};
-      context.rcx = engine_->getRegister(Register::RCX)->u8;
-      context.rflags.val = engine_->getRegister(Register::RFLAGS)->u8;
+      context.rcx = vm_engine->getRegister(Register::RCX)->u8;
+      context.rflags.val = vm_engine->getRegister(Register::RFLAGS)->u8;
       if (hitCondX64(&context, metaptr[4]))
         jump = interpretJumpX64(inst, pc, target);
       break;
@@ -1471,7 +1479,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     // encoded meta data layout:[uint16_t]
     case INSN_X64_JUMPREG: {
       auto metaptr = robject_->metaInfo<uint16_t>(inst, pc);
-      uint64_t target = engine_->getRegister((Register)metaptr[0])->u8;
+      uint64_t target = vm_engine->getRegister((Register)metaptr[0])->u8;
       target = checkStub(target);
       jump = interpretJumpX64(inst, pc, target);
       break;
@@ -1710,16 +1718,10 @@ bool ExecEngine::execLoop(uint64_t pc) {
   auto tlsepoch = reinterpret_cast<uint64_t *>(wintls_ + 0x58);
 #endif
 
-  // debug preparation
   bool debug = RunConfig::inst()->hasDebugger();
+  // set the current debugee object binary instance for debugger
   if (debug)
-    engine_->setOpcodeBinary(robject_->binary());
-
-  // prefetch all the opcodes
-  for (auto &s : robject_->textSects()) {
-    engine_->prefetch({(uint8_t *)s.vm, s.size});
-  }
-  engine_->setRegister(Register::PC, {.u8 = pc});
+    vm_engine->setOpcodeBinary(robject_->binary(), false);
 
   // instruction information related to pc
   auto inst = robject_->insnInfo(pc);
@@ -1732,7 +1734,7 @@ bool ExecEngine::execLoop(uint64_t pc) {
   while (pc != reinterpret_cast<uint64_t>(topReturn())) {
     // enter debugger if necessary
     if (debug) {
-      engine_->watchDog({.u8 = pc});
+      vm_engine->watchDog({.u8 = pc});
     }
 
     // interpret relocation, branch, call, jump and syscall etc.
@@ -1754,7 +1756,7 @@ bool ExecEngine::execLoop(uint64_t pc) {
 
     // running instructions by AetherVM engine
     for (auto i = 0; i < step; i++, inst++)
-      engine_->emulate({(uint8_t *)pc, inst->len});
+      vm_engine->emulate({(uint8_t *)pc, inst->len});
 
 #if WIN_ARM64
     // restore the original epoch pointer
@@ -1762,7 +1764,7 @@ bool ExecEngine::execLoop(uint64_t pc) {
 #endif
 
     // update current pc
-    pc = engine_->getRegister(Register::PC, false)->u8;
+    pc = vm_engine->getRegister(Register::PC, false)->u8;
     // check whether the last instruction is jump type
     if (inst->rva != robject_->vm2rvaSimple(pc)) {
       if (pc == lastjpc) {
@@ -1783,7 +1785,7 @@ bool ExecEngine::execLoop(uint64_t pc) {
 #define reg_write(reg, val)                                                    \
   {                                                                            \
     auto u64 = reinterpret_cast<uint64_t>(val);                                \
-    engine_->setRegister(reg, {.u8 = u64});                                    \
+    vm_engine->setRegister(reg, {.u8 = u64});                                  \
   }
 
 void ExecEngine::initMainRegisterAArch64(uint64_t argc, uint64_t argv) {
@@ -1797,7 +1799,7 @@ void ExecEngine::initMainRegisterAArch64(uint64_t argc, uint64_t argv) {
 
 void ExecEngine::initMainRegisterCommonX64() {
   using namespace aether;
-  auto rsp = (void **)engine_->getRegister(Register::RSP)->u8;
+  auto rsp = (void **)vm_engine->getRegister(Register::RSP)->u8;
   // push topReturn()
   rsp--;
   rsp[0] = topReturn();
@@ -1832,14 +1834,14 @@ void ExecEngine::dump() {
   case ARM64: {
     auto ctx = loadRegisterAArch64();
     regsz = 31;
-    pc = engine_->getRegister(Register::PC, false)->u8;
+    pc = vm_engine->getRegister(Register::PC, false)->u8;
     std::memcpy(regs, &ctx, sizeof(regs[0]) * regsz);
     break;
   }
   case X86_64: {
     auto ctx = loadRegisterX64();
     regsz = 15;
-    pc = engine_->getRegister(Register::RIP)->u8;
+    pc = vm_engine->getRegister(Register::RIP)->u8;
     std::memcpy(regs, &ctx, sizeof(regs[0]) * regsz);
     break;
   }
