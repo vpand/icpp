@@ -5,7 +5,7 @@ ICPP(acronym for Interpreted C++) is a C++ interpreter. You can run C++ code wit
  * Writing powerful script using C++ just as easy as Python;
  * Writing hot-loading C++ script code in running process;
  * Based on [AetherVM](https://github.com/AetherVM/AetherVM.git) qemu virtual cpu and [Clang/LLVM](https://github.com/llvm/llvm-project.git) C++ compiler;
- * Integrated internally with [Standard C++23](https://en.cppreference.com/w/cpp/23) and [Boost](https://github.com/boostorg/boost.git) libraries;
+ * Integrated internally with [Standard C++23](https://en.cppreference.com/w/cpp/23) libraries;
  * To reuse the existing C/C++ library as an icpp module extension is extremely simple.
 
 ## How it works

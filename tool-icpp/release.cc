@@ -16,15 +16,11 @@ icpp release package in the following layout, icpp-vx.x.x-os-arch:
 ------imod
 ------iopad
 ---include
-------apple/win
-------boost
 ------c
 ------c++
 ------icpp.hpp
-------icppex.hpp
 ---lib
 ------clang
-------boost
 ------libc++.so/dll/dylib
 
 Usage: icpp release.cc /path/to/build /path/to/prefix
@@ -274,36 +270,12 @@ int main(int argc, char **argv) {
       log(std::format("There's no {}, ignored packing it.", srcdir.string()));
   }
   pack_file(srcroot / "../../runtime/include/icpp.hpp", include, false);
-  pack_file(srcroot / "../../runtime/include/icppex.hpp", include, false);
 
   // copy module files
   pack_dir(srcroot / "../../runtime/module/libc++/v1", icpproot, "module");
 
   // copy clang files
   pack_dir(srcroot / "../third/llvm-project/llvm/lib/clang", lib);
-
-  // copy boost files
-  auto boost = srcroot / "../boost";
-#if _WIN32
-  auto boostinc = boost / "include/boost-1_86";
-  auto boostlib = boost / "bin";
-
-  // copy msvc files
-  auto msvc = srcroot / "../msvc";
-  if (fs::exists(msvc))
-    pack_dir(msvc / ".", bin, ".");
-#else
-  auto boostinc = boost / "include";
-  auto boostlib = boost / "lib";
-#endif
-  if (fs::exists(boostinc) && fs::exists(boostlib)) {
-    create_dir(lib / "boost");
-    pack_dir(boostinc / "boost", include);
-    pack_dir(boostlib / ".", lib, "boost");
-  } else {
-    log(std::format("Can't find boost in {}, skipped packing boost.",
-                    boost.string()));
-  }
 
   auto targz = pkgdir + ".tar.gz";
   log(std::format("Packing icpp release package {}...", targz));
