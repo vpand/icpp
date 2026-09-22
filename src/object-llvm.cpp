@@ -1440,12 +1440,14 @@ void Object::parseSections() {
     ~vmrva_updator() {
       if (!commit)
         return;
-      // VMPStudio and IDA treat empty section size as 0x8
-      // whereas Cutter is 0x10
-      // Since we've moved to Cutter as our LightIDA IDE, so...
-      //
       // update the next section's vm rva
+#if 1
+      // VMPStudio and IDA treat empty section size as 0x8
+      constexpr uint64_t empty_section_size = 0x8;
+#else
+      // whereas Cutter is 0x10
       constexpr uint64_t empty_section_size = 0x10;
+#endif
       vmrva += size ? size : empty_section_size;
       vmrva = alignToPowerOf2(vmrva, empty_section_size);
     }

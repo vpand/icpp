@@ -286,6 +286,8 @@ void ExecEngine::init() {
     conf.dbgport = port ? port : conf.dbgport;
     vm_engine =
         std::make_unique<aether::BinaryEngine>(robject_->machine(), conf);
+    if (conf.debug)
+      log_print(Runtime, "Debugging object {}", robject_->path());
   }
 
   // prefetch all the opcodes
@@ -1736,6 +1738,7 @@ bool ExecEngine::execLoop(uint64_t pc) {
   // instruction information related to pc
   auto inst = robject_->insnInfo(pc);
   auto defstep = RunConfig::inst()->stepSize();
+  vm_engine->setRegister(Register::PC, {.u8 = pc});
   // cache the last jump destination, it can make loop running faster
   // because of avoiding dynamic searching for the target instruction
   auto lastjpc = pc;
@@ -1889,10 +1892,6 @@ int ExecEngine::run(bool lib) {
   if (!llvm_signal_installed) {
     llvm_signal_installed = true;
     llvm::sys::AddSignalHandler(llvm_signal_handler, nullptr);
-  }
-
-  if (RunConfig::inst()->hasDebugger()) {
-    log_print(Runtime, "Debugging object {}", robject_->path());
   }
 
   if (execCtor()) {
