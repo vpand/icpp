@@ -27,7 +27,6 @@ if(MSVC)
 elseif(APPLE)
   add_link_options(-Wl,-rpath,@executable_path 
                    -Wl,-rpath,@executable_path/../lib
-                   -Wl,-rpath,@executable_path/../lib/boost
                    -Wl,-rpath,@loader_path
                    -Wl,-rpath,@loader_path/../lib)
 else()

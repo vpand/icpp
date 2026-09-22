@@ -168,10 +168,6 @@ struct ModuleLoader {
     // reset libpath as binpath
     libpath = bin_root;
 
-    // set boost dependency
-    ::AddDllDirectory(libpath.wstring().data());
-    ::LoadLibraryA("Shell32.dll");
-
     auto mcxx = loadLibrary((libpath / "c++" LLVM_PLUGIN_EXT).string());
 
     libcpp_thread_create = (libcpp_thread_create_t)(resolve(
@@ -384,35 +380,6 @@ const void *ModuleLoader::resolve(std::string_view name, bool data) {
 }
 
 const void *ModuleLoader::lookup(std::string_view name, bool data) {
-  // load boost libraries lazily
-  static bool boost = false;
-  if (!boost && name.find("boost") != std::string_view::npos) {
-    boost = true;
-
-    // load these libs in the end, otherwise failed loading
-    std::vector<std::string> lazylibs;
-    for (auto &entry : fs::recursive_directory_iterator(
-             fs::absolute(RunConfig::inst()->program).parent_path() / ".." /
-             "lib" / "boost")) {
-      auto libpath = entry.path();
-      auto name = libpath.filename().string();
-      if (entry.is_regular_file() && !entry.is_symlink() &&
-          name.find(LLVM_PLUGIN_EXT) != std::string::npos) {
-#if __linux__
-        if (name.find("boost_log") != std::string::npos ||
-            name.find("boost_locale") != std::string::npos ||
-            name.find("boost_fiber_numa") != std::string::npos) {
-          lazylibs.push_back(libpath.string());
-          continue;
-        }
-#endif
-        loadLibrary(libpath.string());
-      }
-    }
-    for (auto &p : lazylibs)
-      loadLibrary(p);
-  }
-
   const void *target = nullptr;
 
   // check it in iobject modules

@@ -252,7 +252,6 @@ int compile_source_icpp(int argc, const char **argv) {
     args.push_back("-D__ICPP_CROSS__=1");
   }
 
-  // add include itself, the boost library needs this
   auto inc = std::format("-I{}", rtinc);
   args.push_back(inc.data());
 
