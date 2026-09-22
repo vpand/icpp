@@ -1714,6 +1714,8 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
       pc += inst->len;
       inst++;
     }
+    // update the current pc for vm
+    vm_engine->setRegister(Register::PC, {.u8 = pc});
   }
   // indicates the current instruction has been processed
   return true;
@@ -1748,8 +1750,6 @@ bool ExecEngine::execLoop(uint64_t pc) {
     // interpret relocation, branch, call, jump and syscall etc.
     auto step = defstep;
     if (interpret(inst, pc, step)) {
-      // update the current pc for vm
-      vm_engine->setRegister(Register::PC, {.u8 = pc});
       continue;
     }
 
