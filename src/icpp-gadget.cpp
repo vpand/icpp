@@ -288,7 +288,7 @@ void gadget::procRun(std::string_view name, const std::string &obuff) {
               *reinterpret_cast<const uint64_t *>(obuff.data()));
     return;
   }
-  exec_object(object);
+  exec_object(object, true);
 
   // notify clients the execution finished
   for (auto &s : clients_)

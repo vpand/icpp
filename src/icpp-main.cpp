@@ -189,8 +189,9 @@ extern "C" __ICPP_EXPORT__ int icpp_main(int argc, char **argv) {
     }
     if (arg == "-c" || arg == "-o") {
       icpp::RunConfig::inst(argv[0], "");
+      icpp::precompile_module(argv[0]);
       // let icpp clang wrapper do the compilation task directly
-      return icpp::clang_main(argc, const_cast<const char **>(argv));
+      return icpp::compile_source_icpp(argc, const_cast<const char **>(argv));
     }
     if (arg == "-f") {
       // source file format

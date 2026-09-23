@@ -1937,11 +1937,17 @@ int exec_main(std::string_view path, const std::vector<std::string> &deps,
   return ExecEngine(object, deps, iargs).run();
 }
 
-void exec_object(std::shared_ptr<Object> object) {
+void exec_object(std::shared_ptr<Object> object, bool newthread) {
+  if (newthread && vm_engine)
+    vm_engine->enterThread();
+
   std::vector<std::string> deps;
   std::vector<const char *> iargs;
   iargs.push_back(object->path().data());
   ExecEngine(object, deps, iargs).run();
+
+  if (newthread)
+    vm_engine->leaveThread();
 }
 
 void init_library(std::shared_ptr<Object> imod) {

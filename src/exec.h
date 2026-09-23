@@ -31,7 +31,7 @@ int exec_source(const char *argv0, std::string_view path, int argc = 0,
 int exec_repl(const char *argv0);
 
 // execute the memory loaded object
-void exec_object(std::shared_ptr<Object> object);
+void exec_object(std::shared_ptr<Object> object, bool newthread);
 
 // execute the dynamically loaded module's constructors
 void init_library(std::shared_ptr<Object> imod);
