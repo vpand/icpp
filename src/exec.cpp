@@ -32,14 +32,14 @@ struct ExecEngine {
       : clone_(true), loader_(exec.loader_), iargs_(exec.iargs_),
         iobject_(exec.iobject_), vmstubs_(exec.vmstubs_),
         stubvms_(exec.stubvms_) {
-    init();
+    init(false);
   }
 
   ExecEngine(std::shared_ptr<Object> object,
              const std::vector<std::string> &deps,
              const std::vector<const char *> &iargs)
       : loader_(object.get(), deps), iargs_(iargs), iobject_(object) {
-    init();
+    init(true);
   }
 
   ~ExecEngine() {
@@ -69,7 +69,7 @@ struct ExecEngine {
   void dump();
 
 private:
-  void init();
+  void init(bool main);
 
   /*
   object constructor, main and destructor executor
@@ -273,7 +273,7 @@ extern "C" void exec_engine_main(StubContext *ctx, ContextICPP *regs) {
   engine->run(ctx->vmfunc, regs);
 }
 
-void ExecEngine::init() {
+void ExecEngine::init(bool main) {
   exec_engine = this;
 
   robject_ = iobject_.get();
@@ -291,8 +291,10 @@ void ExecEngine::init() {
   }
 
   // prefetch all the opcodes
-  for (auto &s : robject_->textSects())
-    vm_engine->prefetch({(uint8_t *)s.vm, s.size});
+  if (main) {
+    for (auto &s : robject_->textSects())
+      vm_engine->prefetch({(uint8_t *)s.vm, s.size});
+  }
 
   // get the default vm stack initial value
   auto initsp =
@@ -566,7 +568,9 @@ static thread_return_t exec_thread_stub(void *pcontext) {
   // clone a new execute engine instance
   auto exec = std::make_unique<ExecEngine>(*context->parent_exe);
   // execute the real thread entry
+  vm_engine->enterThread();
   exec->run(context->tentry, context->targ, 0);
+  vm_engine->leaveThread();
   // get the thread entry return value
   auto retval = exec->returnValue();
   // free the dynamically allocated context
