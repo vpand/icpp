@@ -39,6 +39,7 @@ import std;
 namespace fs = std::filesystem;
 
 #if __APPLE__
+#define LIBPREFIX "lib"
 #define LIBEXT ".dylib"
 constexpr const std::string_view platform = "apple";
 constexpr const std::string_view osname = "macos";
@@ -46,6 +47,7 @@ constexpr const std::string_view libcpp = "libc++.1.0" LIBEXT;
 constexpr const std::string_view libcppabi = "libc++abi.1.0" LIBEXT;
 constexpr const std::string_view libunwind = "libunwind.1.0" LIBEXT;
 #elif __linux__
+#define LIBPREFIX "lib"
 #define LIBEXT ".so"
 constexpr const std::string_view platform = "linux";
 constexpr const std::string_view osname = "linux";
@@ -53,6 +55,7 @@ constexpr const std::string_view libcpp = "libc++" LIBEXT ".1.0";
 constexpr const std::string_view libcppabi = "libc++abi" LIBEXT ".1.0";
 constexpr const std::string_view libunwind = "libunwind" LIBEXT ".1.0";
 #else
+#define LIBPREFIX ""
 #define LIBEXT ".dll"
 constexpr const std::string_view platform = "win";
 constexpr const std::string_view osname = "windows";
@@ -214,9 +217,11 @@ int main(int argc, char **argv) {
 
   // copy LLVM files
 #if _WIN32
+  auto aether_dest = bin;
   pack_file(srcroot / "../third/llvm-project/llvm/bin/LLVM-22" LIBEXT, bin,
             true);
 #else
+  auto aether_dest = lib;
   pack_file(srcroot / "../third/llvm-project/llvm/lib/libLLVM" LIBEXT, lib, true
 #if __linux__
             ,
@@ -228,6 +233,16 @@ int main(int argc, char **argv) {
             true);
   pack_file(srcroot / "../third/llvm-project/llvm/bin/clang-format" EXEEXT, bin,
             true);
+
+  // copy AetherVM files
+  std::vector<std::string_view> aether_names = {
+      LIBPREFIX "AetherBinary" LIBEXT,
+      LIBPREFIX "AetherDbg" LIBEXT,
+      LIBPREFIX "AetherVM" LIBEXT,
+  };
+  // should have made symlinks in build/bin to these files during development
+  for (auto &name : aether_names)
+    pack_file(srcroot / name, aether_dest, true);
 
   // copy libc++ file
 #if __APPLE__
