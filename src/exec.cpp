@@ -284,10 +284,10 @@ void ExecEngine::init(bool main) {
     auto port = RunConfig::inst()->debugPort();
     conf.debug = RunConfig::inst()->hasDebugger();
     conf.dbgport = port ? port : conf.dbgport;
-    vm_engine =
-        std::make_unique<aether::BinaryEngine>(robject_->machine(), conf);
     if (conf.debug)
       log_print(Runtime, "Debugging object {}", robject_->path());
+    vm_engine =
+        std::make_unique<aether::BinaryEngine>(robject_->machine(), conf);
   }
 
   // prefetch all the opcodes

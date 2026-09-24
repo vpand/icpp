@@ -218,10 +218,12 @@ int main(int argc, char **argv) {
   // copy LLVM files
 #if _WIN32
   auto aether_dest = bin;
+  auto lib_destname = "bin";
   pack_file(srcroot / "../third/llvm-project/llvm/bin/LLVM-22" LIBEXT, bin,
             true);
 #else
   auto aether_dest = lib;
+  auto lib_destname = "lib";
   pack_file(srcroot / "../third/llvm-project/llvm/lib/libLLVM" LIBEXT, lib, true
 #if __linux__
             ,
@@ -243,6 +245,11 @@ int main(int argc, char **argv) {
   // should have made symlinks in build/bin to these files during development
   for (auto &name : aether_names)
     pack_file(srcroot / name, aether_dest, true);
+
+  // copy remill's semantic bitcode files
+  auto aether_install = std::getenv("AetherVM_InstallDir");
+  if (aether_install)
+    pack_dir(fs::path(aether_install) / lib_destname / "bitcode", aether_dest);
 
   // copy libc++ file
 #if __APPLE__
