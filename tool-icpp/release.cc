@@ -240,7 +240,7 @@ int main(int argc, char **argv) {
   std::vector<std::string_view> aether_names = {
       LIBPREFIX "AetherBinary" LIBEXT,
       LIBPREFIX "AetherDbg" LIBEXT,
-      LIBPREFIX "AetherVM" LIBEXT,
+      LIBPREFIX "AetherVMICPP" LIBEXT,
   };
   // should have made symlinks in build/bin to these files during development
   for (auto &name : aether_names)
