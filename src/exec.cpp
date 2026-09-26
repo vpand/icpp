@@ -440,12 +440,19 @@ bool ExecEngine::execMain() {
 }
 
 bool ExecEngine::run(uint64_t vm, uint64_t arg0, uint64_t arg1) {
+  using namespace aether;
   if (::setjmp(jmpbuf_))
     return false;
 
   try {
+    auto oldsp = vm_engine->getRegister(Register::SP)->u8;
+    // preallocate some space just in case the running script calls an extern
+    // API at the very early point
+    vm_engine->setRegister(Register::SP, {.u8 = oldsp - switch_stack_size});
     initMainRegister(arg0, arg1);
-    return execLoop(vm);
+    auto result = execLoop(vm);
+    vm_engine->setRegister(Register::SP, {.u8 = oldsp});
+    return result;
   } catch (std::exception &e) {
     log_print(Runtime, "Exception ocurred: {}.", e.what());
   } catch (...) {
@@ -1767,8 +1774,8 @@ bool ExecEngine::execLoop(uint64_t pc) {
 #if WIN_ARM64
     // as we haven't relocated the real relocation for tls epoch,
     // herein give it the simulated address
-    auto oldepochptr = tlsepoch[0];
-    *tlsepoch = reinterpret_cast<uint64_t>(&epochptr);
+    // auto oldepochptr = tlsepoch[0];
+    //*tlsepoch = reinterpret_cast<uint64_t>(&epochptr);
 #endif
 
     // running instructions by AetherVM engine
@@ -1779,7 +1786,7 @@ bool ExecEngine::execLoop(uint64_t pc) {
 
 #if WIN_ARM64
     // restore the original epoch pointer
-    *tlsepoch = oldepochptr;
+    //*tlsepoch = oldepochptr;
 #endif
 
     // get the current pc from vm

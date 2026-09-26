@@ -281,7 +281,7 @@ uint64_t pickup_sp_arm64(ContextA64 *ctx) { return ctx->r[A64_SP]; }
 
 uint64_t pickup_rsp(ContextX64 *context) { return context->rsp; }
 
-void load_vmp_stack(char *tmpsp, const char *vmsp) {
+void load_vm_stack(char *tmpsp, const char *vmsp) {
   memcpy(tmpsp, vmsp, switch_stack_size);
 }
 
@@ -315,9 +315,9 @@ void __NAKED__ host_call_asm(void *ctx, const void *func) {
   __ASM__("sub sp, sp, x2"); // alloc 4kb space
   __ASM__("mov x0, sp");
 #if __APPLE__
-  __ASM__("bl _load_vmp_stack"); /*copy interp sp to host*/
+  __ASM__("bl _load_vm_stack"); /*copy interp sp to host*/
 #else
-  __ASM__("bl load_vmp_stack");
+  __ASM__("bl load_vm_stack");
 #endif
   __ASM__("add sp, sp, #" switch_stack_strsize);
 
@@ -392,7 +392,7 @@ void __NAKED__ host_call_asm(void *ctx, const void *func) {
   __ASM__("movq %rsp, %rdi");    // arg0=host stack
   __ASM__("pushq %r11");         // save context
 #if __APPLE__
-  __ASM__("callq _load_vmp_stack"); /*copy interp sp to host*/
+  __ASM__("callq _load_vm_stack"); /*copy interp sp to host*/
 #else
 #if ON_WINDOWS
   __ASM__("movq %rdx, %r8");
@@ -400,7 +400,7 @@ void __NAKED__ host_call_asm(void *ctx, const void *func) {
   __ASM__("movq %rdi, %rcx");
   __ASM__("movq %rsi, %rdx");
 #endif
-  __ASM__("callq load_vmp_stack");
+  __ASM__("callq load_vm_stack");
 #endif
   __ASM__("popq %r11"); // load context
   load_gpr_r11();
