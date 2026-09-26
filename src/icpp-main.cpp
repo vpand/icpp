@@ -18,7 +18,7 @@
 
 static void print_version() {
   std::cout << "ICPP " << icpp::version_string()
-            << " based on Unicorn and Clang/LLVM." << std::endl
+            << " based on AetherVM and Clang/LLVM." << std::endl
             << "Interpreting C++, running C++ anywhere like a script."
             << std::endl
             << "Project website: https://github.com/vpand/icpp/" << std::endl
@@ -28,7 +28,7 @@ static void print_version() {
 static void print_help() {
   std::cout
       << "OVERVIEW: ICPP " << icpp::version_string()
-      << " based on Unicorn and Clang/LLVM." << std::endl
+      << " based on AetherVM and Clang/LLVM." << std::endl
       << "  Interpreting C++, running C++ anywhere like a script." << std::endl
       << std::endl
       << "USAGE: icpp [options] src.cc [src.cc ...] [[--] args]" << std::endl

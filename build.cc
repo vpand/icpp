@@ -105,8 +105,8 @@ std::string aethervm_installdir() {
     return var;
 
   std::println("Please set the {} environment variable. You can build it from "
-               "the source code https://github.com/AetherVM/AetherVM, or "
-               "download the prebuilt package from its Release page.",
+               "the source code https://github.com/AetherVM/AetherVM with "
+               "\"icpp build-icpp.cc\".",
                env);
   return "";
 }

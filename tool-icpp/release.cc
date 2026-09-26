@@ -236,20 +236,22 @@ int main(int argc, char **argv) {
   pack_file(srcroot / "../third/llvm-project/llvm/bin/clang-format" EXEEXT, bin,
             true);
 
-  // copy AetherVM files
-  std::vector<std::string_view> aether_names = {
-      LIBPREFIX "AetherBinary" LIBEXT,
-      LIBPREFIX "AetherDbg" LIBEXT,
-      LIBPREFIX "AetherVMICPP" LIBEXT,
-  };
-  // should have made symlinks in build/bin to these files during development
-  for (auto &name : aether_names)
-    pack_file(srcroot / name, aether_dest, true);
-
-  // copy remill's semantic bitcode files
   auto aether_install = std::getenv("AetherVM_InstallDir");
-  if (aether_install)
+  if (aether_install) {
+    // copy AetherVM files
+    pack_file(fs::path(aether_install) / "aebi" / lib_destname /
+                  LIBPREFIX "AetherBinary" LIBEXT,
+              aether_dest, true);
+    pack_file(fs::path(aether_install) / lib_destname /
+                  LIBPREFIX "AetherDbg" LIBEXT,
+              aether_dest, true);
+    pack_file(fs::path(aether_install) / lib_destname /
+                  LIBPREFIX "AetherVMICPP" LIBEXT,
+              aether_dest, true);
+
+    // copy remill's semantic bitcode files
     pack_dir(fs::path(aether_install) / lib_destname / "bitcode", aether_dest);
+  }
 
   // copy libc++ file
 #if __APPLE__
