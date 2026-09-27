@@ -28,6 +28,15 @@ Usage: icpp build.cc [build_dir]
 
 namespace {
 
+bool command(std::string_view cmd) {
+  std::println("{}", cmd);
+#if 1
+  return std::system(cmd.data()) == 0;
+#else
+  return true;
+#endif
+}
+
 bool patch_file_string(std::string_view infile, std::string_view patch_flag,
                        std::string_view pattern, std::string_view replace) {
   std::stringstream buffer;
@@ -168,14 +177,13 @@ int main(int argc, const char *argv[]) {
     auto cmake = std::format("{} -DCMAKE_C_COMPILER={} -DCMAKE_CXX_COMPILER={}",
                              comm, clang_cl, clang_cl);
 #endif
-    std::system(cmake.c_str());
+    command(cmake);
     if (!fs::exists(ninja_build)) {
       std::println("Failed: {}", cmake);
       return -1;
     }
     // build protoc
-    std::system(
-        std::format("cmake --build {} -- protoc", build_root.string()).c_str());
+    command(std::format("cmake --build {} -- protoc", build_root.string()));
   }
 
   // stage 2.1: patch targets which depend on libLLVM
@@ -269,17 +277,14 @@ int main(int argc, const char *argv[]) {
 
   // stage 3.1: build with cmake and ninja, firstly llvm/clang stuff
   if (!fs::exists(build_root / llvm_libpre / "../bin/clang" EXE_EXT))
-    std::system(
-        std::format(
-            "cmake --build {} -- llvm-link clang clang-repl clang-format",
-            build_root.string())
-            .c_str());
+    command(std::format(
+        "cmake --build {} -- llvm-link clang clang-repl clang-format",
+        build_root.string()));
 
   // stage 3.2: secondly icpp stuff
-  std::system(std::format("cmake --build {} -- icpp "
-                          "icppcli imod iopad icpp-gadget icpp-server",
-                          build_root.string())
-                  .c_str());
+  command(std::format("cmake --build {} -- icpp "
+                      "icppcli imod iopad icpp-gadget icpp-server",
+                      build_root.string()));
 
   // stage 4: recheck whether build.ninja updated
   if (starts_with(ninja_build.string(), ninja_patch_flag))

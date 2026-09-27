@@ -158,8 +158,6 @@ private:
     return found != stubvms_.end() ? found->second : target;
   }
 
-  void writeRegister(int reg, const void *pvalue) { abort(); }
-
 private:
   // this is a cloned instance
   bool clone_ = false;
@@ -211,6 +209,9 @@ static thread_local std::map<uint64_t, std::vector<uint8_t>> dyn_codes;
 
 // the virtual processor emulation engine from AetherVM
 static std::unique_ptr<aether::BinaryEngine> vm_engine;
+
+#define reg_write(reg, val)                                                    \
+  vm_engine->setRegister((aether::Register)reg, {.u8 = (uint64_t)val});
 
 void ExecEngine::run(uint64_t pc, ContextICPP *regs) {
   constexpr int stack_switch_size = 128;
@@ -865,7 +866,7 @@ void ExecEngine::interpretPCLdrAArch64(const InsnInfo *&inst, uint64_t &pc) {
   else
     target = pc;
   target += (*reinterpret_cast<const uint64_t *>(&metaptr[1]) << 2);
-  writeRegister(metaptr[0], reinterpret_cast<const void *>(target));
+  reg_write(metaptr[0], *reinterpret_cast<uint64_t *>(target));
 }
 
 bool ExecEngine::interpretCallX64(const InsnInfo *&inst, uint64_t &pc,
@@ -1033,7 +1034,7 @@ void ExecEngine::interpretMovX64(const InsnInfo *&inst, uint64_t &pc, int regop,
   auto target = interpretCalcMemX64(inst, pc, memop, &ops);
   if (movrm) {
     // mov reg, mem
-    writeRegister(ops[regop], reinterpret_cast<const void *>(target));
+    reg_write(ops[regop], *reinterpret_cast<T *>(target));
   } else {
     // mov mem, reg
     auto regid = ops[regop];
@@ -1119,7 +1120,7 @@ void ExecEngine::interpretSignExtendRegMem(const InsnInfo *&inst,
   auto target = interpretCalcMemX64(inst, pc, 1, &ops);
   // movsx reg, mem
   auto result = static_cast<TSRC>(*reinterpret_cast<const TDES *>(target));
-  writeRegister(ops[0], &result);
+  reg_write(ops[0], result);
 }
 
 template <typename TSRC, typename TDES>
@@ -1129,7 +1130,7 @@ void ExecEngine::interpretZeroExtendRegMem(const InsnInfo *&inst,
   auto target = interpretCalcMemX64(inst, pc, 1, &ops);
   // movzx reg, mem
   auto result = static_cast<TSRC>(*reinterpret_cast<const TDES *>(target));
-  writeRegister(ops[0], &result);
+  reg_write(ops[0], result);
 }
 
 void ExecEngine::interpretCondMovRegMem(const InsnInfo *&inst, uint64_t &pc) {
@@ -1557,7 +1558,7 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
     case INSN_X64_LEA64: {
       const uint16_t *ops;
       auto target = interpretCalcMemX64(inst, pc, 1, &ops);
-      writeRegister(ops[0], reinterpret_cast<const void *>(&target));
+      reg_write(ops[0], target);
       break;
     }
     case INSN_X64_MOVAPSRM:
@@ -1807,12 +1808,6 @@ bool ExecEngine::execLoop(uint64_t pc) {
   }
   return true;
 }
-
-#define reg_write(reg, val)                                                    \
-  {                                                                            \
-    auto u64 = reinterpret_cast<uint64_t>(val);                                \
-    vm_engine->setRegister(reg, {.u8 = u64});                                  \
-  }
 
 void ExecEngine::initMainRegisterAArch64(uint64_t argc, uint64_t argv) {
   using namespace aether;
