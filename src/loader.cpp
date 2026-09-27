@@ -43,14 +43,18 @@ void _CxxThrowException(void);
 A thread unsafe simulation of msvc tls initialization
 */
 // copied from crt\src\vcruntime\thread_safe_statics.cpp
-static int const uninitialized = 0;
-static int const being_initialized = -1;
-static int const epoch_start = INT_MIN;
-static void icpp_Init_thread_header(int *const pOnce) {
+static uint32_t const uninitialized = 0;
+static uint32_t const being_initialized = 0xFFFFFFFF;
+static uint32_t const epoch_start = INT_MIN;
+static void icpp_Init_thread_header(uint32_t *const pOnce) {
   *pOnce = being_initialized;
 }
-static void icpp_Init_thread_footer(int *const pOnce) { *pOnce = epoch_start; }
-static void icpp_Init_thread_abort(int *const pOnce) { *pOnce = uninitialized; }
+static void icpp_Init_thread_footer(uint32_t *const pOnce) {
+  *pOnce = epoch_start;
+}
+static void icpp_Init_thread_abort(uint32_t *const pOnce) {
+  *pOnce = uninitialized;
+}
 #endif
 }
 
