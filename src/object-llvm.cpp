@@ -1149,13 +1149,10 @@ void Object::decodeInsns(TextSection &text) {
                 reinterpret_cast<const void *>(expContent->data() + symoff);
           }
         }
-        // check the existed relocation except it's not abort
+        // check the existing relocation
         auto rit = irelocs_.end();
-        for (auto it = rtaddr == reinterpret_cast<const void *>(abort)
-                           ? rit
-                           : irelocs_.begin(),
-                  end = irelocs_.end();
-             it != end; it++) {
+        for (auto it = irelocs_.begin(), end = irelocs_.end(); it != end;
+             it++) {
           if (rtaddr == it->target && symtype == it->type) {
             rit = it;
             // fix it as a data relocation for coff object

@@ -1,6 +1,6 @@
 ## v0.4.0
 Bug fixes:
- * 
+ * icpp: fix the existing relocation check for lazily resolved symbols;
 
 Improvements:
  * icpp: replace Unicorn with AetherVM;
