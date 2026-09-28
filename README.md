@@ -282,6 +282,35 @@ cmake --build . -- protoc -j8
 cmake --build . -- icpp icppcli imod iopad icpp-gadget icpp-server -j8
 ```
 
+### iOS ARM64
+Building for iOS only supports operating on macOS with Xcode installed.
+```sh
+# build LLVM's libc++ runtime libraries.
+icpp cmake/cxxconf/ios.cc
+cmake --build cmake/cxxconf/build-arm64
+# build ICPP's runtime libraries.
+# set the prebuilt libraries' install path, which is built with: "AetherVM % icpp ios/build.cc" .
+export AetherVM_InstallDir_iOS=/path/to/install
+icpp cmake/icpp-gadget/configure.cc ios
+cmake --build cmake/icpp-gadget/build-arm64.Release
+```
+
+### Android ARM64/X86_64
+Building for Android needs NDK installed. Replace arm64-v8a to x86_64 if you're building for Android Emulator.
+```sh
+# build LLVM's libc++ runtime libraries.
+# change export to set and ${NDK_HOME} to %NDK_HOME% if on Windows
+export NDK_HOME=/path/to/ndk
+icpp cmake/cxxconf/android.cc ${NDK_HOME}/build/cmake/android.toolchain.cmake
+cmake --build cmake/cxxconf/build-arm64-v8a
+# build ICPP's runtime libraries.
+# set the prebuilt libraries' install path, which is built with: "AetherVM % icpp android/build.cc" .
+export AetherVM_InstallDir_Android=/path/to/install
+# add an extra x86_64 argument for Android Emulator
+icpp cmake/icpp-gadget/configure.cc android
+cmake --build cmake/icpp-gadget/build-arm64-v8a.Release
+```
+
 ### Pre-Run
 The newly built naked icpp needs the include/lib related stuff to work. The simplest way to run your own version is to replace the binary in the official release package. If you want to run it in the build directory, you need to construct the directory layout just like in the release package. e.g:
 ```sh
