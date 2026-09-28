@@ -7,10 +7,9 @@
 This is a C++ script to release the built icpp files, it'll create an
 icpp release package in the following layout, icpp-gadget-vx.x.x-os-arch:
 ---bin
----icpp-gadget.so/dylib
----icpp-server
+------icpp-gadget.so/dylib
+------icpp-server
 ---lib
-------boost
 ------libc++.so/dll/dylib
 
 Usage: icpp release_gadget.cc /path/to/prefix [/path/to/strip]
@@ -20,7 +19,6 @@ https://github.com/vpand/icpp/releases
 */
 
 #include <icpp.hpp>
-#include <icppex.hpp>
 
 // for icpp package version
 #include "../src/icpp.h"
@@ -92,16 +90,15 @@ int main(int argc, char **argv) {
     android_strip = argv[2];
     log(std::format("Using user specified strip tool {}.", android_strip));
   } else {
-#if __APPLE__
-    auto ndkbuild = bp::search_path("ndk-build");
-    if (fs::exists(ndkbuild.string())) {
-      llvm_strip = (ndkbuild.parent_path() /
-                    "toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-strip")
-                       .string();
-      android_strip = llvm_strip;
-      log(std::format("Using auto detected strip tool {}.", android_strip));
+    auto ndkhome = std::getenv("NDK_HOME");
+    if (!ndkhome) {
+      std::println("Please set NDK_HOME environment variable.");
+      return -1;
     }
-#endif
+    llvm_strip = std::string(ndkhome) +
+                 "toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-strip";
+    android_strip = llvm_strip;
+    log(std::format("Using auto detected strip tool {}.", android_strip));
   }
 
   auto projroot = fs::absolute(argv[0]).parent_path() / "..";
@@ -109,6 +106,9 @@ int main(int argc, char **argv) {
   auto dstroot = fs::path(argv[1]);
   create_dir(dstroot);
 
+  std::string_view aevmdirs[] = {"AetherVM_InstallDir_iOS",
+                                 "AetherVM_InstallDir_AndroidA64",
+                                 "AetherVM_InstallDir_AndroidX64"};
   std::string_view osnames[] = {"ios", "android", "android"};
   std::string_view archnames[] = {"arm64", "arm64-v8a", "x86_64"};
   std::string_view exts[] = {".dylib", ".so", ".so"};
@@ -121,13 +121,6 @@ int main(int argc, char **argv) {
     if (!strip.size())
       continue;
 
-    // ignore this platform if there's no prebuilt boost and cxx library
-    auto boostlib =
-        projroot / std::format("cmake/boost/build-{}/boost/lib", arch);
-    if (!fs::exists(boostlib)) {
-      log(std::format("There's no {}.", boostlib.string()));
-      continue;
-    }
     auto cxxlib = projroot / std::format("cmake/cxxconf/build-{}/lib", arch);
     if (!fs::exists(cxxlib)) {
       log(std::format("There's no {}.", cxxlib.string()));
@@ -146,9 +139,6 @@ int main(int argc, char **argv) {
     create_dir(icpproot);
     create_dir(bin);
     create_dir(lib);
-    create_dir(lib / "boost");
-    // copy boost files
-    pack_dir(boostlib / ".", lib, "boost");
 
     // copy cxx files
     pack_dir(cxxlib / ".", lib, ".");
@@ -164,6 +154,23 @@ int main(int argc, char **argv) {
         std::system(std::format("ldid -S{}/config/entitlement.xml {}/{}",
                                 projroot.string(), bin.string(), name)
                         .data());
+    }
+
+    auto aether_install = std::getenv(aevmdirs[i].data());
+    if (aether_install) {
+      // copy AetherVM files
+      pack_file(fs::path(aether_install) /
+                    (std::string("aebi/lib/libAetherBinary") + ext.data()),
+                lib, strip);
+      pack_file(fs::path(aether_install) /
+                    (std::string("lib/libAetherDbg") + ext.data()),
+                lib, strip);
+      pack_file(fs::path(aether_install) /
+                    (std::string("lib/libAetherVMICPP") + ext.data()),
+                lib, strip);
+
+      // copy remill's semantic bitcode files
+      pack_dir(fs::path(aether_install) / "lib/bitcode", lib);
     }
 
     if (os == "ios") {

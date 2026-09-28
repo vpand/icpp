@@ -289,10 +289,11 @@ Building for iOS only supports operating on macOS with Xcode installed.
 icpp cmake/cxxconf/ios.cc
 cmake --build cmake/cxxconf/build-arm64
 # build ICPP's runtime libraries.
-# set the prebuilt libraries' install path, which is built with: "AetherVM % icpp ios/build.cc" .
+# set the prebuilt libraries' install path, which is built with: "AetherVM % icpp ios/build-icpp.cc" .
 export AetherVM_InstallDir_iOS=/path/to/install
 icpp cmake/icpp-gadget/configure.cc ios
-cmake --build cmake/icpp-gadget/build-arm64.Release
+# replace " -lrt " to " " in cmake/icpp-gadget/build-arm64.Release/build.ninja before executing cmake
+cmake --build cmake/icpp-gadget/build-arm64.Release -- LLVM imod icpp-gadget icpp-server
 ```
 
 ### Android ARM64/X86_64
@@ -304,11 +305,11 @@ export NDK_HOME=/path/to/ndk
 icpp cmake/cxxconf/android.cc ${NDK_HOME}/build/cmake/android.toolchain.cmake
 cmake --build cmake/cxxconf/build-arm64-v8a
 # build ICPP's runtime libraries.
-# set the prebuilt libraries' install path, which is built with: "AetherVM % icpp android/build.cc" .
+# set the prebuilt libraries' install path, which is built with: "AetherVM % icpp android/build-icpp.cc" .
 export AetherVM_InstallDir_Android=/path/to/install
 # add an extra x86_64 argument for Android Emulator
 icpp cmake/icpp-gadget/configure.cc android
-cmake --build cmake/icpp-gadget/build-arm64-v8a.Release
+cmake --build cmake/icpp-gadget/build-arm64-v8a.Release -- LLVM imod icpp-gadget icpp-server
 ```
 
 ### Pre-Run

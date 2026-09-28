@@ -33,8 +33,9 @@ std::string aethervm_installdir_ios() {
   return "";
 }
 
-std::string aethervm_installdir_android() {
-  constexpr const char *env = "AetherVM_InstallDir_Android";
+std::string aethervm_installdir_android(std::string_view arch) {
+  auto env = arch.contains("arm") ? "AetherVM_InstallDir_AndroidA64"
+                                  : "AetherVM_InstallDir_AndroidX64";
   auto var = std::getenv(env);
   if (var)
     return var;
@@ -81,12 +82,6 @@ int main(int argc, const char *argv[]) {
               .string();
     }
 
-    auto aethervm_dir =
-        ios ? aethervm_installdir_ios() : aethervm_installdir_android();
-    if (!aethervm_dir.size())
-      return -1;
-
-    std::string cxxlibs;
     icpp::strings args;
     args.push_back(std::format("-DCMAKE_TOOLCHAIN_FILE={}", toolchain));
     args.push_back(std::format("-DCMAKE_CROSSCOMPILING=TRUE"));
@@ -108,9 +103,6 @@ int main(int argc, const char *argv[]) {
           std::format("-DCMAKE_CXX_FLAGS=-nostdinc++ -nostdlib++ -fPIC "
                       "-I{}/../../runtime/include/c++/v1",
                       thisdir));
-      cxxlibs =
-          std::format("-L{}/../cxxconf/build-{}/lib -lc++ -lc++abi -lunwind",
-                      thisdir, arch);
     } else {
       args.push_back("-DCMAKE_MACOSX_BUNDLE=NO");
       args.push_back("-DPLATFORM=OS64");
@@ -121,12 +113,14 @@ int main(int argc, const char *argv[]) {
           "-isysroot /Applications/Xcode.app/Contents/Developer/Platforms/"
           "iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk -DICPP_IOS=1\"",
           thisdir, thisdir));
-      cxxlibs = std::format("-L{}/../cxxconf/build-{}/lib -lc++.1 -lc++abi.1 "
-                            "-lunwind.1 -framework Foundation",
-                            thisdir, arch);
     }
-    args.push_back(std::format("-DCMAKE_SHARED_LINKER_FLAGS=\"{}\"", cxxlibs));
-    args.push_back(std::format("-DCMAKE_EXE_LINKER_FLAGS=\"{}\"", cxxlibs));
+    auto aethervm_dir =
+        ios ? aethervm_installdir_ios() : aethervm_installdir_android(arch);
+    if (!aethervm_dir.size())
+      return -1;
+
+    args.push_back(std::format("-DLIBCXX_LIB_ROOT={}/../cxxconf/build-{}/lib",
+                               thisdir, arch));
     args.push_back(
         std::format("-DCMAKE_PREFIX_PATH=\"{0};{0}/aebi\"", aethervm_dir));
 
