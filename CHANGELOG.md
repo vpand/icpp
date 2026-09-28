@@ -1,6 +1,7 @@
 ## v0.4.0
 Bug fixes:
  * icpp: fix the existing relocation check for lazily resolved symbols;
+ * icpp: do not reset to hardware insn if there's segment register of x64;
 
 Improvements:
  * icpp: replace Unicorn with AetherVM;

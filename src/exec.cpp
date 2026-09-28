@@ -213,6 +213,10 @@ static std::unique_ptr<aether::BinaryEngine> vm_engine;
 #define reg_write(reg, val)                                                    \
   vm_engine->setRegister((aether::Register)reg, {.u8 = (uint64_t)val});
 
+#define reg_write_simd(reg, valptr)                                            \
+  vm_engine->setRegister((aether::Register)reg,                                \
+                         *(aether::RegisterValueSIMD *)valptr);
+
 void ExecEngine::run(uint64_t pc, ContextICPP *regs) {
   constexpr int stack_switch_size = 128;
   using namespace aether;
@@ -1032,15 +1036,18 @@ void ExecEngine::interpretMovX64(const InsnInfo *&inst, uint64_t &pc, int regop,
   using namespace aether;
   const uint16_t *ops;
   auto target = interpretCalcMemX64(inst, pc, memop, &ops);
+  auto regid = (Register)ops[regop];
   if (movrm) {
     // mov reg, mem
-    reg_write(ops[regop], *reinterpret_cast<T *>(target));
+    if (Register::XMM0 <= regid && regid <= Register::XMM31) {
+      reg_write_simd(regid, target);
+    } else {
+      reg_write(regid, *reinterpret_cast<T *>(target));
+    }
   } else {
     // mov mem, reg
-    auto regid = ops[regop];
-    auto regval = vm_engine->getRegister((Register)ops[regop]);
-    if ((uint16_t)Register::XMM0 <= regid &&
-        regid <= (uint16_t)Register::XMM31) {
+    auto regval = vm_engine->getRegister(regid);
+    if (Register::XMM0 <= regid && regid <= Register::XMM31) {
       memcpy(reinterpret_cast<void *>(target), regval, 16);
     } else {
       *reinterpret_cast<T *>(target) = static_cast<T>(regval->u8);
@@ -1174,12 +1181,13 @@ void ExecEngine::interpretCondMovRegMem(const InsnInfo *&inst, uint64_t &pc) {
   }
   // execute the dynamically generated instruction
   auto opcode = found->second.data() + 8;
-  auto result = vm_engine->emulate({(uint8_t *)opcode, inst->len});
-  if (!result) {
+  reg_write(aether::Register::PC, opcode);
+  if (!vm_engine->emulate({(uint8_t *)opcode, inst->len})) {
     log_print(Runtime, "Fatal error occurred when simuating cmov instruction.");
     dump();
     std::exit(-1);
   }
+  reg_write(aether::Register::PC, pc + inst->len);
 }
 
 void ExecEngine::interpretSSERegMem(const InsnInfo *&inst, uint64_t &pc) {
@@ -1208,13 +1216,14 @@ void ExecEngine::interpretSSERegMem(const InsnInfo *&inst, uint64_t &pc) {
   }
   // execute the dynamically generated instruction
   auto opcode = found->second.data() + 0x10;
-  auto result = vm_engine->emulate({(uint8_t *)opcode, inst->len});
-  if (!result) {
+  reg_write(aether::Register::PC, opcode);
+  if (!vm_engine->emulate({(uint8_t *)opcode, inst->len})) {
     log_print(Runtime,
               "Fatal error occurred when simuating SSE/AVX instruction.");
     dump();
     std::exit(-1);
   }
+  reg_write(aether::Register::PC, pc + inst->len);
 }
 
 static bool can_emulate(const InsnInfo *inst) {
