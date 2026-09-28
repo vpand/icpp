@@ -8,6 +8,16 @@ project(icpp CXX C ASM)
 
 set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
 
+# disable the absolute rpath
+set(CMAKE_SKIP_RPATH TRUE)
+
+if(APPLE)
+  add_link_options(-Wl,-rpath,@executable_path 
+                   -Wl,-rpath,@executable_path/../lib
+                   -Wl,-rpath,@loader_path
+                   -Wl,-rpath,@loader_path/../lib)
+endif()
+
 # build the host architecture target only
 if (DEFINED ANDROID_ABI AND ANDROID_ABI STREQUAL "x86_64")
     set(LLVM_TARGETS_TO_BUILD "X86" CACHE STRING "" FORCE)
@@ -18,6 +28,8 @@ endif()
 set(LLVM_ENABLE_RUNTIMES "libc;libunwind;libcxxabi;libcxx" CACHE STRING "" FORCE)
 set(LIBCXX_ENABLE_STATIC OFF CACHE BOOL "" FORCE)
 set(LIBCXX_INCLUDE_BENCHMARKS OFF CACHE BOOL "" FORCE)
+set(LIBCXXABI_USE_COMPILER_RT ON CACHE BOOL "" FORCE)
+set(LIBCXXABI_HAS_GCC_LIB OFF CACHE BOOL "" FORCE)
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/../../../third/llvm-project/libunwind
                  ${CMAKE_BINARY_DIR}/libunwind)
