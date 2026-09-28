@@ -4,11 +4,53 @@
 // See LICENSE file in the root directory for full license text.
 
 #include <icpp.hpp>
-#include <icppex.hpp>
+
+namespace {
+
+bool command(std::string_view proc, const icpp::strings &args) {
+  std::string cmd{proc};
+  for (auto &a : args)
+    cmd += " " + a;
+
+  std::println("{}", cmd);
+#if 1
+  return std::system(cmd.data()) == 0;
+#else
+  return true;
+#endif
+}
+
+std::string aethervm_installdir_ios() {
+  constexpr const char *env = "AetherVM_InstallDir_iOS";
+  auto var = std::getenv(env);
+  if (var)
+    return var;
+
+  std::println("Please set the {} environment variable. You can build it from "
+               "the source code https://github.com/AetherVM/AetherVM with "
+               "\"icpp ios/build.cc\".",
+               env);
+  return "";
+}
+
+std::string aethervm_installdir_android() {
+  constexpr const char *env = "AetherVM_InstallDir_Android";
+  auto var = std::getenv(env);
+  if (var)
+    return var;
+
+  std::println("Please set the {} environment variable. You can build it from "
+               "the source code https://github.com/AetherVM/AetherVM with "
+               "\"icpp android/build.cc\".",
+               env);
+  return "";
+}
+
+} // namespace
 
 int main(int argc, const char *argv[]) {
   if (argc == 1) {
-    icpp::prints("Usage: {} [/path/to/toolchain.cmake|android|ios] [x86_64].\n",
+    std::println("Usage: {} [/path/to/toolchain.cmake|android|ios] [x86_64].",
                  argv[0]);
     return 0;
   }
@@ -17,25 +59,36 @@ int main(int argc, const char *argv[]) {
   auto thisdir = thisfile.parent_path().string();
   for (auto &type : {"Debug"s, "Release"s}) {
     std::string toolchain;
+    bool ios = true;
     if (argv[1] == "android"sv) {
-      auto ndkbuild = bp::search_path("ndk-build");
-      if (fs::exists(ndkbuild.string())) {
-        toolchain =
-            (ndkbuild.parent_path() / "build/cmake/android.toolchain.cmake")
-                .string();
-        argv[1] = toolchain.data();
+      ios = false;
+
+      auto ndkhome = std::getenv("NDK_HOME");
+      if (!ndkhome) {
+        std::println("Please set the NDK_HOME environment variable.");
+        return -1;
       }
-    }
-    if (argv[1] == "ios"sv) {
+      auto ndk_root = fs::path(ndkhome);
+      if (fs::exists(ndk_root)) {
+        toolchain = (ndk_root / "build/cmake/android.toolchain.cmake").string();
+      } else {
+        std::println("Invalid path {}.", ndkhome);
+        return -1;
+      }
+    } else if (argv[1] == "ios"sv) {
       toolchain =
           (fs::path(thisdir) / "../../third/ios-cmake/ios.toolchain.cmake")
               .string();
-      argv[1] = toolchain.data();
     }
+
+    auto aethervm_dir =
+        ios ? aethervm_installdir_ios() : aethervm_installdir_android();
+    if (!aethervm_dir.size())
+      return -1;
 
     std::string cxxlibs;
     icpp::strings args;
-    args.push_back(std::format("-DCMAKE_TOOLCHAIN_FILE={}", argv[1]));
+    args.push_back(std::format("-DCMAKE_TOOLCHAIN_FILE={}", toolchain));
     args.push_back(std::format("-DCMAKE_CROSSCOMPILING=TRUE"));
     args.push_back(std::format("-DCMAKE_BUILD_TYPE={}", type));
     args.push_back(std::format("-DLLVM_TABLEGEN={}/../../build/third/"
@@ -61,37 +114,27 @@ int main(int argc, const char *argv[]) {
     } else {
       args.push_back("-DCMAKE_MACOSX_BUNDLE=NO");
       args.push_back("-DPLATFORM=OS64");
-      args.push_back("-DDEPLOYMENT_TARGET=10.0");
-      args.push_back(std::format("-DCMAKE_C_FLAGS=-Dmmap=icpp_gadget_mmap "
-                                 "-Dmunmap=icpp_gadget_munmap "
-                                 "-DUNICORN_TRACER=1 "
-                                 "-Dtrace_start=icpp_trace_start "
-                                 "-Dtrace_end=icpp_trace_end",
-                                 thisdir, thisdir));
-      args.push_back(
-          std::format("-DCMAKE_CXX_FLAGS=-nostdinc++ -nostdlib++ -fPIC "
-                      "-I{}/../../runtime/include/c++/v1 "
-                      "-isysroot {}/../../runtime/apple "
-                      "-F/Applications/Xcode.app/Contents/Developer/Platforms/"
-                      "iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/"
-                      "Library/Frameworks -DICPP_IOS=1",
-                      thisdir, thisdir));
-      cxxlibs = std::format(
-          "-L{}/../cxxconf/build-{}/lib -lc++.1 -lc++abi.1 -lunwind.1 "
-          "-L/Applications/Xcode.app/Contents/Developer/Platforms/"
-          "iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/usr/lib "
-          "-F/Applications/Xcode.app/Contents/Developer/Platforms/"
-          "iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/"
-          "Frameworks -framework Foundation",
-          thisdir, arch);
+      args.push_back("-DDEPLOYMENT_TARGET=16.5");
+      args.push_back(std::format(
+          "-DCMAKE_CXX_FLAGS=\"-nostdinc++ -nostdlib++ -fPIC "
+          "-I{}/../../runtime/include/c++/v1 "
+          "-isysroot /Applications/Xcode.app/Contents/Developer/Platforms/"
+          "iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk -DICPP_IOS=1\"",
+          thisdir, thisdir));
+      cxxlibs = std::format("-L{}/../cxxconf/build-{}/lib -lc++.1 -lc++abi.1 "
+                            "-lunwind.1 -framework Foundation",
+                            thisdir, arch);
     }
-    args.push_back(std::format("-DCMAKE_SHARED_LINKER_FLAGS={}", cxxlibs));
-    args.push_back(std::format("-DCMAKE_EXE_LINKER_FLAGS={}", cxxlibs));
+    args.push_back(std::format("-DCMAKE_SHARED_LINKER_FLAGS=\"{}\"", cxxlibs));
+    args.push_back(std::format("-DCMAKE_EXE_LINKER_FLAGS=\"{}\"", cxxlibs));
+    args.push_back(
+        std::format("-DCMAKE_PREFIX_PATH=\"{0};{0}/aebi\"", aethervm_dir));
 
+    args.push_back("-Wno-deprecated");
     args.push_back("-B");
     args.push_back(std::format("{}/build-{}.{}", thisdir, arch, type));
     args.push_back(thisdir);
-    bp::child(bp::search_path("cmake"), args).wait();
+    command("cmake", args);
   }
   std::puts("Done.");
   return 0;

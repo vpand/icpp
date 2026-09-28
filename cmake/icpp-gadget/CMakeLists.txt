@@ -11,6 +11,10 @@
 cmake_minimum_required(VERSION 3.20)
 project(icpp CXX C)
 
+# prebuilt binary engine
+find_package(AetherBinary CONFIG REQUIRED)
+find_package(AetherVM CONFIG REQUIRED)
+
 # c++
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED)
@@ -26,14 +30,8 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 # build the device architecture target only
 if (DEFINED ANDROID_ABI AND ANDROID_ABI STREQUAL "x86_64")
   set(LLVM_TARGETS_TO_BUILD "X86" CACHE STRING "" FORCE)
-  set(UNICORN_ARCH "x86" CACHE STRING "" FORCE)
 else()
   set(LLVM_TARGETS_TO_BUILD "AArch64" CACHE STRING "" FORCE)
-  set(UNICORN_ARCH "aarch64" CACHE STRING "" FORCE)
-  # patch to use the right tb_ret_addr
-  execute_process(COMMAND ${PYTHON}
-    ${ICPP_ROOT}/tool/qemu_tbret_patcher.py
-    ${ICPP_ROOT}/third/unicorn/qemu/tcg/aarch64/tcg-target.inc.c)
 endif()
 
 # enable libcxx for C/C++ runtime library
@@ -70,19 +68,6 @@ add_subdirectory(${ICPP_ROOT}/third/protobuf
 message(STATUS "Configuring brotli...")
 add_subdirectory(${ICPP_ROOT}/third/brotli
                  ${CMAKE_BINARY_DIR}/brotli)
-
-# unicorn
-message(STATUS "Configuring unicorn...")
-# patch qemu mmu to enable the emulated code to access memory directly
-execute_process(COMMAND ${PYTHON}
-  ${ICPP_ROOT}/tool/qemu_mmu_patcher.py
-  ${ICPP_ROOT}/third/unicorn/qemu/accel/tcg/cputlb.c)
-# patch qemu tbgen buffer size to 128MB
-execute_process(COMMAND ${PYTHON}
-  ${ICPP_ROOT}/tool/qemu_tbgen_patcher.py
-  ${ICPP_ROOT}/third/unicorn/qemu/softmmu/vl.c 128)
-add_subdirectory(${ICPP_ROOT}/third/unicorn
-                 ${CMAKE_BINARY_DIR}/unicorn)
 
 #
 # icpp projects
@@ -182,7 +167,6 @@ set_source_files_properties(${IGADGET_LLVM_SOURCES} PROPERTIES
 target_include_directories(icpp-gadget PRIVATE 
   ${THIRD_ROOT}/llvm-project/llvm/include
   ${CMAKE_BINARY_DIR}/llvm/include
-  ${THIRD_ROOT}/unicorn/include
   ${CMAKE_BINARY_DIR}
   ${LLVM_OBJDUMP_ROOT}
   boost_asio
@@ -191,11 +175,13 @@ target_include_directories(icpp-gadget PRIVATE
   libprotobuf
 )
 target_link_libraries(icpp-gadget PRIVATE 
+  AetherBinary::AetherBinary
+  AetherVM::AetherVM
+  
   boost_asio
   boost_beast
   boost_json
   libprotobuf
-  unicorn
 )
 if(APPLE)
   target_link_options(icpp-gadget PRIVATE -Wl,-exported_symbol -Wl,_icpp_gadget)

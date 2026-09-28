@@ -4,7 +4,23 @@
 // See LICENSE file in the root directory for full license text.
 
 #include <icpp.hpp>
-#include <icppex.hpp>
+
+namespace {
+
+bool command(std::string_view proc, const icpp::strings &args) {
+  std::string cmd{proc};
+  for (auto &a : args)
+    cmd += " " + a;
+
+  std::println("{}", cmd);
+#if 1
+  return std::system(cmd.data()) == 0;
+#else
+  return true;
+#endif
+}
+
+} // namespace
 
 int main(int argc, const char *argv[]) {
   auto thisfile = fs::absolute(argv[0]);
@@ -18,11 +34,12 @@ int main(int argc, const char *argv[]) {
   args.push_back("-G");
   args.push_back("Ninja");
   args.push_back("-DPLATFORM=OS64");
-  args.push_back("-DDEPLOYMENT_TARGET=10.0");
+  args.push_back("-DDEPLOYMENT_TARGET=16.5");
+  args.push_back("-Wno-deprecated");
   args.push_back("-B");
   args.push_back(std::format("{}/build-arm64", thisdir));
   args.push_back((fs::path(thisdir) / "cmake").string());
-  bp::child(bp::search_path("cmake"), args).wait();
+  command("cmake", args);
 
   std::puts("Done.");
   return 0;

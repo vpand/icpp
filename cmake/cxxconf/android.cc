@@ -4,12 +4,27 @@
 // See LICENSE file in the root directory for full license text.
 
 #include <icpp.hpp>
-#include <icppex.hpp>
+
+namespace {
+
+bool command(std::string_view proc, const icpp::strings &args) {
+  std::string cmd{proc};
+  for (auto &a : args)
+    cmd += " " + a;
+
+  std::println("{}", cmd);
+#if 1
+  return std::system(cmd.data()) == 0;
+#else
+  return true;
+#endif
+}
+
+} // namespace
 
 int main(int argc, const char *argv[]) {
   if (argc == 1) {
-    icpp::prints("Usage: {} /path/to/toolchain.cmake [x86_64].\n",
-                 argv[0]);
+    std::println("Usage: {} /path/to/toolchain.cmake [x86_64].\n", argv[0]);
     return 0;
   }
 
@@ -29,10 +44,11 @@ int main(int argc, const char *argv[]) {
     arch = argv[2];
   args.push_back(std::format("-DANDROID_ABI={}", arch));
 
+  args.push_back("-Wno-deprecated");
   args.push_back("-B");
   args.push_back(std::format("{}/build-{}", thisdir, arch));
   args.push_back((fs::path(thisdir) / "cmake").string());
-  bp::child(bp::search_path("cmake"), args).wait();
+  command("cmake", args);
 
   std::puts("Done.");
   return 0;
