@@ -138,8 +138,7 @@ gadget::gadget() {
     std::thread(&gadget::listen, this).detach();
 
   iterate_modules([](uint64_t handle, std::string_view path) {
-    if (path.find("icpp-gadget") != std::string_view::npos ||
-        path.find("icpp-server") != std::string_view::npos) {
+    if (path.find("icpp-gadget") != std::string_view::npos) {
       RunConfig::inst(path.data(), "")->gadget = true;
       return true;
     }

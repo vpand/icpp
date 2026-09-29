@@ -113,7 +113,7 @@ static void pack_ios_ipa(const fs::path &projroot, const fs::path &outroot,
   std::system(
       std::format("mv {} {}/", approot.string(), payload.string()).data());
   std::system(std::format("cd {}; find Payload -name .DS_Store -delete; zip -r "
-                          "-9 icpp.ipa Payload/",
+                          "icpp.ipa Payload/",
                           buildout.string())
                   .data());
 
