@@ -79,6 +79,51 @@ static auto pack_dir(const fs::path &srcdir, const fs::path &dstroot,
   return true;
 }
 
+static void pack_ios_ipa(const fs::path &projroot, const fs::path &outroot,
+                         const fs::path &icpproot, std::string_view version) {
+  auto xcodeproj = projroot / "ios/icpp-server/icpp-server.xcodeproj";
+  auto buildout = projroot / "ios/icpp-server/build-ipa";
+
+  std::println("Removing old build {}...", buildout.string());
+  fs::remove_all(buildout);
+
+  std::println("Building icpp-server...");
+  std::system(
+      std::format("xcodebuild -project {} -scheme icpp-server -configuration "
+                  "Release CONFIGURATION_BUILD_DIR={} build",
+                  xcodeproj.string(), buildout.string())
+          .data());
+
+  auto approot = buildout / "icpp-server.app";
+  std::println("Packing runtime libraries....");
+  pack_dir(icpproot / "lib", approot, "", true);
+  pack_file(icpproot / "bin/icpp-gadget.dylib", approot / "lib", "strip");
+
+  std::println("Codesigning mach-o files...");
+  std::system(
+      std::format("codesign --force --sign - {}/icpp-server", approot.string())
+          .data());
+  std::system(
+      std::format("codesign --force --sign - {}/lib/*.dylib", approot.string())
+          .data());
+
+  auto payload = buildout / "Payload";
+  std::println("Packing the final ipa file...");
+  create_dir(payload);
+  std::system(
+      std::format("mv {} {}/", approot.string(), payload.string()).data());
+  std::system(std::format("cd {}; find Payload -name .DS_Store -delete; zip -r "
+                          "-9 icpp.ipa Payload/",
+                          buildout.string())
+                  .data());
+
+  auto finalipa = outroot / std::format("icpp-gadget-ios-v{}.ipa", version);
+  std::system(
+      std::format("mv {}/icpp.ipa {}", buildout.string(), finalipa.string())
+          .data());
+  std::println("Created icpp package {}.", finalipa.string());
+}
+
 int main(int argc, char **argv) {
   if (argc == 1)
     log_return(
@@ -150,6 +195,14 @@ int main(int argc, char **argv) {
 
     // copy cxx files
     pack_dir(cxxlib / ".", lib, ".", true);
+    std::system(std::format("{0} {1}/*.a {1}/*.json",
+#if __WIN__
+                            "del",
+#else
+                            "rm",
+#endif
+                            lib.string())
+                    .data());
 
     // copy icpp files
     auto libgadget = std::string("icpp-gadget") + ext.data();
@@ -163,6 +216,10 @@ int main(int argc, char **argv) {
                                 projroot.string(), bin.string(), name)
                         .data());
     }
+
+    // copy LLVM file
+    pack_file(gadget / std::format("llvm/lib/libLLVM{}", ext.data()), lib,
+              strip);
 
     auto aether_install = std::getenv(aevmdirs[i].data());
     if (aether_install) {
@@ -206,6 +263,8 @@ int main(int argc, char **argv) {
           std::format("find {} -name .DS_Store -delete; dpkg-deb -b {} {}",
                       debroot, debroot, debfile)
               .data());
+
+      pack_ios_ipa(projroot, dstroot, icpproot, version);
       continue;
     }
 
