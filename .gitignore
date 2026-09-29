@@ -43,3 +43,6 @@ build-*/
 # icpp interpretable object
 *.io
 *.icpp
+
+# Xcode
+xcuserdata/
