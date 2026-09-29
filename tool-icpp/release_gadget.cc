@@ -91,14 +91,15 @@ int main(int argc, char **argv) {
     log(std::format("Using user specified strip tool {}.", android_strip));
   } else {
     auto ndkhome = std::getenv("NDK_HOME");
-    if (!ndkhome) {
-      std::println("Please set NDK_HOME environment variable.");
-      return -1;
+    if (ndkhome) {
+      llvm_strip = std::string(ndkhome) +
+                   "toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-strip";
+      android_strip = llvm_strip;
+      log(std::format("Using auto detected strip tool {}.", android_strip));
+    } else {
+      std::println("The NDK_HOME environment variable isn't set, android "
+                   "package will be ignored.");
     }
-    llvm_strip = std::string(ndkhome) +
-                 "toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-strip";
-    android_strip = llvm_strip;
-    log(std::format("Using auto detected strip tool {}.", android_strip));
   }
 
   auto projroot = fs::absolute(argv[0]).parent_path() / "..";
@@ -115,6 +116,13 @@ int main(int argc, char **argv) {
   std::string_view strips[] = {"strip", android_strip, android_strip};
   for (size_t i = 0; i < std::size(osnames); i++) {
     auto os = osnames[i];
+    if (os == "android" && android_strip.size() == 0)
+      continue;
+#if __WIN__ || __LINUX__
+    if (os == "ios")
+      continue;
+#endif
+
     auto arch = archnames[i];
     auto ext = exts[i];
     auto strip = strips[i];
@@ -141,7 +149,7 @@ int main(int argc, char **argv) {
     create_dir(lib);
 
     // copy cxx files
-    pack_dir(cxxlib / ".", lib, ".");
+    pack_dir(cxxlib / ".", lib, ".", true);
 
     // copy icpp files
     auto libgadget = std::string("icpp-gadget") + ext.data();

@@ -1,8 +1,8 @@
 Package: com.vpand.icpp-server
 Version: x.x.x
-Description: ICPP - Running C++ in anywhere like a script
+Description: Interpreting C++(ICPP) - Run C++ anywhere, just like a script.
 Section: utils
-Depends: firmware (>= 10.0)
+Depends: firmware (>= 16.5)
 Conflicts: 
 Replaces: 
 Priority: optional
