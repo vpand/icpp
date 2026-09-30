@@ -20,6 +20,38 @@ bool command(std::string_view proc, const icpp::strings &args) {
 #endif
 }
 
+bool patch_string(std::string_view infile, std::string_view pattern,
+                  std::string_view replace) {
+  std::stringstream buffer;
+  {
+    // read file
+    buffer << std::ifstream(fs::path(infile), std::ios::in | std::ios::binary)
+                  .rdbuf();
+  }
+
+  std::string content = buffer.str();
+  std::size_t pos = 0;
+  while ((pos = content.find(pattern, pos)) != std::string::npos) {
+    // do the replacement
+    content.replace(pos, pattern.length(), replace);
+    pos += replace.length();
+  }
+
+  fs::path temp_file = infile;
+  temp_file.replace_extension(".tmp");
+  {
+    // write file
+    std::ofstream outf(temp_file,
+                       std::ios::out | std::ios::binary | std::ios::trunc);
+    outf.write(content.data(), content.size());
+  }
+
+  // rename the temp as the original file
+  fs::rename(temp_file, infile);
+  std::println("Patched {} for '{}' with '{}'.", infile, pattern, replace);
+  return true;
+}
+
 std::string aethervm_installdir_ios() {
   constexpr const char *env = "AetherVM_InstallDir_iOS";
   auto var = std::getenv(env);
@@ -124,11 +156,17 @@ int main(int argc, const char *argv[]) {
     args.push_back(
         std::format("-DCMAKE_PREFIX_PATH=\"{0};{0}/aebi\"", aethervm_dir));
 
+    auto builddir = std::format("{}/build-{}.{}", thisdir, arch, type);
     args.push_back("-Wno-deprecated");
     args.push_back("-B");
-    args.push_back(std::format("{}/build-{}.{}", thisdir, arch, type));
+    args.push_back(builddir);
     args.push_back(thisdir);
     command("cmake", args);
+
+    if (ios) {
+      // iPhoneSDK doesn't provide this library
+      patch_string(builddir + "/build.ninja", "-lrt", " ");
+    }
   }
   std::puts("Done.");
   return 0;

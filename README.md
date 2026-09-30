@@ -292,7 +292,6 @@ cmake --build cmake/cxxconf/build-arm64
 # set the prebuilt libraries' install path, which is built with: "AetherVM % icpp ios/build-icpp.cc" .
 export AetherVM_InstallDir_iOS=/path/to/install
 icpp cmake/icpp-gadget/configure.cc ios
-# replace " -lrt " to " " in cmake/icpp-gadget/build-arm64.Release/build.ninja before executing cmake
 cmake --build cmake/icpp-gadget/build-arm64.Release -- LLVM imod icpp-gadget icpp-server
 ```
 
