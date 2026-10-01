@@ -238,6 +238,10 @@ int main(int argc, char **argv) {
       pack_file(fs::path(aether_stdinstall) /
                     (std::string("lib/libAetherVM") + ext.data()),
                 lib, strip);
+      if (os == "ios")
+        pack_file(fs::path(aether_stdinstall) /
+                      (std::string("lib/libAetherVMExt") + ext.data()),
+                  lib, strip);
 
       // copy remill's semantic bitcode files
       pack_dir(fs::path(aether_install) / "lib/bitcode", lib);
