@@ -173,6 +173,7 @@ struct ModuleLoader {
     libpath = bin_root;
 
     auto mcxx = loadLibrary((libpath / "c++" LLVM_PLUGIN_EXT).string());
+    loadLibrary((libpath / "AetherBinary" LLVM_PLUGIN_EXT).string());
     loadLibrary((libpath / "AetherVM" LLVM_PLUGIN_EXT).string());
 
     libcpp_thread_create = (libcpp_thread_create_t)(resolve(
@@ -199,6 +200,7 @@ struct ModuleLoader {
     loadLibrary((libpath / "libc++abi" LLVM_PLUGIN_EXT ".1").string());
     loadLibrary((libpath / "libunwind" LLVM_PLUGIN_EXT ".1").string());
 #endif
+    loadLibrary((libpath / "libAetherBinary" LLVM_PLUGIN_EXT).string());
     loadLibrary((libpath / "libAetherVM" LLVM_PLUGIN_EXT).string());
 #endif
 
