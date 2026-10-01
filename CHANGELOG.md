@@ -6,6 +6,7 @@ Bug fixes:
 Improvements:
  * icpp: replace Unicorn with AetherVM;
  * icpp: replace GPLv2 license with Apache 2.0;
+ * icpp: integrate AetherVM and AetherBinary as builtin libraries;
 
 ## v0.3.0
 Bug fixes:

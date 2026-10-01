@@ -173,6 +173,7 @@ struct ModuleLoader {
     libpath = bin_root;
 
     auto mcxx = loadLibrary((libpath / "c++" LLVM_PLUGIN_EXT).string());
+    loadLibrary((libpath / "AetherVM" LLVM_PLUGIN_EXT).string());
 
     libcpp_thread_create = (libcpp_thread_create_t)(resolve(
         mcxx, "?__libcpp_thread_create@__1@std@@YAHPEAPEAXP6APEAXPEAX@Z1@Z",
@@ -198,6 +199,7 @@ struct ModuleLoader {
     loadLibrary((libpath / "libc++abi" LLVM_PLUGIN_EXT ".1").string());
     loadLibrary((libpath / "libunwind" LLVM_PLUGIN_EXT ".1").string());
 #endif
+    loadLibrary((libpath / "libAetherVM" LLVM_PLUGIN_EXT).string());
 #endif
 
     // initialize the symbol hashes for the third-party modules lazy loading

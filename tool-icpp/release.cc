@@ -29,6 +29,8 @@ The initial icpp package can be downloaded for your local system at:
 https://github.com/vpand/icpp/releases
 */
 
+#include <icpp.hpp>
+
 // for icpp package version
 #include "../src/icpp.h"
 // for llvm version
@@ -238,6 +240,8 @@ int main(int argc, char **argv) {
 
   auto aether_install = std::getenv("AetherVM_InstallDir");
   if (aether_install) {
+    std::string aether_stdinstall{aether_install};
+    icpp::replace(aether_stdinstall, "-icpp", "");
     // copy AetherVM files
     pack_file(fs::path(aether_install) / "aebi" / lib_destname /
                   LIBPREFIX "AetherBinary" LIBEXT,
@@ -248,9 +252,17 @@ int main(int argc, char **argv) {
     pack_file(fs::path(aether_install) / lib_destname /
                   LIBPREFIX "AetherVMICPP" LIBEXT,
               aether_dest, true);
+    pack_file(fs::path(aether_stdinstall) / lib_destname /
+                  LIBPREFIX "AetherVM" LIBEXT,
+              aether_dest, true);
+    pack_dir(fs::path(aether_install) / "aebi/include", include, "aebi");
+    pack_dir(fs::path(aether_install) / "include", include, "aevm");
 
     // copy remill's semantic bitcode files
     pack_dir(fs::path(aether_install) / lib_destname / "bitcode", aether_dest);
+  } else {
+    std::println("Ignored Aether Binary Engine libraries, AetherVM_InstallDir "
+                 "isn't available.");
   }
 
   // copy libc++ file

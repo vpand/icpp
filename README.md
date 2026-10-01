@@ -4,6 +4,7 @@
  * Writing hot-loading C++ script code in running process;
  * Based on [AetherVM](https://github.com/AetherVM/AetherVM.git) binary engine and [Clang/LLVM](https://github.com/llvm/llvm-project.git) C++ compiler;
  * Integrated internally with [Standard C++23](https://en.cppreference.com/w/cpp/23) libraries;
+ * Integrated [AetherVM](https://github.com/AetherVM/AetherVM.git) and [AetherBinary](https://github.com/AetherVM/AetherBinary.git) `aarch64`/`x86_64` emulation engine for `MachO`/`ELF`/`PE`;
  * To reuse the existing C/C++ library as an icpp module extension is extremely simple.
 
 ## AetherVM

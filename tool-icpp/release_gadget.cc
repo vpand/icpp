@@ -223,6 +223,8 @@ int main(int argc, char **argv) {
 
     auto aether_install = std::getenv(aevmdirs[i].data());
     if (aether_install) {
+      std::string aether_stdinstall{aether_install};
+      icpp::replace(aether_stdinstall, "-icpp", "");
       // copy AetherVM files
       pack_file(fs::path(aether_install) /
                     (std::string("aebi/lib/libAetherBinary") + ext.data()),
@@ -233,9 +235,16 @@ int main(int argc, char **argv) {
       pack_file(fs::path(aether_install) /
                     (std::string("lib/libAetherVMICPP") + ext.data()),
                 lib, strip);
+      pack_file(fs::path(aether_stdinstall) /
+                    (std::string("lib/libAetherVM") + ext.data()),
+                lib, strip);
 
       // copy remill's semantic bitcode files
       pack_dir(fs::path(aether_install) / "lib/bitcode", lib);
+    } else {
+      std::println(
+          "Ignored Aether Binary Engine libraries, {} isn't available.",
+          aevmdirs[i]);
     }
 
     if (os == "ios") {

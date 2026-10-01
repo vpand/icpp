@@ -182,4 +182,7 @@ ICPP_API void print_hex(std::uint64_t val);
 ICPP_API void set_env(std::string_view key, std::string_view value,
                       bool overwrite = true);
 
+ICPP_API void replace(std::string &str, std::string_view from,
+                      std::string_view to);
+
 } // namespace icpp
