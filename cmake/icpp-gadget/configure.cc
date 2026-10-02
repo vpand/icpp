@@ -118,9 +118,6 @@ int main(int argc, const char *argv[]) {
     args.push_back(std::format("-DCMAKE_TOOLCHAIN_FILE={}", toolchain));
     args.push_back(std::format("-DCMAKE_CROSSCOMPILING=TRUE"));
     args.push_back(std::format("-DCMAKE_BUILD_TYPE={}", type));
-    args.push_back(std::format("-DLLVM_TABLEGEN={}/../../build/third/"
-                               "llvm-project/llvm/bin/llvm-tblgen",
-                               thisdir));
     args.push_back("-G");
     args.push_back("Ninja");
 
@@ -151,17 +148,26 @@ int main(int argc, const char *argv[]) {
     if (!aethervm_dir.size())
       return -1;
 
+    std::string llvm_dir =
+        aethervm_dir +
+        std::format("/../../../../AetherBinary/build-{}-llvm/install",
+                    ios ? "ios" : (std::format("android-") + arch));
     args.push_back(std::format("-DLIBCXX_LIB_ROOT={}/../cxxconf/build-{}/lib",
                                thisdir, arch));
-    args.push_back(
-        std::format("-DCMAKE_PREFIX_PATH=\"{0};{0}/aebi\"", aethervm_dir));
+    args.push_back(std::format("-DCMAKE_PREFIX_PATH=\"{0};{0}/aebi;{1}\"",
+                               aethervm_dir, llvm_dir));
+    args.push_back(std::format("-DLLVM_BUILD_DIR={}/../llvm", llvm_dir));
 
     auto builddir = std::format("{}/build-{}.{}", thisdir, arch, type);
     args.push_back("-Wno-deprecated");
     args.push_back("-B");
     args.push_back(builddir);
     args.push_back(thisdir);
-    command("cmake", args);
+    if (!command("cmake", args)) {
+      std::println("Failed to configure the build.");
+      return -1;
+    }
+    command("ln", {"-sf", llvm_dir, builddir + "/llvm"});
 
     if (ios) {
       // iPhoneSDK doesn't provide this library

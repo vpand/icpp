@@ -22,6 +22,7 @@ set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${LIBCXX_LINKER_FLAG
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LIBCXX_LINKER_FLAGS}")
 
 # prebuilt binary engine
+find_package(LLVM CONFIG REQUIRED)
 find_package(AetherBinary CONFIG REQUIRED)
 find_package(AetherVM CONFIG REQUIRED)
 
@@ -29,35 +30,14 @@ find_package(AetherVM CONFIG REQUIRED)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED)
 
+# disable the absolute rpath
+set(CMAKE_SKIP_RPATH TRUE)
+
 set(ICPP_ROOT ${CMAKE_SOURCE_DIR}/../..)
 set(ICPP_SRCROOT ${ICPP_ROOT}/src)
 
-# build LLVM as shared library by default
-set(LLVM_SHLIB ON)
-
 # build all dependent libraries as static
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-
-# icpp only supports x86_64/arm64 currently, but we're building LLVM which can be 
-# reused by AetherVM
-set(LLVM_TARGETS_TO_BUILD "X86;ARM;AArch64;Sparc" CACHE STRING "" FORCE)
-
-# llvm
-message(STATUS "Configuring llvm for ${CMAKE_SYSTEM_NAME}...")
-set(LLVM_INCLUDE_TOOLS ON CACHE BOOL "" FORCE)
-set(LLVM_INCLUDE_UTILS OFF CACHE BOOL "" FORCE)
-set(LLVM_INCLUDE_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(LLVM_INCLUDE_TESTS OFF CACHE BOOL "" FORCE)
-set(LLVM_INCLUDE_BENCHMARKS OFF CACHE BOOL "" FORCE)
-set(LLVM_ENABLE_ZLIB "OFF" CACHE STRING "" FORCE)
-set(LLVM_ENABLE_ZSTD "OFF" CACHE STRING "" FORCE)
-# build llvm as a shared library to massively reduce the final package size
-set(LLVM_BUILD_LLVM_DYLIB ${LLVM_SHLIB} CACHE BOOL "" FORCE)
-set(LLVM_LINK_LLVM_DYLIB ${LLVM_SHLIB} CACHE BOOL "" FORCE)
-set(LLVM_ENABLE_PLUGINS OFF CACHE BOOL "" FORCE)
-set(LLVM_ENABLE_EXPORTED_SYMBOLS_IN_PLUGINS OFF CACHE BOOL "" FORCE)
-add_subdirectory(${ICPP_ROOT}/third/llvm-project/llvm
-                 ${CMAKE_BINARY_DIR}/llvm)
 
 #
 # third-party projects
@@ -95,10 +75,15 @@ endif()
 
 set(DISABLE_RTTI -fno-rtti)
 set(THIRD_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../third)
-set(LLVMLIB_DIR ${CMAKE_BINARY_DIR}/llvm/lib)
+set(LLVMLIB_DIR ${LLVM_BUILD_DIR}/lib)
 set(LLVMSupport_DIR ${LLVMLIB_DIR}/Support/CMakeFiles/LLVMSupport.dir)
 set(LLVM_INCLUDE_ROOT ${THIRD_ROOT}/llvm-project/llvm/include)
-set(LLVM_MINIMAL_LIBS LLVM)
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  set(LLVM_MINIMAL_LIBS LLVM ${LLVMSupport_DIR}/SmallVector.cpp.o)
+else()
+  set(LLVM_MINIMAL_LIBS LLVM)
+endif()
 
 # generate the protocol sources with protoc
 add_custom_command(
@@ -167,7 +152,7 @@ add_executable(imod
 set_source_files_properties(${IMOD_LLVM_SOURCES} PROPERTIES COMPILE_FLAGS ${DISABLE_RTTI})
 target_include_directories(imod PRIVATE
   ${LLVM_INCLUDE_ROOT}
-  ${CMAKE_BINARY_DIR}/llvm/include
+  ${LLVM_BUILD_DIR}/include
   ${THIRD_ROOT}/brotli/c/include
   ${CMAKE_CURRENT_BINARY_DIR}
   ${THIRD_ROOT}/protobuf/third_party/utf8_range
@@ -215,7 +200,7 @@ target_compile_definitions(icpp-gadget PRIVATE ICPP_DLLIMPL=1)
 set_source_files_properties(${IGADGET_LLVM_SOURCES} PROPERTIES COMPILE_FLAGS ${DISABLE_RTTI})
 target_include_directories(icpp-gadget PRIVATE 
   ${LLVM_INCLUDE_ROOT}
-  ${CMAKE_BINARY_DIR}/llvm/include
+  ${LLVM_BUILD_DIR}/include
   ${CMAKE_CURRENT_BINARY_DIR}
   ${LLVM_OBJDUMP_ROOT}
   ${THIRD_ROOT}/protobuf/third_party/utf8_range
@@ -239,7 +224,7 @@ endif()
 message(STATUS "Configuring icpp-server remote daemon...")
 add_executable(icpp-server ${ICPP_SRCROOT}/icpp-server.cpp)
 target_include_directories(icpp-server PRIVATE 
-  ${CMAKE_BINARY_DIR}/llvm/include
+  ${LLVM_BUILD_DIR}/include
   boost_dll
 )
 target_link_libraries(icpp-server PRIVATE boost_dll)

@@ -293,7 +293,7 @@ cmake --build cmake/cxxconf/build-arm64
 # set the prebuilt libraries' install path, which is built with: "AetherVM % icpp ios/build-icpp.cc" .
 export AetherVM_InstallDir_iOS=/path/to/install
 icpp cmake/icpp-gadget/configure.cc ios
-cmake --build cmake/icpp-gadget/build-arm64.Release -- LLVM imod icpp-gadget icpp-server
+cmake --build cmake/icpp-gadget/build-arm64.Release -- imod icpp-gadget icpp-server
 ```
 
 ### Android ARM64/X86_64
@@ -309,7 +309,7 @@ cmake --build cmake/cxxconf/build-arm64-v8a
 export AetherVM_InstallDir_Android=/path/to/install
 # add an extra x86_64 argument for Android Emulator
 icpp cmake/icpp-gadget/configure.cc android
-cmake --build cmake/icpp-gadget/build-arm64-v8a.Release -- LLVM imod icpp-gadget icpp-server
+cmake --build cmake/icpp-gadget/build-arm64-v8a.Release -- imod icpp-gadget icpp-server
 ```
 
 ### Pre-Run
