@@ -36,6 +36,9 @@ int main(int argc, const char *argv[]) {
   args.push_back("-DLIBCXX_INCLUDE_BENCHMARKS=OFF");
   args.push_back("-G");
   args.push_back("Ninja");
+#if __WIN__
+  args.push_back("-DPython3_EXECUTABLE=python");
+#endif
 
   std::string arch{"arm64"};
   args.push_back("-DANDROID_PLATFORM=25");
