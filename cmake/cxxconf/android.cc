@@ -34,6 +34,7 @@ int main(int argc, const char *argv[]) {
   args.push_back(std::format("-DCMAKE_TOOLCHAIN_FILE={}", argv[1]));
   args.push_back(std::format("-DCMAKE_BUILD_TYPE=Release"));
   args.push_back("-DLIBCXX_INCLUDE_BENCHMARKS=OFF");
+  args.push_back("-DLIBCXX_ENABLE_ABI_LINKER_SCRIPT=OFF");
   args.push_back("-G");
   args.push_back("Ninja");
 #if __WIN__
