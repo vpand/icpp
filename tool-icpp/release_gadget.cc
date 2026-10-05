@@ -137,8 +137,15 @@ int main(int argc, char **argv) {
   } else {
     auto ndkhome = std::getenv("NDK_HOME");
     if (ndkhome) {
-      llvm_strip = std::string(ndkhome) +
-                   "toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-strip";
+#if __WIN__
+#define HOST_NAME "windows"
+#elif __APPLE__
+#define HOST_NAME "darwin"
+#else
+#define HOST_NAME "linux"
+#endif
+      llvm_strip = std::string(ndkhome) + "/toolchains/llvm/prebuilt/" HOST_NAME
+                                          "-x86_64/bin/llvm-strip" EXE_EXT;
       android_strip = llvm_strip;
       log(std::format("Using auto detected strip tool {}.", android_strip));
     } else {
@@ -195,13 +202,13 @@ int main(int argc, char **argv) {
 
     // copy cxx files
     pack_dir(cxxlib / ".", lib, ".", true);
-    std::system(std::format("{0} {1}/*.a {1}/*.json",
+    std::system(std::format(
 #if __WIN__
-                            "del",
+                    "del {0}\\*.a {0}\\*.json",
 #else
-                            "rm",
+                    "rm {0}/*.a {0}/*.json",
 #endif
-                            lib.string())
+                    lib.string())
                     .data());
 
     // copy icpp files
