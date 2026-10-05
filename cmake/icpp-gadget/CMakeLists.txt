@@ -17,7 +17,12 @@ if(APPLE)
   set(CMAKE_SYSTEM_NAME "Darwin")
 endif()
 
-set(LIBCXX_LINKER_FLAGS "-L${LIBCXX_LIB_ROOT} -lc++.1 -lc++abi.1 -lunwind.1")
+if(ANDROID_ABI)
+  set(LIBCXX_LINKER_FLAGS "-L${LIBCXX_LIB_ROOT}")
+  set(CMAKE_CXX_STANDARD_LIBRARIES "-Wl,-Bdynamic -lc++ -lc++abi -lunwind")
+else()
+  set(LIBCXX_LINKER_FLAGS "-L${LIBCXX_LIB_ROOT} -lc++.1 -lc++abi.1 -lunwind.1")
+endif()
 set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${LIBCXX_LINKER_FLAGS}")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LIBCXX_LINKER_FLAGS}")
 
@@ -45,9 +50,6 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
 # boost
 message(STATUS "Configuring boost...")
-if (WIN32)
-  set(BOOST_CONTEXT_IMPLEMENTATION winfib)
-endif()
 add_subdirectory(${ICPP_ROOT}/third/boost
                  ${CMAKE_BINARY_DIR}/boost)
 

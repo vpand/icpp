@@ -287,6 +287,7 @@ cmake --build . -- icpp icppcli imod iopad icpp-gadget icpp-server -j8
 Building for iOS only supports operating on macOS with Xcode installed.
 ```sh
 # build LLVM's libc++ runtime libraries.
+# skip this step if you've built AetherVM for iOS
 icpp cmake/cxxconf/ios.cc
 cmake --build cmake/cxxconf/build-arm64
 # build ICPP's runtime libraries.
@@ -300,6 +301,7 @@ cmake --build cmake/icpp-gadget/build-arm64.Release -- imod icpp-gadget icpp-ser
 Building for Android needs NDK installed. Replace arm64-v8a to x86_64 if you're building for Android Emulator.
 ```sh
 # build LLVM's libc++ runtime libraries.
+# skip this step if you've built AetherVM for Android
 # change export to set and ${NDK_HOME} to %NDK_HOME% if on Windows
 export NDK_HOME=/path/to/ndk
 icpp cmake/cxxconf/android.cc ${NDK_HOME}/build/cmake/android.toolchain.cmake

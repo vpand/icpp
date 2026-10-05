@@ -60,7 +60,7 @@ std::string aethervm_installdir_ios() {
 
   std::println("Please set the {} environment variable. You can build it from "
                "the source code https://github.com/AetherVM/AetherVM with "
-               "\"icpp ios/build.cc\".",
+               "\"icpp ios/build-icpp.cc\".",
                env);
   return "";
 }
@@ -74,7 +74,7 @@ std::string aethervm_installdir_android(std::string_view arch) {
 
   std::println("Please set the {} environment variable. You can build it from "
                "the source code https://github.com/AetherVM/AetherVM with "
-               "\"icpp android/build.cc\".",
+               "\"icpp android/build-icpp.cc\".",
                env);
   return "";
 }
@@ -127,11 +127,14 @@ int main(int argc, const char *argv[]) {
       arch = "arm64-v8a";
       if (argc >= 3)
         arch = argv[2];
+      std::string_view target = arch == "arm64-v8a" ? "aarch64-linux-android24"
+                                                    : "x86_64-linux-android24";
       args.push_back(std::format("-DANDROID_ABI={}", arch));
-      args.push_back(
-          std::format("-DCMAKE_CXX_FLAGS=-nostdinc++ -nostdlib++ -fPIC "
-                      "-I{}/../../runtime/include/c++/v1",
-                      thisdir));
+      args.push_back(std::format("-DCMAKE_C_FLAGS=\"--target={}\"", target));
+      args.push_back(std::format(
+          "-DCMAKE_CXX_FLAGS=\"--target={} -nostdinc++ -nostdlib++ -fPIC "
+          "-I{}/../../runtime/include/c++/v1\"",
+          target, thisdir));
     } else {
       args.push_back("-DCMAKE_MACOSX_BUNDLE=NO");
       args.push_back("-DPLATFORM=OS64");
@@ -157,6 +160,11 @@ int main(int argc, const char *argv[]) {
     args.push_back(std::format("-DCMAKE_PREFIX_PATH=\"{0};{0}/aebi;{1}\"",
                                aethervm_dir, llvm_dir));
     args.push_back(std::format("-DLLVM_BUILD_DIR={}/../llvm", llvm_dir));
+    args.push_back(std::format("-DLLVM_DIR={}/lib/cmake/llvm", llvm_dir));
+    args.push_back(std::format(
+        "-DAetherBinary_DIR={}/aebi/lib/cmake/AetherBinary", aethervm_dir));
+    args.push_back(
+        std::format("-DAetherVM_DIR={}/lib/cmake/AetherVM", aethervm_dir));
 
     auto builddir = std::format("{}/build-{}.{}", thisdir, arch, type);
     args.push_back("-Wno-deprecated");
@@ -167,7 +175,15 @@ int main(int argc, const char *argv[]) {
       std::println("Failed to configure the build.");
       return -1;
     }
+#if __WIN__
+    auto dst = fs::path(builddir + "/llvm");
+    auto src = fs::path(llvm_dir);
+    dst.make_preferred();
+    src.make_preferred();
+    command("mklink", {"/D", dst.string(), src.string()});
+#else
     command("ln", {"-sf", llvm_dir, builddir + "/llvm"});
+#endif
 
     if (ios) {
       // iPhoneSDK doesn't provide this library
