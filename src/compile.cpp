@@ -26,8 +26,6 @@
 #endif
 #include <llvm/Config/llvm-config.h>
 
-#define SUPPORT_CLANG_CL 0
-
 namespace proc = boost::process;
 
 namespace icpp {
@@ -42,38 +40,14 @@ static std::string argv_string(int argc, const char **argv) {
   return cmds;
 }
 
-int compile_source_clang(int argc, const char **argv, bool cl) {
+int compile_source_clang(int argc, const char **argv, bool cross) {
   // just echo the compiling args
   if (echocc) {
     echocc = false;
     log_print(Develop, "{}", argv_string(argc, argv));
     return 0;
   }
-  if (!cl) {
-    for (int i = 0; i < argc; i++) {
-      if (std::string_view(argv[i]).starts_with("/clang")) {
-        cl = true;
-        break;
-      }
-    }
-  }
-
-#if SUPPORT_CLANG_CL
-  // construct a full path which the last element must be "clang" to make clang
-  // driver happy, otherwise it can't compile source to object, it seems that
-  // clang driver depends on clang name to do the right compilation logic, like
-  // to determine the langue semantics
-  auto exepath = fs::path(RunConfig::inst()->program);
-  // this full path ends with "clang", it's exactly the format that clang driver
-  // wants
-  auto program = (exepath.parent_path() /
-                  (cl ? "clang-cl" EXE_EXTENSION : "clang" EXE_EXTENSION))
-                     .string();
-  auto argv0 = argv[0];
-  argv[0] = program.c_str();
-#endif
-
-  auto result = increment_main(argc, argv);
+  auto result = cross ? clang_main(argc, argv) : increment_main(argc, argv);
   if (result) {
     log_print(Develop, "Failed to compile: {}", argv_string(argc, argv));
   }
@@ -83,7 +57,7 @@ int compile_source_clang(int argc, const char **argv, bool cl) {
 int compile_source_icpp(int argc, const char **argv) {
   auto root = fs::absolute(fs::path(argv[0])).parent_path() / "..";
   auto rtinc = (root / "include").string();
-  bool cross_compile = false, cl = false, cppsrc = true;
+  bool cross_compile = false, cppsrc = true;
   bool cppmod = is_cppm_source(argv[argc - 1]);
   std::string cppminc;
   std::vector<const char *> args;
@@ -177,15 +151,6 @@ int compile_source_icpp(int argc, const char **argv) {
     }
   }
   if (ucrtinc.size()) {
-#if SUPPORT_CLANG_CL
-    // use C++23 standard
-    if (cppsrc) {
-      args.push_back("/clang:-std=c++23");
-      // force to use the icpp integrated C/C++ runtime header
-      args.push_back("/clang:-nostdinc++");
-      args.push_back("/clang:-nostdlib++");
-    }
-#endif
     args.push_back(vcinc.data());
     args.push_back(ucrtinc.data());
     args.push_back("-target");
@@ -196,16 +161,6 @@ int compile_source_icpp(int argc, const char **argv) {
         "x86_64"
 #endif
         "-pc-windows-msvc19.0.0");
-#if SUPPORT_CLANG_CL
-    cppminc = "/clang:";
-
-    // MultiThreadedDLL
-    args.push_back("/MD");
-    // enable exception
-    args.push_back("/EHs");
-
-    cl = true; // set as clang-cl mode
-#endif
   }
 #else
   for (int i = 0; i < argc - 1; i++) {
@@ -268,19 +223,19 @@ int compile_source_icpp(int argc, const char **argv) {
     std::vector<std::string> ccargs;
     for (auto i = 1; i < args.size(); i++)
       ccargs.push_back(args[i]);
-    auto clang = (root / "bin/"
-#if ON_WINDOWS && SUPPORT_CLANG_CL
-                         "clang-cl" EXE_EXTENSION
-#else
-                         "clang" EXE_EXTENSION
-#endif
-                  )
-                     .string();
+    auto clang = (root / "bin/clang" EXE_EXTENSION).string();
     proc::child compiler(clang, ccargs);
     compiler.wait();
     return compiler.exit_code();
   }
-  return compile_source_clang(static_cast<int>(args.size()), &args[0], cl);
+  std::string clang;
+  if (cross_compile) {
+    // the original clang main needs the clang name to compile normally
+    clang = (root / "bin/clang" EXE_EXTENSION).string();
+    args[0] = clang.data();
+  }
+  return compile_source_clang(static_cast<int>(args.size()), &args[0],
+                              cross_compile);
 }
 
 fs::path compile_source_icpp(const char *argv0, std::string_view path,
@@ -374,17 +329,9 @@ static void precompile_module(const char *argv0, const fs::path &root,
   std::vector<const char *> args;
   args.push_back(argv0);
   args.push_back("-w");
-#if _WIN32 && SUPPORT_CLANG_CL
-  std::string outarg("/clang:");
-  outarg += pcmpath;
-  args.push_back("/clang:-o");
-  args.push_back(outarg.data());
-  args.push_back("/clang:--precompile");
-#else
   args.push_back("-o");
   args.push_back(pcmpath.data());
   args.push_back("--precompile");
-#endif
   args.push_back(cppmpath.data());
 
   log_print(Develop, "Precompiling {} to {} ...", cppmpath, pcmpath);

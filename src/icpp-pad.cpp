@@ -372,13 +372,15 @@ static void exec_code(std::string_view icpp, std::string_view code) {
   // send to icpp-gadget to execute this object payload
   iopad::CommandRun cmd;
   cmd.set_name(fs::path(srcpath).filename().string());
-  auto expBuff = llvm::MemoryBuffer::getFile(objpath);
-  if (expBuff) {
-    auto buff = expBuff.get().get();
-    cmd.set_buff(std::string(buff->getBufferStart(), buff->getBufferSize()));
-    launchpad.send(iopad::RUN, cmd.SerializeAsString());
-    // wait until the remote execution to be finished
-    launchpad.wait();
+  {
+    auto expBuff = llvm::MemoryBuffer::getFile(objpath);
+    if (expBuff) {
+      auto buff = expBuff.get().get();
+      cmd.set_buff(std::string(buff->getBufferStart(), buff->getBufferSize()));
+      launchpad.send(iopad::RUN, cmd.SerializeAsString());
+      // wait until the remote execution to be finished
+      launchpad.wait();
+    }
   }
 
   if (snippet)
