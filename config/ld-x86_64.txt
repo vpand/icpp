@@ -1,1 +1,1 @@
--Wl,-rpath,$ORIGIN/../lib/x86_64-unknown-linux-gnu
+-Wl,-rpath,$ORIGIN -Wl,-rpath,$ORIGIN/../lib -Wl,-rpath,$ORIGIN/../lib/x86_64-unknown-linux-gnu

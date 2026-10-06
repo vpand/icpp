@@ -12,6 +12,9 @@ cmake_minimum_required(VERSION 3.20)
 
 project(icpp CXX C)
 
+set(ICPP_ROOT ${CMAKE_SOURCE_DIR}/../..)
+set(ICPP_SRCROOT ${ICPP_ROOT}/src)
+
 if(APPLE)
   # LLVM needs this to set the correct linker flags
   set(CMAKE_SYSTEM_NAME "Darwin")
@@ -19,7 +22,7 @@ endif()
 
 if(ANDROID_ABI)
   set(LIBCXX_LINKER_FLAGS "-L${LIBCXX_LIB_ROOT}")
-  set(CMAKE_CXX_STANDARD_LIBRARIES "-Wl,-Bdynamic -lc++ -lc++abi -lunwind")
+  set(CMAKE_CXX_STANDARD_LIBRARIES "-Wl,-Bdynamic -lc++ -lc++abi -lunwind @${ICPP_ROOT}/config/ld.txt")
 else()
   set(LIBCXX_LINKER_FLAGS "-L${LIBCXX_LIB_ROOT} -lc++.1 -lc++abi.1 -lunwind.1")
 endif()
@@ -37,9 +40,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED)
 
 # disable the absolute rpath
 set(CMAKE_SKIP_RPATH TRUE)
-
-set(ICPP_ROOT ${CMAKE_SOURCE_DIR}/../..)
-set(ICPP_SRCROOT ${ICPP_ROOT}/src)
 
 # build all dependent libraries as static
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
