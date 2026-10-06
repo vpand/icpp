@@ -36,7 +36,10 @@ namespace icpp {
 cl::OptionCategory ISERVER("ICPP Remote Gadget Server Options");
 
 static cl::opt<int> Port("port", cl::desc("Set the listening port."),
-                         cl::init(0), cl::cat(ISERVER));
+                         cl::init(gadget_port), cl::cat(ISERVER));
+static cl::opt<std::string>
+    Config("config", cl::desc("Set the running configuration json file."),
+           cl::cat(ISERVER));
 
 static bool running;
 
@@ -51,7 +54,7 @@ public:
   int print(std::format_string<Args...> format, Args &&...args);
 
 private:
-  int listen();
+  int startServer();
   void recv(ip::tcp::socket *socket);
   void process(const ProtocolHdr *hdr, const void *body, size_t size);
   void procRun(std::string_view name, const std::string &obuff);
@@ -134,8 +137,8 @@ static bool is_icpp_server() {
 gadget::gadget() {
   running = true;
 
-  if (!is_icpp_server())
-    std::thread(&gadget::listen, this).detach();
+  if (is_icpp_server())
+    return;
 
   iterate_modules([](uint64_t handle, std::string_view path) {
     if (path.find("icpp-gadget") != std::string_view::npos) {
@@ -144,17 +147,7 @@ gadget::gadget() {
     }
     return false;
   });
-  RunConfig::printf = gadget_printf;
-  RunConfig::puts = gadget_puts;
-  Loader::initialize();
-  Loader::cacheSymbol("printf", reinterpret_cast<const void *>(gadget_printf));
-  Loader::cacheSymbol("puts", reinterpret_cast<const void *>(gadget_puts));
-#if ON_WINDOWS
-  Loader::cacheSymbol("__imp_printf",
-                      reinterpret_cast<const void *>(gadget_printf));
-  Loader::cacheSymbol("__imp_puts",
-                      reinterpret_cast<const void *>(gadget_puts));
-#endif
+  std::thread(&gadget::startServer, this).detach();
 }
 
 gadget::~gadget() {
@@ -178,10 +171,22 @@ gadget::~gadget() {
 int gadget::startup() {
   auto port = Port ? Port : gadget_port;
   log_print(Raw, "Running icpp-server at port {}...", port);
-  return listen();
+  return startServer();
 }
 
-int gadget::listen() {
+int gadget::startServer() {
+  RunConfig::printf = gadget_printf;
+  RunConfig::puts = gadget_puts;
+  Loader::initialize();
+  Loader::cacheSymbol("printf", reinterpret_cast<const void *>(gadget_printf));
+  Loader::cacheSymbol("puts", reinterpret_cast<const void *>(gadget_puts));
+#if ON_WINDOWS
+  Loader::cacheSymbol("__imp_printf",
+                      reinterpret_cast<const void *>(gadget_printf));
+  Loader::cacheSymbol("__imp_puts",
+                      reinterpret_cast<const void *>(gadget_puts));
+#endif
+
   try {
     auto port = Port ? Port : gadget_port;
     acceptor_ = std::make_unique<ip::tcp::acceptor>(
@@ -287,7 +292,7 @@ void gadget::procRun(std::string_view name, const std::string &obuff) {
               *reinterpret_cast<const uint64_t *>(obuff.data()));
     return;
   }
-  exec_object(object, true);
+  exec_object(object, false);
 
   // notify clients the execution finished
   for (auto &s : clients_)
@@ -325,9 +330,6 @@ __ICPP_EXPORT__ extern "C" int icpp_gadget(int argc, char **argv) {
           "  Remote icpp-gadget server built with ICPP {}",
           icpp::version_string()));
 
-  icpp::RunConfig::inst(argv[0], "");
-
-  if (argc == 1 || icpp::Port)
-    return icpp::icppsvr.startup();
-  return 0;
+  icpp::RunConfig::inst(argv[0], icpp::Config.data());
+  return icpp::icppsvr.startup();
 }
