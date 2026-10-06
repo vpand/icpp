@@ -142,7 +142,7 @@ gadget::gadget() {
 
   iterate_modules([](uint64_t handle, std::string_view path) {
     if (path.find("icpp-gadget") != std::string_view::npos) {
-      RunConfig::inst(path.data(), "")->gadget = true;
+      RunConfig::inst(path.data(), "");
       return true;
     }
     return false;
@@ -175,6 +175,7 @@ int gadget::startup() {
 }
 
 int gadget::startServer() {
+  RunConfig::inst()->gadget = true;
   RunConfig::printf = gadget_printf;
   RunConfig::puts = gadget_puts;
   Loader::initialize();
@@ -292,7 +293,7 @@ void gadget::procRun(std::string_view name, const std::string &obuff) {
               *reinterpret_cast<const uint64_t *>(obuff.data()));
     return;
   }
-  exec_object(object, false);
+  exec_object(object, true);
 
   // notify clients the execution finished
   for (auto &s : clients_)
