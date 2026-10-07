@@ -195,10 +195,6 @@ private:
   // <stub, vm> caches
   std::map<uint64_t, uint64_t> stubvms_;
   void *topreturn_ = nullptr; // return address when called from stub
-
-#if WIN_ARM64
-  char *wintls_ = nullptr;
-#endif
 };
 
 // current thread execution engine instance
@@ -312,9 +308,6 @@ void ExecEngine::init(bool main) {
   initctx.r[A64_SP] = initsp;
 
   saveRegisterAArch64(initctx);
-#if WIN_ARM64
-  wintls_ = reinterpret_cast<char *>(initctx.r[18]);
-#endif
 #else
   initctx.rsp = initsp;
 
@@ -1747,8 +1740,12 @@ bool ExecEngine::interpret(const InsnInfo *&inst, uint64_t &pc, int &step) {
 bool ExecEngine::execLoop(uint64_t pc) {
   using namespace aether;
 #if WIN_ARM64
+  // a very simple teb context simulation
   auto epochptr = Loader::simulateTlsEpoch();
-  auto tlsepoch = reinterpret_cast<uint64_t *>(wintls_ + 0x58);
+  auto tlsepoch = &epochptr;
+  auto simtebptr = reinterpret_cast<uint64_t>(&tlsepoch) - 0x58;
+  auto tebreg =
+      const_cast<RegisterValue *>(vm_engine->getRegister(Register::X18));
 #endif
 
   bool debug = RunConfig::inst()->hasDebugger();
@@ -1784,8 +1781,8 @@ bool ExecEngine::execLoop(uint64_t pc) {
 #if WIN_ARM64
     // as we haven't relocated the real relocation for tls epoch,
     // herein give it the simulated address
-    // auto oldepochptr = tlsepoch[0];
-    //*tlsepoch = reinterpret_cast<uint64_t>(&epochptr);
+    auto oldteb = *tebreg;
+    tebreg->u8 = simtebptr;
 #endif
 
     // running instructions by AetherVM engine
@@ -1795,8 +1792,8 @@ bool ExecEngine::execLoop(uint64_t pc) {
     }
 
 #if WIN_ARM64
-    // restore the original epoch pointer
-    //*tlsepoch = oldepochptr;
+    // restore the original teb pointer
+    tebreg[0] = oldteb;
 #endif
 
     // get the current pc from vm
