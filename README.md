@@ -308,7 +308,7 @@ icpp cmake/cxxconf/android.cc ${NDK_HOME}/build/cmake/android.toolchain.cmake
 cmake --build cmake/cxxconf/build-arm64-v8a
 # build ICPP's runtime libraries.
 # set the prebuilt libraries' install path, which is built with: "AetherVM % icpp android/build-icpp.cc" .
-export AetherVM_InstallDir_Android=/path/to/install
+export AetherVM_InstallDir_AndroidA64=/path/to/install
 # add an extra x86_64 argument for Android Emulator
 icpp cmake/icpp-gadget/configure.cc android
 cmake --build cmake/icpp-gadget/build-arm64-v8a.Release -- imod icpp-gadget icpp-server
