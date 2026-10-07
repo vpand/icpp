@@ -2,6 +2,7 @@
 Bug fixes:
  * icpp: fix the existing relocation check for lazily resolved symbols;
  * icpp: do not reset to hardware insn if there's segment register of x64;
+ * imod/iopad: fix the crash when using a bare cli name on command;
 
 Improvements:
  * icpp: replace Unicorn with AetherVM;

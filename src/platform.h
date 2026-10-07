@@ -194,4 +194,6 @@ void iterate_modules(
 
 void set_env(std::string_view key, std::string_view value);
 
+std::string get_main_program();
+
 } // namespace icpp

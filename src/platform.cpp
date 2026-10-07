@@ -147,4 +147,21 @@ void set_env(std::string_view key, std::string_view value) {
 #endif
 }
 
+std::string get_main_program() {
+  char progbuf[1024];
+
+#if ON_WINDOWS
+  ::GetModuleFileNameA(nullptr, progbuf, sizeof(progbuf));
+#elif __APPLE__
+  Dl_info dli;
+  dladdr(reinterpret_cast<const void *>(&get_main_program), &dli);
+  realpath(dli.dli_fname, progbuf);
+#else
+  auto count = readlink("/proc/self/exe", progbuf, sizeof(progbuf) - 1);
+  progbuf[count] = 0;
+#endif
+
+  return &progbuf[0];
+}
+
 } // namespace icpp

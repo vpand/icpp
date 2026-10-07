@@ -261,7 +261,7 @@ static void create_package(const char *program, std::string_view cfgpath) {
     }
 
     // compile all the input sources to raw object and pack them
-    auto imodexe = fs::path(program);
+    auto imodexe = fs::path(icpp::get_main_program());
     auto icppexe = (imodexe.parent_path() /
                     (std::string("icpp") + imodexe.extension().string()))
                        .string();

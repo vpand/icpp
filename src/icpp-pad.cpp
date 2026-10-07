@@ -423,9 +423,9 @@ int main(int argc, char **argv) {
 
   icpp::RunConfig::inst(argv[0], "");
 
-  auto imodexe = fs::path(argv[0]);
-  auto icppexe = (imodexe.parent_path() /
-                  (std::string("icpp") + imodexe.extension().string()))
+  auto thisexe = fs::path(icpp::get_main_program());
+  auto icppexe = (thisexe.parent_path() /
+                  (std::string("icpp") + thisexe.extension().string()))
                      .string();
   if (Fire.length()) {
     if (fs::exists(Fire.data())) {
