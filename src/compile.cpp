@@ -98,6 +98,11 @@ int compile_source_icpp(int argc, const char **argv) {
   auto builtininc = std::format("-I{}/lib/clang/{}/include", root.string(),
                                 LLVM_VERSION_MAJOR);
   args.push_back(builtininc.data());
+  // add aebi/aevm include
+  auto aebiinc = std::format("-I{}/aebi", rtinc);
+  auto aevminc = std::format("-I{}/aevm", rtinc);
+  args.push_back(aebiinc.data());
+  args.push_back(aevminc.data());
 
 #if __APPLE__
   std::string_view argsysroot = "-isysroot";
