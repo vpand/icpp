@@ -1,3 +1,19 @@
+/*
+---- VERSION 0.4.0 AetherVM vs 0.3.0 Unicorn ----
+
+icpp % icpp-v0.4.0-macos-arm64/bin/icpp snippet/aes.cc
+Test icpp for aes from 'AetherVM' to 'AetherVM'.
+...
+Execution time: 4978791 ns (4978.791 µs)
+
+
+icpp % icpp-v0.3.0-macos-arm64/bin/icpp snippet/aes.cc
+Test icpp for aes from 'AetherVM' to 'AetherVM'.
+...
+Test icpp for aes from 'AetherVM' to 'AetherVM'.
+Execution time: 8619375 ns (8619.375 µs)
+*/
+
 #include <icpp.hpp>
 
 #include "aes.c"
