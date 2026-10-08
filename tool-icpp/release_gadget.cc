@@ -117,7 +117,7 @@ static void pack_ios_ipa(const fs::path &projroot, const fs::path &outroot,
                           buildout.string())
                   .data());
 
-  auto finalipa = outroot / std::format("icpp-gadget-ios-v{}.ipa", version);
+  auto finalipa = outroot / std::format("icpp-server-v{}-ios.ipa", version);
   std::system(
       std::format("mv {}/icpp.ipa {}", buildout.string(), finalipa.string())
           .data());
