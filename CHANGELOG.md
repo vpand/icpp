@@ -1,3 +1,10 @@
+## v0.4.1
+Bug fixes:
+ * icpp: fix the existing relocation check for lazily resolved symbols with different names;
+
+Improvements:
+ * icpp: add ICPP_NO_AETHERVM environment to disable loading builtin aether vm and binary modules.
+
 ## v0.4.0
 Bug fixes:
  * icpp: fix the existing relocation check for lazily resolved symbols;

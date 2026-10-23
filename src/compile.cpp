@@ -101,8 +101,10 @@ int compile_source_icpp(int argc, const char **argv) {
   // add aebi/aevm include
   auto aebiinc = std::format("-I{}/aebi", rtinc);
   auto aevminc = std::format("-I{}/aevm", rtinc);
-  args.push_back(aebiinc.data());
-  args.push_back(aevminc.data());
+  if (enable_aethervm()) {
+    args.push_back(aebiinc.data());
+    args.push_back(aevminc.data());
+  }
 
 #if __APPLE__
   std::string_view argsysroot = "-isysroot";

@@ -44,6 +44,7 @@ bool is_c_source(std::string_view path);
 bool is_cpp_source(std::string_view path);
 bool is_cppm_source(std::string_view path);
 bool is_interpretable(std::string_view path);
+bool enable_aethervm();
 int rand_value();
 std::string rand_string(int length);
 std::string rand_filename(int length, std::string_view ext = "");

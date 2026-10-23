@@ -69,6 +69,13 @@ bool is_interpretable(std::string_view path) {
 #endif
 }
 
+bool enable_aethervm() {
+  // enable AetherVM unless explicitly disabled by the environment variable
+  // ICPP_NO_AETHERVM, useful for testing and debugging your freshly built
+  // aether vm and binary modules
+  return !std::getenv("ICPP_NO_AETHERVM");
+}
+
 int rand_value() {
   std::mt19937 mt(time(nullptr));
   return mt();

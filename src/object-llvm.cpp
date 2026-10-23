@@ -1153,7 +1153,8 @@ void Object::decodeInsns(TextSection &text) {
         auto rit = irelocs_.end();
         for (auto it = irelocs_.begin(), end = irelocs_.end(); it != end;
              it++) {
-          if (rtaddr == it->target && symtype == it->type) {
+          if (rtaddr == it->target && symtype == it->type &&
+              rsym.name == it->name) {
             rit = it;
             // fix it as a data relocation for coff object
             if (arch() == aether::ARM64 && ofile_->isCOFF() &&
